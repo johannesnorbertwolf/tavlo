@@ -73,6 +73,9 @@ safe height, chrome in a rail. `ChromeType` sizes scale by 0.86 on a phone (set 
   from `design/dark-mode/themes.js` (C3 · Espresso + warm text, walnut board). No hard-coded
   `Color(hex:)`/`.white` in chrome: page = `ChromeKit.pageColor`, label on a solid accent =
   `ChromeKit.onAccent`, dimmed text = `inkSecondary` / `inkDim(x)`. Token tables in `REFERENCE.md`.
+- **Localized display titles use `ChromeType.statsTitle` / `localizedWordmark`**, never a raw
+  Cormorant font: Cormorant is Latin-only, and those fall back to the system serif for Greek
+  (#225). Strings live in `Localizable.xcstrings` (de/nl/el); see REFERENCE.md "Localization".
 - **Chrome text sizes come from `ChromeType`** (`GameView.swift`, #92): fixed sizes one step
   above the system text styles, for older players. No hardcoded font sizes in chrome views;
   board/dice/checker sizing is geometry-scaled and exempt.

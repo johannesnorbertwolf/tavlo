@@ -236,25 +236,18 @@ struct HandicapSettingsView: View {
                                          side: Binding<HandicapRole>?, fixedSide: String? = nil,
                                          @ViewBuilder control: () -> Control) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Text(title)
-                    .font(ChromeType.body.weight(.semibold))
-                    .foregroundStyle(ChromeTheme.ink)
-                Spacer(minLength: 8)
-                if let side {
-                    Picker("For", selection: side) {
-                        ForEach(HandicapRole.allCases) { r in
-                            Text(r.label(vsComputer: vsComputer)).tag(r)
-                        }
+            if ChromeType.isCompact, let side {
+                // Phone: a long side label (Greek "Υπολογιστής", #225) would truncate in
+                // the shared row, so the picker drops to its own full-width row then.
+                ViewThatFits(in: .horizontal) {
+                    itemHeader(title: title, side: side, fixedSide: fixedSide)
+                    VStack(alignment: .leading, spacing: 10) {
+                        itemTitle(title)
+                        sidePicker(side)
                     }
-                    .pickerStyle(.segmented)
-                    .tint(ChromeTheme.undoTint)
-                    .frame(maxWidth: 210)
-                } else if let fixedSide {
-                    Text(fixedSide)
-                        .font(ChromeType.callout)
-                        .foregroundStyle(ChromeKit.inkSecondary)
                 }
+            } else {
+                itemHeader(title: title, side: side, fixedSide: fixedSide)
             }
             control()
             Text(caption)
@@ -263,6 +256,39 @@ struct HandicapSettingsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .chromeCard(padding: 16)
+    }
+
+    /// An item's title row: the title with the favoured-side picker (or fixed side) trailing.
+    private func itemHeader(title: LocalizedStringKey, side: Binding<HandicapRole>?,
+                            fixedSide: String?) -> some View {
+        HStack(spacing: 12) {
+            itemTitle(title)
+            Spacer(minLength: 8)
+            if let side {
+                sidePicker(side)
+                    .frame(maxWidth: 210)
+            } else if let fixedSide {
+                Text(fixedSide)
+                    .font(ChromeType.callout)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+            }
+        }
+    }
+
+    private func itemTitle(_ title: LocalizedStringKey) -> some View {
+        Text(title)
+            .font(ChromeType.body.weight(.semibold))
+            .foregroundStyle(ChromeTheme.ink)
+    }
+
+    private func sidePicker(_ side: Binding<HandicapRole>) -> some View {
+        Picker("For", selection: side) {
+            ForEach(HandicapRole.allCases) { r in
+                Text(r.label(vsComputer: vsComputer)).tag(r)
+            }
+        }
+        .pickerStyle(.segmented)
+        .tint(ChromeTheme.undoTint)
     }
 
     /// Checkers per side (13…17): a stepper row for each side, neutral (no favoured side).
