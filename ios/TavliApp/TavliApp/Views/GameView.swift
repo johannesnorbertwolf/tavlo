@@ -1548,11 +1548,33 @@ enum ChromeType {
 
     // Display faces with bespoke sizes.
     static var winTitle: Font { .system(size: pt(54), weight: .bold, design: .serif) }
-    static var statsTitle: Font { .custom("Cormorant Garamond", size: pt(38)) }
+    static var statsTitle: Font {
+        displaySerifCoversUI
+            ? .custom("Cormorant Garamond", size: pt(38))
+            : .system(size: pt(38), design: .serif)
+    }
+
+    /// Whether the bundled display serif has glyphs for the UI language. Cormorant
+    /// Garamond is Latin-only, so a Greek title (#225) would mix its few Greek glyphs
+    /// (μ, π, Δ, Ω) with fallback ones; there the titles use the system serif instead.
+    /// Probed once with a localized title, so Latin-script languages are unchanged.
+    private static let displaySerifCoversUI: Bool = {
+        let descriptor = UIFontDescriptor(fontAttributes: [.family: "Cormorant Garamond"])
+        let font = UIFont(descriptor: descriptor, size: 20) as CTFont
+        let glyphs = CTFontCopyCharacterSet(font) as CharacterSet
+        let sample = String(localized: "Settings").unicodeScalars
+        return sample.allSatisfy { glyphs.contains($0) }
+    }()
     /// Big score digits (Full Tavli score card): the chrome face, bold, so digits are
     /// lining figures like the in-game scoreboard — never the display serif.
     static var scoreDisplay: Font { .system(size: pt(34), weight: .bold) }
     static var wordmark: Font { .custom("Cormorant Garamond", size: pt(96)) }
+    /// The wordmark size for a *localized* display line ("Play Online", "Full Tavli"):
+    /// the display serif, or the system serif where it lacks the UI script (#225).
+    /// The "Tavlo" brand wordmark itself always keeps `wordmark`.
+    static var localizedWordmark: Font {
+        displaySerifCoversUI ? wordmark : .system(size: pt(96), design: .serif)
+    }
 
     // Debug overlay (developer chrome, but it was 9–10 pt — illegible on device).
     static var debugMono: Font { .system(size: pt(12), design: .monospaced) }

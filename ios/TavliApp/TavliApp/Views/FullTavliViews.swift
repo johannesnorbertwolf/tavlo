@@ -254,7 +254,7 @@ struct FullTavliTransitionView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     Text("Full Tavli")
-                        .font(ChromeType.wordmark)
+                        .font(ChromeType.localizedWordmark)
                         .compactSingleLine()
                         .foregroundStyle(CaramelPalette.frameText)
                     FullTavliScoreCard(state: state)

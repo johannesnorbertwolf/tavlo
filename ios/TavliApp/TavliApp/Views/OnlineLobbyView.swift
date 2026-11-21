@@ -120,7 +120,7 @@ private struct OnlineLobbyView: View {
                 VStack(spacing: 24) {
                     header
                     Text("Play Online")
-                        .font(ChromeType.wordmark)
+                        .font(ChromeType.localizedWordmark)
                         .compactSingleLine()
                         // One line on iPad too: let the wordmark run wider than the
                         // 520 pt column rather than wrap (the screen has the room).

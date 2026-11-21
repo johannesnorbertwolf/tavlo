@@ -46,6 +46,10 @@ Pure engine + Core ML agent live in `TavliEngine/Sources/TavliEngine/` (SwiftUI-
 
 The SwiftUI views bind to `GameSession`'s published read-state + intents (no game logic in views).
 
+**Languages.** English, German, Dutch and Greek (#225, from `ios/scripts/add_greek_strings.py`;
+awaiting native-speaker review) in `TavliApp/TavliApp/Localizable.xcstrings`; conventions + Greek
+glossary in `TavliApp/TavliApp/Views/REFERENCE.md` ("Localization").
+
 **Appearance (#191).** The app follows the iOS light/dark setting by default (Settings → Display →
 Appearance: System / Light / Dark, applied in `App.swift` as the windows'
 `overrideUserInterfaceStyle`). Every colour token is a light/dark pair; light mode is unchanged and
