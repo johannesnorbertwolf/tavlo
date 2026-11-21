@@ -231,6 +231,9 @@ struct PlayableBoardView: View {
         // Online (#134): lock the board on the opponent's turn — blocks tap-to-roll
         // and tap/drag while letting the incoming move animate.
         .disabled(!interactive)
+        // #185: the physical board never mirrors under a right-to-left language — point
+        // numbering, drag gestures and hit-testing all assume LTR geometry.
+        .boardLayoutDirection()
     }
 
     /// Compact per-point checker counts, exposed for UI tests to assert board

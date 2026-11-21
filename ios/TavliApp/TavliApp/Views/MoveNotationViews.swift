@@ -1,9 +1,11 @@
 import SwiftUI
 import TavliEngine
+import BoardGeometry
 
 /// Rendering of the engine's `MoveNotation` (#178), shared by the move history, the
 /// post-game review and the drill: the notation tokens (`13/7^`, `bar/22`, `6/off`)
-/// stay English; only the phrases "No move" / "Mother pinned" are localized.
+/// stay English (Western digits, LTR-isolated under RTL, #185); only the phrases
+/// "No move" / "Mother pinned" are localized.
 
 /// A move's notation as one `Text`: `^` (a pin) slightly bold in the accent colour,
 /// `*` (a hit) in the text colour; "No move" in secondary ink.
@@ -12,6 +14,7 @@ struct MoveNotationText: View {
     var font: Font = ChromeType.callout
     var color: SwiftUI.Color = ChromeTheme.ink
     var accent: SwiftUI.Color = ChromeTheme.undoTint
+    @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
         if notation.noMove {
@@ -26,7 +29,16 @@ struct MoveNotationText: View {
         }
     }
 
+    /// #185: under a right-to-left language the notation is wrapped in an LTR isolate
+    /// (`BidiText`), so `13/7^ 8/4` keeps its board order instead of the bidi algorithm
+    /// reordering its number groups. Left-to-right languages render exactly as before.
     private var styled: Text {
+        guard layoutDirection == .rightToLeft else { return tokens }
+        return Text(verbatim: BidiText.leftToRightIsolate) + tokens
+            + Text(verbatim: BidiText.popDirectionalIsolate)
+    }
+
+    private var tokens: Text {
         var out = Text(verbatim: "")
         for (i, seg) in notation.segments.enumerated() {
             if i > 0 { out = out + Text(verbatim: " ") }

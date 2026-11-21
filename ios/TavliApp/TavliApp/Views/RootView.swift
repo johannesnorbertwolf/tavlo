@@ -811,7 +811,7 @@ private struct ModePickerView: View {
                     .frame(width: 28)
                 Text(title)
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
+                DirectionalSymbol("chevron.right")
                     .foregroundStyle(ChromeKit.inkSecondary)
             }
         }
@@ -903,7 +903,7 @@ private struct ContinueCard: View {
                 }
                 Spacer(minLength: 8)
                 if SaveCopy.resumable(meta) {
-                    Image(systemName: "chevron.right")
+                    DirectionalSymbol("chevron.right")
                         .font(ChromeType.callout.bold())
                         .foregroundStyle(ChromeKit.inkSecondary)
                 } else {

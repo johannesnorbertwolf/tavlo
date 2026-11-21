@@ -15,6 +15,12 @@
             "value" : "Απόκρυψη debug"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پنهان کردن پنل اشکال‌زدایی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -37,6 +43,12 @@
             "value" : "Περισσότερα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بیشتر"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -57,6 +69,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εμφάνιση debug"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نمایش پنل اشکال‌زدایی"
           }
         },
         "nl" : {
@@ -82,6 +100,12 @@
             "value" : " · παραλείφθηκαν %lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %lld رد شد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -102,6 +126,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δύο παίκτες σε αυτό το iPhone"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دو نفره روی همین آیفون"
           }
         },
         "nl" : {
@@ -133,6 +163,12 @@
             "value" : "· Blunder %1$@ of %2$@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· اشتباه بزرگ %1$@ از %2$@"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -156,6 +192,12 @@
             "value" : "· Γκάφα %1$lld από %2$lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· اشتباه بزرگ %1$lld از %2$lld"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -177,6 +219,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(πάσο)"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(بدون حرکت)"
           }
         },
         "nl" : {
@@ -203,6 +251,12 @@
             "value" : "Παίζει: %@…"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ در حال حرکت…"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -224,6 +278,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Νίκη: %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ برنده شد"
           }
         },
         "nl" : {
@@ -249,6 +309,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Σειρά: %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نوبت %@"
           }
         },
         "nl" : {
@@ -279,6 +345,12 @@
             "value" : "%1$@W – %2$@L"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ برد – %2$@ باخت"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -300,6 +372,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld ήττες στη σειρά ↓"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld باخت پشت سر هم ↓"
           }
         },
         "nl" : {
@@ -325,6 +403,12 @@
             "value" : "%lld νίκες στη σειρά ↑"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld برد پشت سر هم ↑"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -347,6 +431,12 @@
             "value" : "−%@ πιθανότητα νίκης"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ شانس برد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -367,6 +457,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "−%@ πιθανότητα νίκης έναντι της κίνησής σου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ شانس برد نسبت به حرکت تو"
           }
         },
         "nl" : {
@@ -392,6 +488,12 @@
             "value" : "1 ήττα στη σειρά ↓"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "۱ باخت پشت سر هم ↓"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -415,6 +517,12 @@
             "value" : "1 νίκη στη σειρά ↑"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "۱ برد پشت سر هم ↑"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -435,6 +543,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Σύνολο %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "همه %@"
           }
         },
         "nl" : {
@@ -460,6 +574,12 @@
             "value" : "Σύνολο %lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "همه %lld"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -481,6 +601,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Όλες οι κινήσεις"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "همهٔ حرکت‌ها"
           }
         },
         "nl" : {
@@ -511,6 +637,12 @@
             "value" : "Analyzing move %1$@ of %2$@…"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال تحلیل حرکت %1$@ از %2$@…"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -532,6 +664,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ανάλυση κίνησης %1$lld από %2$lld…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال تحلیل حرکت %1$lld از %2$lld…"
           }
         },
         "nl" : {
@@ -556,6 +694,12 @@
             "value" : "Αναλύω τις κινήσεις σου…"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال تحلیل حرکت‌هایت…"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -576,6 +720,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κινήσεις υπολογιστή με εφέ"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "انیمیشن حرکت کامپیوتر"
           }
         },
         "nl" : {
@@ -600,6 +750,12 @@
             "value" : "Αυτόματη ζαριά"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ریختن خودکار تاس"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -620,6 +776,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πίσω"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازگشت"
           }
         },
         "nl" : {
@@ -645,6 +807,12 @@
             "value" : "καλύτερη"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -666,6 +834,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Καλύτερη κίνηση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین حرکت"
           }
         },
         "nl" : {
@@ -691,6 +865,12 @@
             "value" : "Έπαιξες την καλύτερη ✓"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین حرکت انجام شد ✓"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -711,6 +891,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Γκάφα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اشتباه بزرگ"
           }
         },
         "nl" : {
@@ -736,6 +922,12 @@
             "value" : "και οι δύο"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هر دو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -759,6 +951,12 @@
             "value" : "Άκυρο"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لغو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -779,6 +977,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Έλεγχος…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال بررسی…"
           }
         },
         "nl" : {
@@ -804,6 +1008,12 @@
             "value" : "Διάλεξε προορισμό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مقصد را انتخاب کن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -826,6 +1036,12 @@
             "value" : "Διάλεξε ενδιάμεση θέση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خانهٔ میانی را انتخاب کن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -846,6 +1062,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κλείσιμο"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بستن"
           }
         },
         "nl" : {
@@ -871,6 +1093,12 @@
             "value" : "Παραλίγο — υπάρχει καλύτερη κίνηση. Ξαναπροσπάθησε."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نزدیک بود — حرکت بهتری هست. دوباره امتحان کن."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -892,6 +1120,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Σύγκριση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مقایسه"
           }
         },
         "nl" : {
@@ -916,6 +1150,12 @@
             "value" : "Συνέχισε την παρτίδα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ادامهٔ بازی قبلی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -937,6 +1177,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δεν έγινε αξιολόγηση — ξαναπροσπάθησε."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ارزیابی ممکن نشد — دوباره امتحان کن."
           }
         },
         "nl" : {
@@ -964,6 +1210,12 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
+            "value" : "d=%1$@ %2$@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "d=%1$@ %2$@"
           }
         },
@@ -996,6 +1248,12 @@
             "value" : "Dice %1$@ · %2$@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس %1$@ و %2$@"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1024,6 +1282,12 @@
             "value" : "Dice %1$@ · %2$@ — find a better move"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس %1$@ و %2$@ — حرکت بهتری پیدا کن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1045,6 +1309,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ζάρια %1$lld · %2$lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس %1$lld و %2$lld"
           }
         },
         "nl" : {
@@ -1070,6 +1340,12 @@
             "value" : "Ζάρια %1$lld · %2$lld — βρες καλύτερη κίνηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس %1$lld و %2$lld — حرکت بهتری پیدا کن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1090,6 +1366,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Τα ζάρια ρίχνονται αυτόματα στην αρχή της σειράς σου."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌ها در شروع نوبتت خودکار ریخته می‌شوند."
           }
         },
         "nl" : {
@@ -1115,6 +1397,12 @@
             "value" : "Προβολή"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نمایش"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1137,6 +1425,12 @@
             "value" : "Τέλος"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمام"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1157,6 +1451,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εξάσκηση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمرین"
           }
         },
         "nl" : {
@@ -1182,6 +1482,12 @@
             "value" : "Ξεκίνα εξάσκηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمرین اشتباه‌ها"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1202,6 +1508,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Η εξάσκηση ολοκληρώθηκε"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمرین تمام شد"
           }
         },
         "nl" : {
@@ -1227,6 +1539,12 @@
             "value" : "Εξαιρετικά — αυτή είναι η καλύτερη κίνηση!"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "عالی — این بهترین حرکت است!"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1247,6 +1565,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ψάχνω τις γκάφες σου…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال پیدا کردن اشتباه‌هایت…"
           }
         },
         "nl" : {
@@ -1272,6 +1596,12 @@
             "value" : "Πρώτη κίνηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت اول"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1293,6 +1623,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παρτίδα · "
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی · "
           }
         },
         "nl" : {
@@ -1318,6 +1654,12 @@
             "value" : "Παραίτηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تسلیم"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1339,6 +1681,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πολύ καλά — σχεδόν τέλεια."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خیلی خوب — تقریباً بهترین حرکت."
           }
         },
         "nl" : {
@@ -1363,6 +1711,12 @@
             "value" : "Ιστορικό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاریخچه"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1383,6 +1737,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εσύ – Υπολογιστής"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "انسان در برابر کامپیوتر"
           }
         },
         "nl" : {
@@ -1408,6 +1768,12 @@
             "value" : "Εγώ"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اول من"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1428,6 +1794,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κάλεσε φίλο"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دعوت از یک دوست"
           }
         },
         "nl" : {
@@ -1453,6 +1825,12 @@
             "value" : "Συνέχισε"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ادامهٔ بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1473,6 +1851,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Τελευταίες 20"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "۲۰ بازی آخر"
           }
         },
         "nl" : {
@@ -1497,6 +1881,12 @@
             "value" : "Αποχώρηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ترک مسابقه"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1517,6 +1907,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κάνε την κίνησή σου στο ταμπλό."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکتت را روی صفحه انجام بده."
           }
         },
         "nl" : {
@@ -1547,6 +1943,12 @@
             "value" : "Move %1$@ of %2$@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت %1$@ از %2$@"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1568,6 +1970,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κίνηση %1$lld από %2$lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت %1$lld از %2$lld"
           }
         },
         "nl" : {
@@ -1592,6 +2000,12 @@
             "value" : "Ιστορικό κινήσεων"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاریخچهٔ حرکت‌ها"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1612,6 +2026,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κινήσεις"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت‌ها"
           }
         },
         "nl" : {
@@ -1637,6 +2057,12 @@
             "value" : "Οι γκάφες μου"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اشتباه‌های من"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1657,6 +2083,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Το ρεκόρ μου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کارنامهٔ من"
           }
         },
         "nl" : {
@@ -1682,6 +2114,12 @@
             "value" : "Όνομα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نام"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1702,6 +2140,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δώσε ένα όνομα για να τη βρίσκεις στην αρχική οθόνη."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای این بازی ذخیره‌شده نامی بگذار تا در صفحهٔ شروع پیدایش کنی."
           }
         },
         "nl" : {
@@ -1727,6 +2171,12 @@
             "value" : "Επόμενη"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بعدی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1748,6 +2198,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Επόμενη →"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بعدی ←"
           }
         },
         "nl" : {
@@ -1772,6 +2228,12 @@
             "value" : "Καμία γκάφα — μπράβο!"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بدون اشتباه بزرگ — خوب بازی کردی!"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1792,6 +2254,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Καμία γκάφα για εξάσκηση — μπράβο!"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اشتباهی برای تمرین نیست — آفرین!"
           }
         },
         "nl" : {
@@ -1816,6 +2284,12 @@
             "value" : "Δεν υπάρχουν παρτίδες σε εξέλιξη. Κάλεσε έναν φίλο για να ξεκινήσετε μία."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی در جریانی نداری. یک دوست را دعوت کن تا بازی را شروع کنید."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1836,6 +2310,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Καμία παρτίδα ακόμα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز بازی‌ای نیست"
           }
         },
         "nl" : {
@@ -1860,6 +2340,12 @@
             "value" : "Δεν υπάρχουν κινήσεις για ανάλυση."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکتی برای بررسی نیست."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1880,6 +2366,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Καμία κίνηση ακόμα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز حرکتی نیست"
           }
         },
         "nl" : {
@@ -1905,6 +2397,12 @@
             "value" : "Κανένα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هیچ‌کدام"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1926,6 +2424,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Όχι ακριβώς — σκέψου λίγο ακόμα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نه کاملاً — کمی بیشتر فکر کن."
           }
         },
         "nl" : {
@@ -1951,6 +2455,12 @@
             "value" : "Μοναδική δυνατή κίνηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنها حرکت ممکن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -1972,6 +2482,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Με ζαριά"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس شروع"
           }
         },
         "nl" : {
@@ -1996,6 +2512,12 @@
             "value" : "Ποιος ξεκινάει;"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس شروع بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2016,6 +2538,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ή διάλεξε εσύ ποιος ξεκινά:"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "یا دستی انتخاب کن:"
           }
         },
         "nl" : {
@@ -2041,6 +2569,12 @@
             "value" : "Διάλεξε πούλι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "یک مهره انتخاب کن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2061,6 +2595,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παίξε μια παρτίδα για να ξεκινήσει το ρεκόρ σου."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "یک بازی کن تا کارنامه‌ات شروع شود."
           }
         },
         "nl" : {
@@ -2086,6 +2626,12 @@
             "value" : "Ξαναπαίξε"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی دوباره"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2108,6 +2654,12 @@
             "value" : "Παίζεις με"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی با"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2128,6 +2680,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παίξε online"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی آنلاین"
           }
         },
         "nl" : {
@@ -2153,6 +2711,12 @@
             "value" : "δική σου"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "انجام‌شده"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2174,6 +2738,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Προηγούμενη"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "قبلی"
           }
         },
         "nl" : {
@@ -2198,6 +2768,12 @@
             "value" : "Κόκκινα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "قرمز"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2218,6 +2794,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παραίτηση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تسلیم"
           }
         },
         "nl" : {
@@ -2242,6 +2824,12 @@
             "value" : "Ανάλυση παρτίδας"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بررسی بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2262,6 +2850,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Η ανάλυση χρειάζεται το μοντέλο AI, που δεν είναι διαθέσιμο."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بررسی به مدل هوش مصنوعی نیاز دارد که در دسترس نیست."
           }
         },
         "nl" : {
@@ -2287,6 +2881,12 @@
             "value" : "Ρίχνει…"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال ریختن تاس…"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2307,6 +2907,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αποθήκευση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ذخیره"
           }
         },
         "nl" : {
@@ -2332,6 +2938,12 @@
             "value" : "Αποθήκευση παρτίδας"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ذخیرهٔ بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2354,6 +2966,12 @@
             "value" : "Αποθηκευμένες παρτίδες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی‌های ذخیره‌شده"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2374,6 +2992,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ρυθμίσεις"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنظیمات"
           }
         },
         "nl" : {
@@ -2399,6 +3023,12 @@
             "value" : "Δείξε στο ταμπλό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نمایش روی صفحه"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2420,6 +3050,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δείξε τη λύση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نمایش راه‌حل"
           }
         },
         "nl" : {
@@ -2445,6 +3081,12 @@
             "value" : "Δείχνει τη ζωντανή πιθανότητα νίκης σου στη διάρκεια της παρτίδας."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شانس بردت را در طول بازی نشان می‌دهد."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2465,6 +3107,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Συνδέσου στο Game Center για να καλέσεις φίλο και να παίξεις online."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای دعوت از دوستت و بازی آنلاین، وارد Game Center شو."
           }
         },
         "nl" : {
@@ -2490,6 +3138,12 @@
             "value" : "Παράλειψη"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "رد کردن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2510,6 +3164,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αργή ζαριά και πούλια που κινούνται ένα-ένα όταν παίζει ο υπολογιστής."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در نوبت کامپیوتر، تاس آهسته ریخته می‌شود و مهره‌ها یکی‌یکی حرکت می‌کنند."
           }
         },
         "nl" : {
@@ -2535,6 +3195,12 @@
             "value" : "Λύθηκαν %1$lld από %2$lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld از %2$lld حل شد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2555,6 +3221,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Σερί"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پیاپی"
           }
         },
         "nl" : {
@@ -2580,6 +3252,12 @@
             "value" : "Πάτα τα ζάρια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای ریختن، روی تاس بزن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2601,6 +3279,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πάτα το ταμπλό για ζαριά"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای ریختن تاس، روی صفحه بزن"
           }
         },
         "nl" : {
@@ -2626,6 +3310,12 @@
             "value" : "Ξεκινάει ο Υπολογιστής!"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر شروع می‌کند!"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2647,6 +3337,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ο Υπολογιστής έπαιξε"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت کامپیوتر"
           }
         },
         "nl" : {
@@ -2672,6 +3368,12 @@
             "value" : "Ο Υπολογιστής έπαιξε την καλύτερη ✓"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر بهترین حرکت را زد ✓"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2694,6 +3396,12 @@
             "value" : "Υπολογιστής"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اول کامپیوتر"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2714,6 +3422,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ο Υπολογιστής σκέφτεται…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر در حال فکر کردن است…"
           }
         },
         "nl" : {
@@ -2739,6 +3453,12 @@
             "value" : "Η ζαριά έναρξης αποφασίζει ποιος ξεκινάει, εκτός αν διαλέξεις εσύ."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس شروع تعیین می‌کند چه کسی اول بازی کند، مگر اینکه خودت یک طرف را انتخاب کنی."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2760,6 +3480,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ίδια ζάρια (%1$lld – %2$lld) — ξαναρίχνουμε…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مساوی (%1$lld در برابر %2$lld) — دوباره ریخته می‌شود…"
           }
         },
         "nl" : {
@@ -2784,6 +3510,12 @@
             "value" : "Κορυφαίες κινήσεις"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین حرکت‌ها"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2805,6 +3537,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ξαναπροσπάθησε"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دوباره امتحان کن"
           }
         },
         "nl" : {
@@ -2835,6 +3573,12 @@
             "value" : "Turn: %1$@  Dice: %2$@,%3$@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نوبت: %1$@  تاس: %2$@,%3$@"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2855,6 +3599,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αναίρεση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برگرداندن"
           }
         },
         "nl" : {
@@ -2880,6 +3630,12 @@
             "value" : "Αναμονή για %@…"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در انتظار %@…"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2900,6 +3656,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Λευκά"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سفید"
           }
         },
         "nl" : {
@@ -2924,6 +3686,12 @@
             "value" : "Πιθανότητα νίκης"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شانس برد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2944,6 +3712,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πιθανότητα νίκης στη διάρκεια της παρτίδας"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شانس برد در طول بازی"
           }
         },
         "nl" : {
@@ -2969,6 +3743,12 @@
             "value" : "Μπάρα πιθανότητας νίκης"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نوار احتمال برد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -2990,6 +3770,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εσύ"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تو"
           }
         },
         "nl" : {
@@ -3015,6 +3801,12 @@
             "value" : "Ξεκινάς εσύ!"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تو شروع می‌کنی!"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3036,6 +3828,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Έπαιξες"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت تو"
           }
         },
         "nl" : {
@@ -3061,6 +3859,12 @@
             "value" : "Εσύ"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تو شروع می‌کنی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3081,6 +3885,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Έχεις ακόμα %@%% πιθανότητα να νικήσεις. Σίγουρα θέλεις να παραιτηθείς;"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز %@%% شانس برد داری. مطمئنی می‌خواهی تسلیم شوی؟"
           }
         },
         "nl" : {
@@ -3106,6 +3916,12 @@
             "value" : "Δοκίμασες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تلاش تو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3126,6 +3942,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Οι παρτίδες σου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی‌های تو"
           }
         },
         "nl" : {
@@ -3151,6 +3973,12 @@
             "value" : "Η κίνησή σου"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت تو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3172,6 +4000,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δική σου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مال تو"
           }
         },
         "nl" : {
@@ -3196,6 +4030,12 @@
             "value" : "Πλακωτό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3216,6 +4056,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Στάνταρ"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استاندارد"
           }
         },
         "nl" : {
@@ -3240,6 +4086,12 @@
             "value" : "Πόρτες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پورتس"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3260,6 +4112,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Φεύγα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فوگا"
           }
         },
         "nl" : {
@@ -3284,6 +4142,12 @@
             "value" : "Πλακωτό (κανόνες σπιτιού)"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو (قوانین خانگی)"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3304,6 +4168,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πλακωτό (στάνταρ κανόνες)"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو (قوانین استاندارد)"
           }
         },
         "nl" : {
@@ -3328,6 +4198,12 @@
             "value" : "Το παιχνίδι του πλακώματος, όπως το πρωτοέμαθε ο υπολογιστής. Αν πέσεις σε μοναχό πούλι του αντιπάλου, το πλακώνεις κάτω από το δικό σου μέχρι να φύγεις. Μαζεύεις μόνο με ακριβείς ζαριές και κάθε νίκη μετράει ένα παιχνίδι."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی حبس کردن، همان‌طور که کامپیوتر اول یاد گرفت. اگر روی یک مهرهٔ تنهای حریف فرود بیایی، آن را زیر مهرهٔ خودت حبس می‌کنی تا وقتی که از آنجا بروی. مهره‌ها را فقط با تاس دقیق می‌شود بیرون برد؛ هر برد یک بازی حساب می‌شود."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3348,6 +4224,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πλακωτό με τους στάνταρ κανόνες (bkgm): παίζεις και τα δύο ζάρια όποτε μπορείς (το μεγαλύτερο, αν χωράει μόνο το ένα) και μαζεύεις με μεγαλύτερες ζαριές από την ψηλότερη θέση σου. Αν πλακώσεις το τελευταίο πούλι του αντιπάλου στην αφετηρία του (τη μάνα), κερδίζεις δύο πόντους μόλις αδειάσει η δική σου αφετηρία. Αν πλακωθούν και οι δύο μάνες, το παιχνίδι λήγει ισόπαλο. Αν νικήσεις πριν μαζέψει ο αντίπαλος έστω ένα πούλι, παίρνεις επίσης δύο πόντους."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو با قوانین استاندارد (bkgm): هر وقت بتوانی از هر دو تاس استفاده کن (اگر فقط یکی جا شود، تاس بزرگ‌تر را)، و با تاس بزرگ‌تر از دورترین خانه‌ات مهره بیرون ببر. اگر آخرین مهرهٔ حریف را روی خانهٔ شروعش (مادر) حبس کنی، به محض خالی شدن خانهٔ شروع خودت دو امتیاز می‌بری؛ اگر هر دو مادر حبس شوند، بازی مساوی است. بردن پیش از آنکه حریف حتی یک مهره بیرون ببرد هم دو امتیاز دارد."
           }
         },
         "nl" : {
@@ -3372,6 +4254,12 @@
             "value" : "Ελληνικό τάβλι χωρίς κύβο διπλασιασμού. Ένα μοναχό πούλι που χτυπιέται βγαίνει έξω και πρέπει να ξαναμπεί στο σπίτι του αντιπάλου πριν κινηθεί οτιδήποτε άλλο. Αν νικήσεις πριν μαζέψει ο αντίπαλος έστω ένα πούλι, παίρνεις δύο πόντους."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تخته‌نرد یونانی بدون مکعب دوبل. مهرهٔ تنهایی که زده شود به بار می‌رود و باید پیش از هر حرکت دیگری در منطقهٔ خودی حریف دوباره وارد شود. بردن پیش از آنکه حریف حتی یک مهره بیرون ببرد دو امتیاز دارد."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3392,6 +4280,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Το παιχνίδι του τρεξίματος: και οι δύο πλευρές τρέχουν προς την ίδια κατεύθυνση γύρω από το ταμπλό, ξεκινώντας από αντίθετες γωνίες. Ένα πούλι κρατάει τη θέση, τίποτα δεν χτυπιέται ούτε πλακώνεται, και δεν επιτρέπεται να κλείσεις τον αντίπαλο πίσω από έξι συνεχόμενες θέσεις. Νίκη πριν μαζέψει ο αντίπαλος δίνει δύο πόντους."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی مسابقه‌ای: هر دو طرف از گوشه‌های روبه‌رو، در یک جهت دور صفحه می‌دوند. یک مهره برای گرفتن یک خانه کافی است، هیچ مهره‌ای زده یا حبس نمی‌شود، و نمی‌توانی حریف را پشت شش خانهٔ پشت سر هم گیر بیندازی. بردن پیش از آنکه حریف مهره‌ای بیرون ببرد دو امتیاز دارد."
           }
         },
         "nl" : {
@@ -3416,6 +4310,12 @@
             "value" : "Παιχνίδι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3436,6 +4336,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ο Υπολογιστής δεν είναι ακόμα διαθέσιμος"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر هنوز در دسترس نیست"
           }
         },
         "nl" : {
@@ -3460,6 +4366,12 @@
             "value" : "Equity"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ارزش موقعیت"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3480,6 +4392,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "−%@ equity"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ ارزش موقعیت"
           }
         },
         "nl" : {
@@ -3504,6 +4422,12 @@
             "value" : "Διπλό · 2 πόντοι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مارس · ۲ امتیاز"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3524,6 +4448,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Μονό · 1 πόντος"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برد ساده · ۱ امتیاز"
           }
         },
         "nl" : {
@@ -3548,6 +4478,12 @@
             "value" : "Ισοπαλία"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مساوی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3568,6 +4504,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Και οι δύο μάνες είναι πλακωμένες — κανείς δεν παίρνει πόντους."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هر دو مهرهٔ مادر حبس شده‌اند — هیچ‌کس امتیاز نمی‌گیرد."
           }
         },
         "nl" : {
@@ -3592,6 +4534,12 @@
             "value" : "Δύο παίκτες σε αυτό το iPad"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دو نفره روی همین آیپد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3612,6 +4560,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ο υπολογιστής μαθαίνει ακόμα: %@. Προς το παρόν παίξε με δύο παίκτες."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر هنوز در حال یادگرفتن %@ است. فعلاً آن را دو نفره بازی کن."
           }
         },
         "nl" : {
@@ -3636,6 +4590,12 @@
             "value" : "%@ · δύο παίκτες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · دو نفره"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3656,6 +4616,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Equity στη διάρκεια της παρτίδας"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ارزش موقعیت در طول بازی"
           }
         },
         "nl" : {
@@ -3680,6 +4646,12 @@
             "value" : "−%@ equity έναντι της κίνησής σου"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ ارزش موقعیت نسبت به حرکت تو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3700,6 +4672,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "έξω"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بار"
           }
         },
         "nl" : {
@@ -3724,6 +4702,12 @@
             "value" : "Πλήρες Τάβλι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاولی کامل"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3744,6 +4728,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πλήρες Τάβλι · "
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاولی کامل · "
           }
         },
         "nl" : {
@@ -3768,6 +4758,12 @@
             "value" : "Πλήρες Τάβλι · %@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاولی کامل · %@"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3788,6 +4784,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παιχνίδι %1$lld από 3 · %2$@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی %1$lld از ۳ · %2$@"
           }
         },
         "nl" : {
@@ -3812,6 +4814,12 @@
             "value" : "Επόμενο: παιχνίδι %lld από 3"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بعدی: بازی %lld از ۳"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3832,6 +4840,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ξεκίνα: %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شروع %@"
           }
         },
         "nl" : {
@@ -3856,6 +4870,12 @@
             "value" : "Συνέχεια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ادامه"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3876,6 +4896,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δες το τελικό αποτέλεσμα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دیدن نتیجهٔ نهایی"
           }
         },
         "nl" : {
@@ -3900,6 +4926,12 @@
             "value" : "Πίσω στο μενού"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازگشت به منو"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3920,6 +4952,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Τέλος παρτίδας"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پایان بازی"
           }
         },
         "nl" : {
@@ -3944,6 +4982,12 @@
             "value" : "%@ · 1 πόντος"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · ۱ امتیاز"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -3964,6 +5008,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · %2$lld πόντοι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld امتیاز"
           }
         },
         "nl" : {
@@ -3988,6 +5038,12 @@
             "value" : "Ισοπαλία"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دوره مساوی شد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4008,6 +5064,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κέρδισες το Πλήρες Τάβλι!"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاولی کامل را بردی!"
           }
         },
         "nl" : {
@@ -4032,6 +5094,12 @@
             "value" : "Νικητής στο Πλήρες Τάβλι: %@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ تاولی کامل را برد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4052,6 +5120,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Νικητής στο Πλήρες Τάβλι: %@!"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ برندهٔ تاولی کامل شد!"
           }
         },
         "nl" : {
@@ -4076,6 +5150,12 @@
             "value" : "Ίσοι πόντοι μετά από τρία παιχνίδια — ισοπαλία."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "امتیازها پس از سه بازی برابر است — دوره مساوی شد."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4096,6 +5176,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Νέο Πλήρες Τάβλι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاولی کامل جدید"
           }
         },
         "nl" : {
@@ -4120,6 +5206,12 @@
             "value" : "Ο υπολογιστής μαθαίνει ακόμα μερικά από τα παιχνίδια του Πλήρους Τάβλι. Προς το παρόν παίξε το Πλήρες Τάβλι με δύο παίκτες."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر هنوز در حال یادگرفتن بعضی از بازی‌های تاولی کامل است. فعلاً تاولی کامل را دو نفره بازی کن."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4140,6 +5232,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πλάκωσε μοναχό πούλι του αντιπάλου μέχρι να φύγεις. Κάθε νίκη μετράει έναν πόντο."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "روی یک مهرهٔ تنهای حریف فرود بیا تا آن را حبس کنی تا وقتی که از آنجا بروی. هر برد یک امتیاز دارد."
           }
         },
         "nl" : {
@@ -4164,6 +5262,12 @@
             "value" : "Πλάκωσε μοναχό πούλι του αντιπάλου. Με πλακωμένη μάνα μπορείς να πάρεις δύο πόντους."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "روی یک مهرهٔ تنهای حریف فرود بیا تا حبسش کنی؛ حبس کردن مهرهٔ مادر می‌تواند دو امتیاز بیاورد."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4184,6 +5288,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Χτύπα τα μοναχά πούλια και βγάλ' τα έξω. Πρέπει να ξαναμπούν πριν κινηθεί οτιδήποτε άλλο."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مهره‌های تنها را بزن و به بار بفرست؛ باید پیش از هر حرکت دیگری دوباره وارد شوند."
           }
         },
         "nl" : {
@@ -4208,6 +5318,12 @@
             "value" : "Όλοι τρέχουν προς την ίδια μεριά. Ένα πούλι κρατάει τη θέση, τίποτα δεν χτυπιέται."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هر دو طرف در یک جهت می‌دوند؛ یک مهره خانه را نگه می‌دارد و هیچ مهره‌ای زده نمی‌شود."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4228,6 +5344,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κέρδισες"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بردی"
           }
         },
         "nl" : {
@@ -4252,6 +5374,12 @@
             "value" : "Κέρδισες διπλό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "با مارس بردی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4272,6 +5400,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Νίκη με διπλό: %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ با مارس برد"
           }
         },
         "nl" : {
@@ -4296,6 +5430,12 @@
             "value" : "Παραιτείσαι από αυτό το παιχνίδι;"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "از این بازی تسلیم می‌شوی؟"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4316,6 +5456,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Έχεις ακόμα %lld%% πιθανότητα να νικήσεις."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز %lld%% شانس برد داری."
           }
         },
         "nl" : {
@@ -4340,6 +5486,12 @@
             "value" : "Ο υπολογιστής εκτιμά ακόμα τη θέση σου στους %@ πόντους."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر هنوز موقعیتت را %@ امتیاز ارزیابی می‌کند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4360,6 +5512,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παιχνίδι %1$lld από %2$lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی %1$lld از %2$lld"
           }
         },
         "nl" : {
@@ -4384,6 +5542,12 @@
             "value" : "Τελικό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نهایی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4404,6 +5568,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Επόμενο παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی بعدی"
           }
         },
         "nl" : {
@@ -4428,6 +5598,12 @@
             "value" : "Ρεβάνς"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مسابقهٔ دوباره"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4448,6 +5624,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πίσω στο λόμπι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازگشت به لابی"
           }
         },
         "nl" : {
@@ -4472,6 +5654,12 @@
             "value" : "Παραλλαγή"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نوع بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4492,6 +5680,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Προχωρημένα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پیشرفته"
           }
         },
         "nl" : {
@@ -4516,6 +5710,12 @@
             "value" : "2 στα 3"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین از ۳"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4536,6 +5736,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ένα παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "یک بازی"
           }
         },
         "nl" : {
@@ -4560,6 +5766,12 @@
             "value" : "Κερδίζει όποιος φτάσει πρώτος τις δύο νίκες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هر کس زودتر دو بازی ببرد، برنده است"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4580,6 +5792,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πόρτες → Φεύγα → Πλακωτό"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پورتس ← فوگا ← پلاکوتو"
           }
         },
         "nl" : {
@@ -4604,6 +5822,12 @@
             "value" : "Καμία αποθηκευμένη παρτίδα ακόμα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز بازی ذخیره‌شده‌ای نیست"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4624,6 +5848,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αποθήκευσε μια παρτίδα από το μενού της για να επιστρέψεις σε αυτήν αργότερα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی را از منوی آن ذخیره کن تا بعداً به آن برگردی."
           }
         },
         "nl" : {
@@ -4648,6 +5878,12 @@
             "value" : "1 κίνηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "۱ حرکت"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4668,6 +5904,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld κινήσεις"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld حرکت"
           }
         },
         "nl" : {
@@ -4692,6 +5934,12 @@
             "value" : "Διαγραφή"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4712,6 +5960,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Διάρκεια αγώνα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "طول مسابقه"
           }
         },
         "nl" : {
@@ -4736,6 +5990,12 @@
             "value" : "Ανάλυση την ώρα που παίζεις"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحلیل در حین بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4756,6 +6016,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Υπολογίζει την καλύτερη κίνηση σε κάθε γύρο ενώ παίζεις, ώστε η ανάλυση μετά την παρτίδα να ανοίγει αμέσως. Ανενεργό από προεπιλογή — μοιράζεται την υπολογιστική ισχύ με τον αντίπαλο υπολογιστή, οπότε αυτός μπορεί να παίζει πιο αργά. Καταναλώνει λίγη παραπάνω μπαταρία."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین حرکت هر نوبت را همان موقع محاسبه می‌کند تا بررسی پس از بازی فوراً باز شود. به‌طور پیش‌فرض خاموش است — از توان پردازشی کامپیوتر سهم می‌برد، پس ممکن است کامپیوتر کندتر حرکت کند. کمی باتری بیشتری مصرف می‌کند."
           }
         },
         "nl" : {
@@ -4780,6 +6046,12 @@
             "value" : "Πάσο"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بدون حرکت"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4800,6 +6072,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πλακώθηκε η μάνα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مادر حبس شد"
           }
         },
         "nl" : {
@@ -4824,6 +6102,12 @@
             "value" : "Τυχαία"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تصادفی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4844,6 +6128,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παίξε με Υπολογιστή"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی با کامپیوتر"
           }
         },
         "nl" : {
@@ -4868,6 +6158,12 @@
             "value" : "Επίπεδο %lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سطح %lld"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4888,6 +6184,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Επίπεδο"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سطح"
           }
         },
         "nl" : {
@@ -4912,6 +6214,12 @@
             "value" : "Διάρκεια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "طول"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4932,6 +6240,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παίξε"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی کن"
           }
         },
         "nl" : {
@@ -4956,6 +6270,12 @@
             "value" : "Ρυθμίσεις παιχνιδιού"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنظیم بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -4976,6 +6296,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ένα παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تک‌بازی"
           }
         },
         "nl" : {
@@ -5000,6 +6326,12 @@
             "value" : "Στάνταρ Πλακωτό"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتوی استاندارد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5020,6 +6352,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Το Πλήρες Τάβλι παίζει και τα τρία παιχνίδια με τη σειρά."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاولی کامل هر سه نوع بازی را به نوبت بازی می‌کند."
           }
         },
         "nl" : {
@@ -5044,6 +6382,12 @@
             "value" : "Το χρώμα με το οποίο παίζεις απέναντι στον υπολογιστή. Με το «Τυχαία» διαλέγεται πλευρά σε κάθε νέο παιχνίδι."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "رنگی که با آن در برابر کامپیوتر بازی می‌کنی. «تصادفی» برای هر بازی جدید یک طرف را انتخاب می‌کند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5064,6 +6408,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αρχάριος: συχνά χάνει την καλύτερη κίνηση."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مبتدی: اغلب بهترین حرکت را از دست می‌دهد."
           }
         },
         "nl" : {
@@ -5088,6 +6438,12 @@
             "value" : "Χαλαρός: κάνει ακόμα πολλά λάθη."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تفننی: هنوز زیاد اشتباه می‌کند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5108,6 +6464,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Άνετος: παίζεται, αλλά με συχνά λάθη."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "آرام: قابل بازی، با اشتباه‌های مکرر."
           }
         },
         "nl" : {
@@ -5132,6 +6494,12 @@
             "value" : "Σταθερός: λάθη πού και πού."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "محکم: گاهی اشتباه می‌کند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5152,6 +6520,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Σίγουρος: σπάνια μακριά από την καλύτερη κίνηση."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پایدار: به‌ندرت از بهترین حرکتش دور است."
           }
         },
         "nl" : {
@@ -5176,6 +6550,12 @@
             "value" : "Δυνατός: μόνο περιστασιακά λάθη."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "قوی: فقط گاه‌به‌گاه اشتباه می‌کند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5196,6 +6576,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Κοφτερός: πάντα η καλύτερη κίνηση, χωρίς να κοιτάει μπροστά."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تیز: همیشه بهترین حرکتش را می‌زند، بدون نگاه به جلو."
           }
         },
         "nl" : {
@@ -5220,6 +6606,12 @@
             "value" : "Πλήρης δύναμη: προβλέπει και την απάντησή σου."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "قدرت کامل: پاسخ تو را هم پیش‌بینی می‌کند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5240,6 +6632,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Υπολογιστής"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر"
           }
         },
         "nl" : {
@@ -5264,6 +6662,12 @@
             "value" : "Ο Υπολογιστής παίζει…"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر در حال حرکت است…"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5284,6 +6688,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εμφάνιση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ظاهر"
           }
         },
         "nl" : {
@@ -5308,6 +6718,12 @@
             "value" : "Σύστημα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سیستم"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5328,6 +6744,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Φωτεινό"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "روشن"
           }
         },
         "nl" : {
@@ -5352,6 +6774,12 @@
             "value" : "Σκούρο"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تیره"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5372,6 +6800,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Το «Σύστημα» ακολουθεί τη φωτεινή ή σκούρα λειτουργία της συσκευής σου."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "«سیستم» از حالت روشن یا تیرهٔ دستگاهت پیروی می‌کند."
           }
         },
         "nl" : {
@@ -5396,6 +6830,12 @@
             "value" : "%1$@: %2$lld πούλια ξεκινούν 6 θέσεις μπροστά"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$lld مهره ۶ خانه جلوتر شروع می‌کنند"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5416,6 +6856,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@: %2$lld βοήθειες ανά παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$lld راهنمایی در هر بازی"
           }
         },
         "nl" : {
@@ -5440,6 +6886,12 @@
             "value" : "%1$@: %2$lld νέες ζαριές ανά παιχνίδι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$lld تاس دوباره در هر بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5460,6 +6912,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: 1 πούλι ξεκινά 6 θέσεις μπροστά"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: ۱ مهره ۶ خانه جلوتر شروع می‌کند"
           }
         },
         "nl" : {
@@ -5484,6 +6942,12 @@
             "value" : "%@: 1 βοήθεια ανά παιχνίδι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: ۱ راهنمایی در هر بازی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5504,6 +6968,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: 1 νέα ζαριά ανά παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: ۱ تاس دوباره در هر بازی"
           }
         },
         "nl" : {
@@ -5528,6 +6998,12 @@
             "value" : "%1$@: μαζεύει μόνο από τις τελευταίες %2$lld θέσεις"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: فقط از %2$lld خانهٔ آخر مهره بیرون می‌برد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5548,6 +7024,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: μπορεί να μαζέψει με μεγαλύτερο ζάρι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: می‌تواند با تاس بزرگ‌تر مهره بیرون ببرد"
           }
         },
         "nl" : {
@@ -5572,6 +7054,12 @@
             "value" : "%@: ξεκινά"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: اول حرکت می‌کند"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5592,6 +7080,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@: παίζει με %2$lld πούλια"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: با %2$lld مهره بازی می‌کند"
           }
         },
         "nl" : {
@@ -5616,6 +7110,12 @@
             "value" : "%1$@: ασφαλής θέση %2$lld (εκεί ένα μοναχό πούλι δεν πλακώνεται)"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: خانهٔ امن %2$lld (مهرهٔ تنها آنجا حبس نمی‌شود)"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5636,6 +7136,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πούλια %1$lld–%2$lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مهره‌ها %1$lld–%2$lld"
           }
         },
         "nl" : {
@@ -5660,6 +7166,12 @@
             "value" : "Ζάρια υπέρ: %1$@ · %2$@"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌ها %2$@ به نفع %1$@ است"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5680,6 +7192,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Τα ζάρια σε ευνοούν %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌ها %@ به نفع توست"
           }
         },
         "nl" : {
@@ -5704,6 +7222,12 @@
             "value" : "Προβάδισμα %lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شروع جلوتر %lld"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5724,6 +7248,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Βοήθειες %lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "راهنمایی %lld"
           }
         },
         "nl" : {
@@ -5748,6 +7278,12 @@
             "value" : "Σπίτι %lld θέσεων"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "منطقهٔ خودی %lld خانه"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5768,6 +7304,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Μέτρια"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "متوسط"
           }
         },
         "nl" : {
@@ -5792,6 +7334,12 @@
             "value" : "Ξεκινά"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اول حرکت می‌کند"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5812,6 +7360,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Όχι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خاموش"
           }
         },
         "nl" : {
@@ -5836,6 +7390,12 @@
             "value" : "Ναι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "روشن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5856,6 +7416,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Μάζεμα με μεγαλύτερο ζάρι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بیرون بردن با تاس بزرگ‌تر"
           }
         },
         "nl" : {
@@ -5880,6 +7446,12 @@
             "value" : "Νέες ζαριές %lld"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس دوباره %lld"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5900,6 +7472,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ασφαλής θέση %lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خانهٔ امن %lld"
           }
         },
         "nl" : {
@@ -5924,6 +7502,12 @@
             "value" : "Ελαφριά"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کم"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5944,6 +7528,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Έντονη"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "زیاد"
           }
         },
         "nl" : {
@@ -5968,6 +7558,12 @@
             "value" : "Πολύ έντονη"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خیلی زیاد"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -5988,6 +7584,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ευνοϊκά ζάρια"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌های وزن‌دار"
           }
         },
         "nl" : {
@@ -6012,6 +7614,12 @@
             "value" : "μέτρια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تا حدی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6032,6 +7640,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ελαφρά"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کمی"
           }
         },
         "nl" : {
@@ -6056,6 +7670,12 @@
             "value" : "έντονα"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خیلی"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6076,6 +7696,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "πολύ έντονα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بسیار زیاد"
           }
         },
         "nl" : {
@@ -6100,6 +7726,12 @@
             "value" : "%lld πούλια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld مهره"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6120,6 +7752,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld ανά παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld در هر بازی"
           }
         },
         "nl" : {
@@ -6144,6 +7782,12 @@
             "value" : "1 πούλι"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "۱ مهره"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6164,6 +7808,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ένα μοναχό πούλι αυτής της πλευράς δεν πλακώνεται σε αυτή τη θέση. Οι θέσεις μετράνε από την αφετηρία της πλευράς. Μικρό πλεονέκτημα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مهرهٔ تنهای این طرف روی این خانه حبس نمی‌شود. خانه‌ها از نقطهٔ شروع همان طرف شمرده می‌شوند. یک برتری کوچک."
           }
         },
         "nl" : {
@@ -6188,6 +7838,12 @@
             "value" : "Ξεκινά πάντα το παιχνίδι, χωρίς ζαριά έναρξης."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "همیشه بازی را شروع می‌کند؛ بدون تاس شروع."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6208,6 +7864,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ισχύει για παιχνίδια Πλακωτό (κανόνες σπιτιού) εκτός σύνδεσης, μονά ή 2 στα 3. Όχι online ή στο Πλήρες Τάβλι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای بازی‌های آفلاین پلاکوتو (قوانین خانگی)، تک‌بازی یا بهترین از ۳. نه آنلاین و نه تاولی کامل."
           }
         },
         "nl" : {
@@ -6232,6 +7894,12 @@
             "value" : "Μάζεμα μόνο από τις τελευταίες θέσεις του σπιτιού. Μικρότερο σπίτι είναι μειονέκτημα."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مهره‌ها فقط از آخرین خانه‌های منطقهٔ خودی بیرون برده می‌شوند. منطقهٔ خودی کوچک‌تر یک ضعف است."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6252,6 +7920,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πριν από κάθε ζαριά, τα ζάρια γέρνουν προς ζαριές που βοηθούν αυτή την πλευρά. Το παιχνίδι το δείχνει στην ένδειξη Χάντικαπ."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پیش از هر ریختن، تاس‌ها به سمت عددهایی متمایل می‌شوند که برای این طرف خوب است. بازی این را در برچسب هندیکپ نشان می‌دهد."
           }
         },
         "nl" : {
@@ -6276,6 +7950,12 @@
             "value" : "Πούλια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مهره‌ها"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6296,6 +7976,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Πούλια που ξεκινούν 6 θέσεις μπροστά από τη στοίβα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مهره‌هایی که ۶ خانه جلوتر از دسته شروع می‌کنند."
           }
         },
         "nl" : {
@@ -6320,6 +8006,12 @@
             "value" : "Για"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6340,6 +8032,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δώσε πλεονέκτημα σε μία πλευρά, ώστε παίκτες διαφορετικού επιπέδου να παίξουν ένα ισορροπημένο παιχνίδι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "به یک طرف برتری بده تا بازیکنان با قدرت متفاوت بازی نزدیکی داشته باشند."
           }
         },
         "nl" : {
@@ -6364,6 +8062,12 @@
             "value" : "Χάντικαπ"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هندیکپ"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6384,6 +8088,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Προβάδισμα"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شروع جلوتر"
           }
         },
         "nl" : {
@@ -6408,6 +8118,12 @@
             "value" : "Βοήθειες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "راهنمایی‌ها"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6428,6 +8144,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Μέγεθος σπιτιού"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اندازهٔ منطقهٔ خودی"
           }
         },
         "nl" : {
@@ -6452,6 +8174,12 @@
             "value" : "Με πόσα πούλια παίζει κάθε πλευρά (κανονικά 15). Περισσότερα πούλια είναι το πλεονέκτημα."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هر طرف با چند مهره بازی کند (معمولاً ۱۵). مهرهٔ بیشتر یعنی برتری."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6472,6 +8200,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Μπορεί να μαζέψει με μεγαλύτερο ζάρι από όσο χρειάζεται, από το πιο μακρινό πούλι (όπως στο στάνταρ Πλακωτό). Μεγάλο πλεονέκτημα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "می‌تواند با تاسی بزرگ‌تر از لازم، از دورترین مهره بیرون ببرد (مثل پلاکوتوی استاندارد). یک برتری بزرگ."
           }
         },
         "nl" : {
@@ -6496,6 +8230,12 @@
             "value" : "Με Υπολογιστή"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی با کامپیوتر"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6516,6 +8256,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Νέες ζαριές"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس دوباره"
           }
         },
         "nl" : {
@@ -6540,6 +8286,12 @@
             "value" : "Ξαναρίχνεις τα ζάρια αφού τα δεις, τόσες φορές ανά παιχνίδι."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پس از دیدن تاس‌ها دوباره بریز، به این تعداد در هر بازی."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6560,6 +8312,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αλλαγές κανόνων"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تغییر قوانین"
           }
         },
         "nl" : {
@@ -6584,6 +8342,12 @@
             "value" : "Ασφαλής θέση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خانهٔ امن"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6604,6 +8368,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δείχνει την καλύτερη κίνηση του υπολογιστή (χωρίς να την παίζει), τόσες φορές ανά παιχνίδι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین حرکت کامپیوتر را (بدون انجام دادنش) نشان بده، به این تعداد در هر بازی."
           }
         },
         "nl" : {
@@ -6628,6 +8398,12 @@
             "value" : "Πλευρές"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "طرف‌ها"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6648,6 +8424,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δύο παίκτες"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "دو نفره"
           }
         },
         "nl" : {
@@ -6672,6 +8454,12 @@
             "value" : "Χρήση χάντικαπ"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "استفاده از هندیکپ"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6692,6 +8480,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Το επόμενο παιχνίδι σου είναι %@, οπότε θα παιχτεί χωρίς χάντικαπ."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی بعدی‌ات %@ است، پس بدون هندیکپ بازی می‌شود."
           }
         },
         "nl" : {
@@ -6716,6 +8510,12 @@
             "value" : "Το επόμενο παιχνίδι σου είναι Πλήρες Τάβλι, οπότε θα παιχτεί χωρίς χάντικαπ."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی بعدی‌ات تاولی کامل است، پس بدون هندیکپ بازی می‌شود."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6736,6 +8536,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ %@ · %@ %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@ · %3$@ %4$@"
           }
         },
         "nl" : {
@@ -6760,6 +8566,12 @@
             "value" : "%1$@: απομένουν %2$lld από %3$lld βοήθειες"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$lld از %3$lld راهنمایی مانده"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6780,6 +8592,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@: δεν έχει μετρηθεί ακόμα, οπότε δεν περιλαμβάνεται στον αριθμό."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: هنوز اندازه‌گیری نشده، پس در این عدد حساب نشده."
           }
         },
         "nl" : {
@@ -6804,6 +8622,12 @@
             "value" : "%1$@: απομένουν %2$lld από %3$lld νέες ζαριές"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$lld از %3$lld تاس دوباره مانده"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6824,6 +8648,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld παιχνίδια"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld بازی"
           }
         },
         "nl" : {
@@ -6848,6 +8678,12 @@
             "value" : "%1$lldΝ – %2$lldΗ"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld برد – %2$lld باخت"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6868,6 +8704,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 παιχνίδι"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "۱ بازی"
           }
         },
         "nl" : {
@@ -6892,6 +8734,12 @@
             "value" : "Η καλύτερη κίνηση με μπλε"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بهترین حرکت با آبی نشان داده شده"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6912,6 +8760,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ο Υπολογιστής ξαναέριξε (απομένουν %lld)"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "کامپیوتر تاس را دوباره ریخت (%lld مانده)"
           }
         },
         "nl" : {
@@ -6936,6 +8790,12 @@
             "value" : "Η εκτίμηση χρειάζεται το μοντέλο του υπολογιστή, που δεν είναι διαθέσιμο."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تخمین به مدل کامپیوتر نیاز دارد که در دسترس نیست."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -6956,6 +8816,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εκτιμώμενη πιθανότητα νίκης"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شانس برد تخمینی"
           }
         },
         "nl" : {
@@ -6980,6 +8846,12 @@
             "value" : "Εκτιμώμενη πιθανότητα νίκης (περίπου)"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شانس برد تخمینی (تقریبی)"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7000,6 +8872,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Εκτίμηση…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال تخمین…"
           }
         },
         "nl" : {
@@ -7024,6 +8902,12 @@
             "value" : "Παιχνίδι με χάντικαπ: οι πιθανότητες νίκης υποθέτουν δίκαια ζάρια"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی با هندیکپ: شانس‌های برد با فرض تاس منصفانه است"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7044,6 +8928,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παιχνίδια με χάντικαπ"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی‌های با هندیکپ"
           }
         },
         "nl" : {
@@ -7068,6 +8958,12 @@
             "value" : "Βοήθεια (απομένουν %lld)"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "راهنمایی (%lld مانده)"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7088,6 +8984,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Οι βοήθειες δεν μετράνε: η αξία τους εξαρτάται από τον παίκτη."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "راهنمایی‌ها حساب نمی‌شوند: ارزششان به بازیکن بستگی دارد."
           }
         },
         "nl" : {
@@ -7112,6 +9014,12 @@
             "value" : "Αν έπαιζαν και οι δύο με την πλήρη δύναμη του υπολογιστή."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اگر هر دو با قدرت کامل کامپیوتر بازی می‌کردند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7132,6 +9040,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Δεν μετράει στο ρεκόρ σου απέναντι στον υπολογιστή."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در کارنامهٔ تو در برابر کامپیوتر حساب نمی‌شود."
           }
         },
         "nl" : {
@@ -7156,6 +9070,12 @@
             "value" : "Ξαναρίξε (απομένουν %lld)"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس دوباره (%lld مانده)"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7176,6 +9096,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ευνοϊκά ζάρια και νέες ζαριές"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌های وزن‌دار و تاس دوباره"
           }
         },
         "nl" : {
@@ -7200,6 +9126,12 @@
             "value" : "Οι πιθανότητες νίκης στην ανάλυση και στη μπάρα πιθανότητας υποθέτουν πάντα δίκαια ζάρια."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "شانس‌های برد در بررسی و نوار احتمال برد همچنان تاس منصفانه را فرض می‌کنند."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7220,6 +9152,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ο αντίπαλος αποχώρησε από την παρτίδα. Κέρδισες!"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حریفت مسابقه را ترک کرد. تو بردی!"
           }
         },
         "nl" : {
@@ -7244,6 +9182,12 @@
             "value" : "Η κίνησή σου δεν στάλθηκε. Έχει αποθηκευτεί και θα σταλεί μόλις συνδεθείς ξανά."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکتت ارسال نشد. ذخیره شده و وقتی دوباره آنلاین شوی ارسال می‌شود."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7264,6 +9208,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Είναι η σειρά σου σε άλλη παρτίδα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در یک بازی دیگر نوبت توست."
           }
         },
         "nl" : {
@@ -7288,6 +9238,12 @@
             "value" : "Είναι η σειρά σου στην παρτίδα με %@."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در بازی با %@ نوبت توست."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7308,6 +9264,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ολοκληρωμένες"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمام‌شده"
           }
         },
         "nl" : {
@@ -7332,6 +9294,12 @@
             "value" : "Αφαίρεση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حذف"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7352,6 +9320,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Παραιτείσαι από την παρτίδα;"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "از این مسابقه انصراف می‌دهی؟"
           }
         },
         "nl" : {
@@ -7376,6 +9350,12 @@
             "value" : "Παραίτηση"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "انصراف"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7396,6 +9376,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Νικητής της παρτίδας: %@. Για να συνεχίσεις αργότερα, πάτησε το κουμπί επιστροφής."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ مسابقه را می‌برد. اگر می‌خواهی بعداً ادامه دهی، از دکمهٔ بازگشت استفاده کن."
           }
         },
         "nl" : {
@@ -7420,6 +9406,12 @@
             "value" : "Η παρτίδα τελείωσε."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مسابقه تمام شد."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7440,6 +9432,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αντίπαλος"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حریف"
           }
         },
         "nl" : {
@@ -7464,6 +9462,12 @@
             "value" : "Συνδέσου στο Game Center για να παίξεις online."
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای بازی آنلاین وارد Game Center شو."
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7484,6 +9488,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Σειρά του αντιπάλου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نوبت حریف"
           }
         },
         "nl" : {
@@ -7508,6 +9518,12 @@
             "value" : "Σειρά σου"
           }
         },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نوبت توست"
+          }
+        },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
@@ -7528,6 +9544,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Αναμονή να ξεκινήσει ο αντίπαλος…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در انتظار شروع حریف…"
           }
         },
         "nl" : {

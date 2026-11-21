@@ -159,6 +159,15 @@ views never branch on device type. `ChromeLayout(container:safeArea:)` takes the
 - `fontScale(forScreen:)` — 1 regular, `compactFontScale` (0.86) compact; per screen, so
   it doesn't change with rotation.
 
+## Right-to-left text — `BidiText` (#185, `BidiText.swift`)
+
+Pure string helpers for the Persian (RTL) chrome; the views apply them only under a right-to-left
+layout. `isolatedLeftToRight` wraps move notation in LRI…PDI so `13/7^ 8/4` keeps its order;
+`score(_:_:rightToLeft:)` returns `"1 – 0"` unchanged for LTR and in an RTL isolate for RTL (each number
+stays beside its mirrored player); `isDirectionalSymbol` names the SF Symbols that must mirror
+(`chevron.left/right`, `arrow.left/right`); `replacingASCIIDigits(in:zero:)` maps Western digits to a
+locale's native run (Persian ۰…۹), identity for `"0"`.
+
 ## Tests
 
 `Tests/BoardGeometryTests/BoardGeometryTests.swift` (run via `swift test`,
@@ -168,6 +177,7 @@ slot placement, bear-off checker stacking, dice layout (`boardCenter`,
 `diceSize`, the horizontal two-dice row + the four-in-a-row pasch, and that both
 scale with the board), scaling/centered-square fit, hit-testing (playable
 point, bar-gap miss, bear-off), and the bar slots (stacking, dice clearance, hit, flip).
-`ChromeLayoutTests.swift` pins the board rect / mode for 375×812, 812×375, 390×844,
+`BidiTextTests.swift` pins the isolates, the score line in both directions, the directional-symbol list
+and the digit mapping. `ChromeLayoutTests.swift` pins the board rect / mode for 375×812, 812×375, 390×844,
 844×390, 430×932 (board maximal, inside the safe area, clear of the chrome) and that
 iPad sizes reproduce the pre-#109 values.

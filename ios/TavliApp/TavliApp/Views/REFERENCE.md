@@ -1026,8 +1026,8 @@ only when a handicap is active / exists.
 
 ## Localization (`Localizable.xcstrings`)
 
-One string catalog (source language English) with German (de), Dutch (nl) and Greek (el,
-#225). XcodeGen picks the languages up from the catalog into `knownRegions`; no `project.yml`
+One string catalog (source language English) with German (de), Dutch (nl), Greek (el,
+#225) and Persian (fa, #185 — right-to-left, see the next section). XcodeGen picks the languages up from the catalog into `knownRegions`; no `project.yml`
 entry is needed. Eight keys are deliberately untranslated in every language ("%@", "—",
 "Tavlo", "DEBUG", "W", …).
 
@@ -1063,6 +1063,88 @@ that would need agreement. Glossary:
 | Best of 3 | 2 στα 3 |
 | handicap / hint / weighted dice / head start / safe point | χάντικαπ / βοήθεια / ευνοϊκά ζάρια / προβάδισμα / ασφαλής θέση |
 | Off / On | Όχι / Ναι |
+
+## Right-to-left / Persian (#185 — `RTLSupport.swift`, `BoardGeometry/BidiText.swift`)
+
+Persian (`fa`) is the first right-to-left language. SwiftUI mirrors the whole layout under an RTL
+locale (HStacks reverse, leading/trailing swap, sheets, menus, toggles and sliders flip). The rules:
+
+**What never mirrors (pinned LTR with `.boardLayoutDirection()` = `.environment(\.layoutDirection,
+.leftToRight)`).** It is a physical board: `BoardGeometry` point numbering, hit-testing, drag gestures,
+the AI flight and hit animations all assume LTR coordinates, and without the pin `DieFace`'s
+absolutely positioned pips (`.position`) land mirrored/off the die. Pinned at:
+`PlayableBoardView.body` (covers board, cues, highlights, checkers, dice, drag/flight overlays and the
+gesture), `GameReviewView.boardArea`, `DrillView.board` (its `MoveHighlightView` overlays sit outside
+`PlayableBoardView`), `OpeningRollView.boardArea`, `DieFace` (so notation dice / opening dice are
+right outside a board too) and `WinProbabilityChart` (time runs left→right, scrub x matches). Verified
+in the simulator: tap-select, tap-destination and drag land on the right points under `fa`.
+
+**What mirrors (on purpose).** All chrome: icon bars, the back button (now top-right), the start
+screen, cards, Settings rows (switches flip), the new-game sheet (segments, level chips 1…8 run right→left),
+the history sheet's two columns (You on the right), the game-over card, the handicap builder (sliders
+grow leftwards), the online lobby, and the landscape/iPad side panel (board on the right, rail on the
+left). The in-game win-probability bar fills from the right. The review's Prev/Next row mirrors (Next on
+the left) and its paging swipe follows it: under RTL a swipe to the **right** pages forward.
+
+**SF Symbols.** `chevron.left/right` and `arrow.left/right` do **not** flip by themselves; use
+`DirectionalSymbol(name)` (= `Image(systemName:)` + `.flipsForRightToLeftLayoutDirection` when
+`BidiText.isDirectionalSymbol(name)`) for every back/forward/next glyph, including the `GameOverCard`
+action icons. Symbols with a built-in RTL variant (`arrow.uturn.backward`, undo) already flip — don't
+flip them again; physical glyphs (dice, board, `arrow.clockwise`, `house`, `xmark`) stay.
+
+**Bidi of mixed text.** Move notation (`13/7^ 8/4`, `bar/22*`) is wrapped in an LTR isolate
+(LRI…PDI, `BidiText.isolatedLeftToRight`) inside `MoveNotationText` — only under RTL — otherwise the
+bidi algorithm reorders its number groups. Running scores use `ScoreLineText(left:right:)`: LTR renders the
+exact old `"1 – 0"`; RTL wraps the same logical string in an RTL isolate so it reads `0 – 1` visually and
+each number stays beside its (mirrored) player. Persian strings that need different word order use
+positional specifiers (`%1$@`, `%2$lld`). Forward arrows inside Persian copy point left
+("بعدی ←", "پورتس ← فوگا ← پلاکوتو").
+
+**Digits.** Prose follows the locale: interpolated `%lld` already formats as Persian digits (۱۲۳) under
+`fa_IR`, and literal digits in the Persian strings are Persian too. Values the code pre-formats as
+Western-digit strings (win chance `63%`, equity `+0.52`, the stats win-rate, the handicap estimate) go
+through `ChromeDigits.localized` (locale zero digit ≠ "0" → map 0–9 and LTR-isolate so a sign stays in
+front; byte-identical for en/de/nl). **Board-bound numbers stay Western:** move notation, checker
+counts drawn on the board stacks / trays, and the chart. The Persian zero (۰) looks like a dot, so
+Persian copy avoids "·" between two numbers (dice are "تاس ۴ و ۵").
+
+**Fonts.** Chrome uses the system font, which has Arabic-script glyphs, so Persian renders in SF
+Arabic. The display face Cormorant Garamond has no Arabic glyphs; `ChromeType.statsTitle` /
+`localizedWordmark` detect that (the Greek #225 probe) and switch to the system serif design, which
+falls back to the system Arabic face — no tofu, no mixed weights. The "Tavlo" wordmark stays Latin
+(`ChromeType.wordmark`, never localized). Inter is not used for chrome.
+
+**Strings.** `ios/scripts/add_persian_strings.py` holds every `fa` translation as a dict and writes them
+into `Localizable.xcstrings` (idempotent; re-run after a catalog conflict). Glossary (informal-polite
+register, تو):
+
+| English | Persian |
+|---|---|
+| backgammon | تخته‌نرد |
+| checker | مهره |
+| point | خانه |
+| die / dice | تاس |
+| doubles | جفت |
+| bear off | بیرون بردن (مهره) |
+| pin (Plakoto) / pinned | حبس کردن / حبس شد |
+| hit | زدن |
+| bar | بار |
+| mother checker | مهرهٔ مادر |
+| double game (gammon) | مارس |
+| home board | منطقهٔ خودی |
+| Plakoto / Fevga / Portes | پلاکوتو / فوگا / پورتس |
+| Full Tavli | تاولی کامل |
+| Computer | کامپیوتر |
+| You | تو |
+| White / Red | سفید / قرمز |
+| win chance / equity | شانس برد / ارزش موقعیت |
+| blunder | اشتباه بزرگ |
+| review / drill | بررسی / تمرین |
+| resign / forfeit | تسلیم / انصراف |
+| handicap / hint / reroll | هندیکپ / راهنمایی / تاس دوباره |
+| match / Best of 3 | مسابقه / بهترین از ۳ |
+
+A native speaker must review the Persian strings before release.
 
 ## App.swift
 

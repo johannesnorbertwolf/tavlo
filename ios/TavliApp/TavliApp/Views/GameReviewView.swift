@@ -20,6 +20,9 @@ struct GameReviewView: View {
 
     @StateObject private var model: GameReviewModel
     @Environment(\.dismiss) private var dismiss
+    /// #185: under RTL the Prev/Next row mirrors (Next on the left), so a swipe to the
+    /// right pages forward, like turning a right-to-left book.
+    @Environment(\.layoutDirection) private var layoutDirection
 
     /// Index of the evaluated move currently shown (clamped to the streamed set).
     @State private var index = 0
@@ -186,6 +189,7 @@ struct GameReviewView: View {
                               stacks: eval.boardStacks, flipped: flipped, variant: variant)
         }
         .aspectRatio(1, contentMode: .fit)
+        .boardLayoutDirection()   // #185: the physical board never mirrors
     }
 
     // ── Regular portrait (iPad, #193) ──────────────────────────────────────────
@@ -246,10 +250,10 @@ struct GameReviewView: View {
         let prev = navIndex(from: i, dir: -1)
         let next = navIndex(from: i, dir: 1)
         return HStack(spacing: 12) {
-            Button { index = prev } label: { Label("Prev", systemImage: "chevron.left") }
+            Button { index = prev } label: { Label { Text("Prev") } icon: { DirectionalSymbol("chevron.left") } }
                 .buttonStyle(ReviewButton(tint: ChromeTheme.undoTint))
                 .disabled(prev == i).opacity(prev == i ? 0.4 : 1)
-            Button { index = next } label: { Label("Next", systemImage: "chevron.right") }
+            Button { index = next } label: { Label { Text("Next") } icon: { DirectionalSymbol("chevron.right") } }
                 .buttonStyle(ReviewButton(tint: ChromeTheme.undoTint))
                 .disabled(next == i).opacity(next == i ? 0.4 : 1)
         }
@@ -495,7 +499,9 @@ struct GameReviewView: View {
         DragGesture(minimumDistance: 24)
             .onEnded { value in
                 guard abs(value.translation.width) > abs(value.translation.height) else { return }
-                index = navIndex(from: i, dir: value.translation.width < 0 ? 1 : -1)
+                let forward = layoutDirection == .rightToLeft ? value.translation.width > 0
+                                                              : value.translation.width < 0
+                index = navIndex(from: i, dir: forward ? 1 : -1)
             }
     }
 
@@ -799,6 +805,7 @@ private struct WinProbabilityChart: View {
                 )
         }
         .frame(height: 96)
+        .boardLayoutDirection()   // #185: time runs left→right like the board's geometry
         .accessibilityLabel("Win chance through the game")
     }
 

@@ -121,7 +121,7 @@ struct HandicapEstimateView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func pct(_ p: Double) -> String { "\(Int((p * 100).rounded()))%" }
+    private func pct(_ p: Double) -> String { ChromeDigits.localized("\(Int((p * 100).rounded()))%") }
 
     private func unmeasuredLine(_ kinds: [String]) -> String {
         let line: String
@@ -155,7 +155,7 @@ struct HandicapSettingsRow: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
+                DirectionalSymbol("chevron.right")
                     .font(ChromeType.callout)
                     .foregroundStyle(ChromeKit.iconInk)
             }

@@ -137,7 +137,7 @@ struct StatsPanelView: View {
     // ── Formatting ────────────────────────────────────────────────────────────
 
     private var percentString: String {
-        String(format: "%.0f%%", stats.winRate * 100)
+        ChromeDigits.localized(String(format: "%.0f%%", stats.winRate * 100))   // #185: locale digits
     }
 
     private var streakString: String {

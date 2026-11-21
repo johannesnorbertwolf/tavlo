@@ -78,7 +78,7 @@ struct GameOverCard<Extra: View>: View {
             VStack(spacing: 10) {
                 Button(action: primary.action) {
                     HStack(spacing: 6) {
-                        Image(systemName: primary.icon)
+                        DirectionalSymbol(primary.icon)
                         Text(primary.label)
                     }
                 }
@@ -88,7 +88,7 @@ struct GameOverCard<Extra: View>: View {
                 if let exit {
                     Button(action: exit.action) {
                         HStack(spacing: 6) {
-                            Image(systemName: exit.icon)
+                            DirectionalSymbol(exit.icon)
                             Text(exit.label)
                         }
                     }
@@ -145,7 +145,7 @@ struct GameOverCard<Extra: View>: View {
                 Text(s.leftName)
                     .font(ChromeType.callout)
                     .foregroundStyle(ChromeKit.inkSecondary)
-                Text(verbatim: "\(s.left) – \(s.right)")
+                ScoreLineText(left: s.left, right: s.right)
                     .font(ChromeType.title3.bold().monospacedDigit())
                     .foregroundStyle(ChromeTheme.ink)
                 Text(s.rightName)
