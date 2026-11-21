@@ -804,11 +804,11 @@ private struct BackButton: View {
     var body: some View {
         Button(action: action) {
             if iconOnly {
-                Image(systemName: "chevron.left")
+                DirectionalSymbol("chevron.left")
                     .frame(minWidth: 20)       // ≥ 44 pt wide with the button insets
             } else {
                 HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
+                    DirectionalSymbol("chevron.left")
                     Text("Back")
                 }
             }
@@ -1203,7 +1203,7 @@ private struct MatchScoreboardView: View {
     private var scoreLine: some View {
         HStack(spacing: 6) {
             Text("You")
-            Text("\(localWins) – \(opponentWins)")
+            ScoreLineText(left: localWins, right: opponentWins)
                 .font(ChromeType.callout.bold().monospacedDigit())
                 .foregroundStyle(ChromeTheme.ink)
             Text(opponentName)
@@ -1221,7 +1221,7 @@ private struct MatchScoreboardView: View {
                 Text("You")
                     .font(ChromeType.callout)
                     .foregroundStyle(ChromeKit.inkSecondary)
-                Text("\(localWins) – \(opponentWins)")
+                ScoreLineText(left: localWins, right: opponentWins)
                     .font(ChromeType.title3.bold().monospacedDigit())
                     .foregroundStyle(ChromeTheme.ink)
                 Text(opponentName)

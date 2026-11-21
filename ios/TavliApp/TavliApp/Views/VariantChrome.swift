@@ -67,16 +67,16 @@ struct EvalScale {
         isEquity ? String(localized: "Equity") : String(localized: "Win chance")
     }
 
-    /// A value for display: "63%" or "+0.52".
+    /// A value for display: "63%" or "+0.52" (in the locale's digits, #185).
     func value(_ v: Double) -> String {
-        isEquity ? String(format: "%+.2f", variant.equity(fromValue: v))
-                 : "\(Int((v * 100).rounded()))%"
+        ChromeDigits.localized(isEquity ? String(format: "%+.2f", variant.equity(fromValue: v))
+                                        : "\(Int((v * 100).rounded()))%")
     }
 
-    /// A non-negative gap between two values: "12%" or "0.48".
+    /// A non-negative gap between two values: "12%" or "0.48" (locale digits, #185).
     func gap(_ d: Double) -> String {
-        isEquity ? String(format: "%.2f", d * 2 * Double(variant.maxPoints))
-                 : "\(Int((d * 100).rounded()))%"
+        ChromeDigits.localized(isEquity ? String(format: "%.2f", d * 2 * Double(variant.maxPoints))
+                                        : "\(Int((d * 100).rounded()))%")
     }
 
     /// "−12% win chance" / "−0.48 equity" — the cost of a move vs the best.

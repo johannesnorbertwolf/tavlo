@@ -465,6 +465,7 @@ private struct DrillCard: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        .boardLayoutDirection()   // #185: the physical board never mirrors
     }
 
     @ViewBuilder

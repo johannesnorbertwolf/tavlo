@@ -32,6 +32,7 @@ neither depends on views.
 | `StatsPanelView.swift` | #64 — pure human W/L panel (overall, sparkline, streak). |
 | `HandicapSettingsView.swift` (#148) | The handicap **builder** (sheet from Settings' Handicap card): master toggle, "Playing the computer / Two players" label switch, one card per tier-1 item (favoured-side picker + slider/toggle + one-line caption; hints are always "You" vs the computer), "Rule changes" tier-2 cards (overshoot, safe point, checkers per side, home size), applicability note (house Plakoto offline, single or Best of 3; warns when the next game is another variant or Full Tavli), live estimate pinned below the scrolling cards (`safeAreaInset`, always visible). Edits `HandicapPreferences` (`HandicapSettings.swift`, target root). |
 | `HandicapViews.swift` (#148) | Handicap chrome, all hidden unless a handicap is active: `HandicapSettingsRow` (the one Settings card, "Off"/summary), `HandicapEstimateModel` + `HandicapEstimateView` (net position estimate + `HandicapTable.json`, "not measured yet" / "approx." notes, full-strength footnote), `HandicapTagButton` + `HandicapInfoSheet` (in-game tag → setup, tokens left, estimate, "Dice favour X"), `HandicapActionsRow` (Reroll/Hint (n left) above Undo/Done, side by side or stacked via `ViewThatFits`; computer-reroll note), `HandicapReviewNote`, `HandicapRecordBlock` (My Record, only once a handicap game exists), `HandicapBoardCuesView` (tier-2 board cues: safe-point shield, dimmed non-home points). |
+| `RTLSupport.swift` (#185) | Right-to-left helpers (Persian): `.boardLayoutDirection()` (pins a board subtree to LTR), `DirectionalSymbol` (back/forward SF Symbols that mirror under RTL), `ChromeDigits` (locale digits for pre-formatted values: win %, equity, stats %), `ScoreLineText` (running score "1 – 0" that follows the mirrored names). Pure string logic in `BoardGeometry.BidiText` (unit-tested). All no-ops in LTR. |
 | `App.swift` | `@main` — `WindowGroup { RootView() }` + `AppearanceOverride` (#191): follows iOS light/dark by default; the Appearance setting sets every window's `overrideUserInterfaceStyle` (reaches sheets, alerts, Game Center). Dark-only `UISegmentedControl` styling. (Was light-only before #191; `Info.plist` no longer pins `UIUserInterfaceStyle`.) |
 
 **Variants (#143).** The selected variant (`GameVariantSetting`, `AppSettings.swift`, key
@@ -75,7 +76,7 @@ safe height, chrome in a rail. `ChromeType` sizes scale by 0.86 on a phone (set 
   `ChromeKit.onAccent`, dimmed text = `inkSecondary` / `inkDim(x)`. Token tables in `REFERENCE.md`.
 - **Localized display titles use `ChromeType.statsTitle` / `localizedWordmark`**, never a raw
   Cormorant font: Cormorant is Latin-only, and those fall back to the system serif for Greek
-  (#225). Strings live in `Localizable.xcstrings` (de/nl/el); see REFERENCE.md "Localization".
+  (#225) and Persian (#185). Strings live in `Localizable.xcstrings` (de/nl/el/fa); see REFERENCE.md "Localization".
 - **Chrome text sizes come from `ChromeType`** (`GameView.swift`, #92): fixed sizes one step
   above the system text styles, for older players. No hardcoded font sizes in chrome views;
   board/dice/checker sizing is geometry-scaled and exempt.
@@ -93,6 +94,12 @@ safe height, chrome in a rail. `ChromeType` sizes scale by 0.86 on a phone (set 
   there too and default to **best-of-three** (chosen in the new-game sheet / lobby, not the Settings sheet).
   Retired values are rewritten once at launch (`AppSettings.migrateLegacySettings()` from `App.init`, #189):
   the strength slider → nearest level, Play as `ask` → `random`.
+- **Right-to-left (#185, Persian): board views pin LTR; chrome mirrors; isolate notation.** The board, checkers,
+  dice, highlights, animations and the review chart never mirror (`.boardLayoutDirection()` on `PlayableBoardView`,
+  the review/drill/opening-roll board stacks, `DieFace`, `WinProbabilityChart`); everything else mirrors by itself.
+  Back/forward glyphs use `DirectionalSymbol`, running scores `ScoreLineText`, move notation is LTR-isolated in
+  `MoveNotationText`, pre-formatted numbers go through `ChromeDigits`. Every hook must be a no-op in LTR (iPad
+  pixel-identical in en/de/nl). Detail + Persian glossary in `REFERENCE.md` ("Right-to-left / Persian").
 - **Handicaps (#148) are invisible when off.** Every hook (`HandicapTagButton`, the
   `ControlsView` actions row, the review note, the hint overlay in `PlayableBoardView`, the
   My Record block) renders only when `session.handicap` / `record.handicap` / handicap stats

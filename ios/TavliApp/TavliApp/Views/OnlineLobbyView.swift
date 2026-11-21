@@ -144,7 +144,7 @@ private struct OnlineLobbyView: View {
         HStack {
             Button(action: onExit) {
                 HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
+                    DirectionalSymbol("chevron.left")
                     Text("Back")
                 }
             }
@@ -270,7 +270,7 @@ private struct OnlineMatchRow: View {
                 Spacer(minLength: 12)
                 Text(stateLabel)
                     .foregroundStyle(isLocalTurn && !isFinished ? ChromeTheme.doneTint : ChromeKit.inkSecondary)
-                Image(systemName: "chevron.right")
+                DirectionalSymbol("chevron.right")
                     .foregroundStyle(ChromeKit.inkSecondary)
             }
         }

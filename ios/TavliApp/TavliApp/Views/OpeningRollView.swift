@@ -133,7 +133,7 @@ struct OpeningRollView: View {
     private var backButton: some View {
         Button(action: onBack) {
             HStack(spacing: 4) {
-                Image(systemName: "chevron.left")
+                DirectionalSymbol("chevron.left")
                 Text("Back")
             }
         }
@@ -152,6 +152,7 @@ struct OpeningRollView: View {
         .aspectRatio(1, contentMode: .fit)
         .contentShape(Rectangle())
         .onTapGesture { startRoll() }
+        .boardLayoutDirection()   // #185: the physical board never mirrors
     }
 
     private func openingDice(in size: CGSize) -> some View {

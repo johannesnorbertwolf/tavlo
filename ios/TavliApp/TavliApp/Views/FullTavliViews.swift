@@ -70,7 +70,7 @@ struct FullTavliScoreboardView: View {
     private var compactBody: some View {
         let score = HStack(spacing: 6) {
             Text(names.leftName)
-            Text("\(state.score(for: names.leftColor)) – \(state.score(for: names.leftColor.opponent))")
+            ScoreLineText(left: state.score(for: names.leftColor), right: state.score(for: names.leftColor.opponent))
                 .font(ChromeType.callout.bold().monospacedDigit())
                 .foregroundStyle(ChromeTheme.ink)
             Text(names.rightName)
@@ -103,7 +103,7 @@ struct FullTavliScoreboardView: View {
                 Text(names.leftName)
                     .font(ChromeType.callout)
                     .foregroundStyle(ChromeKit.inkSecondary)
-                Text("\(state.score(for: names.leftColor)) – \(state.score(for: names.leftColor.opponent))")
+                ScoreLineText(left: state.score(for: names.leftColor), right: state.score(for: names.leftColor.opponent))
                     .font(ChromeType.title3.bold().monospacedDigit())
                     .foregroundStyle(ChromeTheme.ink)
                 Text(names.rightName)
@@ -194,7 +194,7 @@ private struct FullTavliScoreCard: View {
                     .foregroundStyle(ChromeKit.inkSecondary)
                 // Same digits as the in-game scoreboard (system face, lining
                 // figures) — the display serif's old-style numerals read "o — ɪ".
-                Text(verbatim: "\(state.score(for: names.leftColor)) – \(state.score(for: names.leftColor.opponent))")
+                ScoreLineText(left: state.score(for: names.leftColor), right: state.score(for: names.leftColor.opponent))
                     .font(ChromeType.scoreDisplay.monospacedDigit())
                     .foregroundStyle(ChromeTheme.ink)
                 Text(names.rightName)
@@ -277,7 +277,7 @@ struct FullTavliTransitionView: View {
                         .chromeCard(padding: ChromeType.isCompact ? 16 : 24)
                         Button(action: onStartNext) {
                             HStack(spacing: 8) {
-                                Image(systemName: "arrow.right")
+                                DirectionalSymbol("arrow.right")
                                 Text("Start \(next.legLabel)")
                             }
                         }

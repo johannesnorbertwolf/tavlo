@@ -88,6 +88,7 @@ struct DieFace: View {
         .saturation(isUsed ? 0.0 : 1.0)
         .animation(.easeInOut(duration: 0.2), value: isUsed)
         .animation(.easeInOut(duration: 0.2), value: isHighlighted)
+        .boardLayoutDirection()   // #185: pips are absolutely positioned; never mirror a die
     }
 }
 
