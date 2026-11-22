@@ -103,7 +103,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · %lld رد شد"
+            "value" : "، %lld رد شد"
           }
         },
         "nl" : {
@@ -4073,7 +4073,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "مارس · ۲ امتیاز"
+            "value" : "مارس، ۲ امتیاز"
           }
         },
         "nl" : {
@@ -4101,7 +4101,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "برد ساده · ۱ امتیاز"
+            "value" : "برد ساده، ۱ امتیاز"
           }
         },
         "nl" : {
@@ -4465,7 +4465,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "بازی %1$lld از ۳ · %2$@"
+            "value" : "بازی %1$lld از ۳، %2$@"
           }
         },
         "nl" : {
@@ -4661,7 +4661,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ · ۱ امتیاز"
+            "value" : "%@، ۱ امتیاز"
           }
         },
         "nl" : {
@@ -4689,7 +4689,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$lld امتیاز"
+            "value" : "%1$@، %2$lld امتیاز"
           }
         },
         "nl" : {
