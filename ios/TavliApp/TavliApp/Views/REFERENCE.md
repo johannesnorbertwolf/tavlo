@@ -79,7 +79,7 @@ truth; README "Round 2" + the C table):
 | `trayRecess` (tray fill as drawn) · `trayEdge` | `#2a1408` @ 22 % · `#1a0a04` | black @ 45 % · black |
 | `whiteFill/Hi/Edge` | `#f1e6c8/#fbf3d8/#5a4828` | `#f4e9cd/#fffaea/#3a2d18` |
 | `redFill/Hi/Ring/Edge` | `#c0392b/#dc5040/#5e160b/#2a0a04` | `#d7412f/#f0604c/#6a1a0d/#1a0603` |
-| `hlBest` · `hlBoth` (and `hlRoute`) | `#2f7fd1` · `#3fa64a` | `#4a9bf0` · `#4cc25a` |
+| `hlBest` (and `hlRoute`) · `hlGhost` (#232) | `#2f7fd1` · `#857f77` | `#4a9bf0` · `#8f8a84` |
 | `frameText` (chrome text) | `#3a2510` | `#f4d7a4` |
 
 The amber `hl`/`hlFill`/`hlEdge`, `whiteRing`, and the checker label colours are shared.
@@ -323,6 +323,50 @@ the published view contract (`selectableSources`, `validTargets`, `selectedPoint
   the selected point's `min(count, 5)` visible checkers, strokes a gold circle at
   `geo.checkerCenter(point:slot:)` with radius `checkerRadius + 3.2·s`, width
   `3.4·s` — matching the reference's `selected` ring.
+- **`onLiftChange: ((Bool) -> Void)?`** (#232, default `nil`) — told when a drag lifts a
+  checker (`liveDrag` becomes non-nil) and when it is let go. The drag lives in the view's
+  `@GestureState`, so this is how a caller (the drill's ghost) learns "a checker is picked"
+  during a drag, alongside `session.selectedPoint` for a tap.
+- **`MoveMarkStyle`** (#232) — how one move is drawn in review/drill; one meaning per colour,
+  amber vs blue on the blue–yellow axis that red-green colour blindness keeps (the old green
+  "both" colour, `hlBoth`, is gone — on the mahogany board it vanished for deuteranopes).
+  Only the ghost is dashed — dashed means "not actually on the board":
+  | Style | Colour | Frame stroke (×`s`) | Ring stroke (×`s`) | Used for |
+  |---|---|---|---|---|
+  | `.played` | `hl` amber | solid 5 | solid 3.4 | your move (review), your attempt (drill solution) |
+  | `.best` | `hlBest` blue | solid 5 | solid 3.4 | the best move (review Compare, drill solution, handicap hint) |
+  | `.ghost` | `hlGhost` grey | 4.2, dash 8/6 | 3, dash 5/4 | the drill's game move before an attempt |
+  `swatchStroke` is the same look at legend size (3 pt solid / 2.4 pt dash 3.5/3).
+- **`MoveMarkSwatch(style:)`** — a 24×10 pt (`MoveMarkSwatch.size`) `Canvas` line in a
+  `MoveMarkStyle`, the legend swatch next to a move row (drill panel rows, review Compare
+  legend). `accessibilityHidden`; the row's text carries the meaning. **A swatch shows only
+  while that exact mark is drawn on the board**; a row whose mark isn't drawn leaves an
+  empty swatch-sized gap (drill) or drops the entry (review legend).
+- **`MoveHighlightView.drawnMarks(playedMove:bestMove:)`** — which of the two moves leaves a
+  mark: the played move unless it is empty or the same as the best (then blue only), the
+  best whenever given and non-empty. Legends use it to decide their swatches.
+- **`MoveHighlightView`** (#133, restyled #232) — a pure `Canvas` rendering a *whole move*
+  (`playedMove` + optional `bestMove`, `[from, to]` pairs) from the **pre-move** `stacks`:
+  - **Marks by count.** Per point, arrivals vs departures: `min` cancels as a pass-through hop,
+    surplus departures are genuine sources (listed once per checker lifted), surplus arrivals
+    genuine landings. So a single checker 13→9→5→1 marks only source 13 + landing 1, and a point
+    that is both a landing and a hop-over still reads as a landing.
+  - **Landings** — the triangle (or bear-off tray box, `hitRect` inset `(5·s, 10·s)`, corner
+    `8·s`) stroked in the move's style. Drawn first, under the rings.
+  - **Sources** — rings at `checkerRadius + 3.2·s` on the **top** `n` visible checkers of the
+    point, `n` = checkers lifted there.
+  - **`playedStyle`** (default `.played`; the drill ghost passes `.ghost`) styles `playedMove`;
+    `bestMove` is always `.best`.
+  - **Shared points get both marks.** A landing in both moves = the played frame + a blue
+    frame pushed `7·s` outwards (the triangle scaled about its incentre — every edge moves the
+    same distance — with the sharp apex cut square `7·s` past the original tip so the spike
+    doesn't run into the board's middle; trays grow by `7·s`). Source rings are coloured per
+    point **by count**: of `m` played / `b` best checkers lifted there, `min(m, b)` (top-down)
+    get the played ring + a blue ring at `+5·s` radius, then `b − min` blue only, then
+    `m − min` played only.
+  - **Same move → blue only.** When both moves give the same marks (sorted sources + landing
+    set), only the best move is drawn (the ✓ is in the panel). `bestMove == nil` shows the
+    played move alone.
 - `#Preview`s: frame + fill drive a `GameSession(startingPlayer: .white)` with
   scripted dice `3·5` and point 1 selected, reproducing the design's reference
   highlight scenario (targets 4, 6, 9); a "Borne-off checkers in trays" preview
@@ -654,6 +698,43 @@ Per screen (compact only):
 - **DrillView** — portrait: board edge-to-edge between the prompt and the feedback/
   actions; landscape: the header moves into the card's rail (`railHeader`).
 
+**Review/drill board overlays (#232).** The review's Compare mode passes the played move +
+best move to `MoveHighlightView` (amber / blue, both solid; both marks on shared points,
+blue only when you played the best); its legend shows a `MoveMarkSwatch` for each mark
+actually drawn ("played", "best" — only "best" when you played the best; no "both" key).
+The **drill** board (`DrillCard.board`) shows, over the live
+`PlayableBoardView`:
+- **Before an attempt** — the move you played in the game as a **ghost**
+  (`playedStyle: .ghost`, grey dashed). Your attempt is the normal amber in-game play
+  highlight (`SourceRingView`/`TargetHighlightView`), unchanged.
+- **Overlays only on the start position, never while picking** (`showsOverlay`): hidden while
+  an attempt is held (`session.heldAttempt`), while half a move is built
+  (`session.moveBuilder.built` non-empty — the board no longer matches the pre-move stacks),
+  and while a checker is picked (`session.selectedPoint`, `session.routeChoice`, or a drag
+  via `PlayableBoardView.onLiftChange`). Deselecting brings the ghost back.
+- **"Show solution"** compares your **latest attempt** (`DrillModel.lastAttempt`, kept
+  through "Try again" and replaced by the next graded attempt) in amber with the best in
+  blue; with no attempt it compares the game move (amber). `revealSolution()` first returns
+  the board to the start (rolls back a held attempt, cancels a route choice, undoes a
+  half-built move, clears the selection) so the overlay lines up.
+- **Panel rows** lead with a `MoveMarkSwatch` instead of coloured text (notation is plain
+  ink) — **only while that row's mark is on the board**, else an empty swatch-sized gap so
+  the rows stay aligned: "You played" grey dashed while the ghost shows, amber when the
+  solution compares the game move (no attempt), nothing otherwise (picking, half move, held
+  attempt, solution comparing your attempt); "You tried" amber only while the solution
+  compares it (and it isn't identical to the best); "Best move" blue in the solution. The
+  gap line under the solution is measured against the compared move: "−x win chance vs your
+  try" / "−x equity vs your try" after an attempt, "… vs your move" otherwise.
+- **Correct attempt → auto-advance.** A graded-correct attempt (`gap ≤ max(0.01, 3 % of
+  best)` — "Excellent — that's the best move!" / "Great — very close to optimal.") stays held
+  on the board, sets `DrillModel.celebrating` and shows a "Well done ✓" capsule
+  (`DrillTint.correct`, `onAccent` text, spring scale-in) over the board; the action row
+  keeps its height with a hidden button. After `celebrationSeconds` (1.2 s) the model calls
+  `advance()` itself (next blunder or the summary; counts as solved). With VoiceOver running
+  it posts an `AccessibilityNotification.Announcement` ("Well done ✓" + the message) and
+  advances when `announcementDidFinishNotification` fires (capped at 6 s). Close/wrong keep
+  Try again / Show solution.
+
 ## DebugOverlay.swift (T11 — debug eval overlay)
 
 A toggleable, off-by-default panel exposing the AI's evaluation of the current
@@ -789,6 +870,14 @@ too), and `match.recordGame(winner:points:)`.
     it via `GameSession.resume(from:agent:)` + `start()`, landing the cold launch back in the
     game (acceptance criterion 1); a terminal autosave is discarded so launch shows the picker.
     The `-uiTestGame` launch arg still takes priority (deterministic Black-to-move game).
+  - **`-debugReviewSample`** (DEBUG builds only, `DebugReviewSample.swift`, #232) opens a
+    full-screen `GameReviewView` over the root at launch, on a seeded sample game (house
+    Plakoto, you = White vs the computer, 24 plies of seeded random legal moves, then the
+    computer wins by resignation) — straight into review/drill for checking their visuals,
+    with plenty of blunders to drill. Nothing is saved or counted. Combine with
+    `-settings.appearance light|dark` and `-AppleLanguages "(fa)"` (argument-domain
+    overrides) for screenshots, e.g.
+    `xcrun simctl launch <udid> com.plakoto.TavliApp -debugReviewSample -settings.appearance dark`.
   - **Resume from the list** (`resume(_:)`) loads the chosen `SaveMetadata`, derives `humanColor`
     from `save.aiColor.opponent`, carries `save.name` forward into `autosaveName` (so continued
     play keeps the same identity), and switches into the replayed session.

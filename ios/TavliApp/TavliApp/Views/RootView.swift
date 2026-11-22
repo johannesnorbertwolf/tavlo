@@ -208,6 +208,9 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background { persistAutosave() }
         }
+        #if DEBUG
+        .debugReviewSample()   // `-debugReviewSample`: straight into a sample review (#232)
+        #endif
         // Online (#134): sign in to Game Center at launch without UI, so a tapped turn
         // notification reaches the listener; the sign-in sheet waits for Play Online.
         .onAppear { online.authenticate(presentUI: false) }

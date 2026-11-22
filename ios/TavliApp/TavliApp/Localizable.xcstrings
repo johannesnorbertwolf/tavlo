@@ -142,6 +142,34 @@
         }
       }
     },
+    "Well done ✓" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gut gemacht ✓"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μπράβο ✓"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "آفرین ✓"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goed gedaan ✓"
+          }
+        }
+      }
+    },
     "—" : {},
     "· Blunder %@ of %@" : {
       "localizations" : {
@@ -469,6 +497,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "−%@ winstkans t.o.v. jouw zet"
+          }
+        }
+      }
+    },
+    "−%@ win chance vs your try" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ Gewinnchance ggü. deinem Versuch"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ πιθανότητα νίκης έναντι της προσπάθειάς σου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ شانس برد نسبت به تلاش تو"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ winstkans t.o.v. jouw poging"
           }
         }
       }
@@ -903,35 +959,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Blunder"
-          }
-        }
-      }
-    },
-    "both" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "beide"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "και οι δύο"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "هر دو"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "beide"
           }
         }
       }
@@ -4656,6 +4683,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "−%@ equity t.o.v. jouw zet"
+          }
+        }
+      }
+    },
+    "−%@ equity vs your try" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ Equity gegenüber deinem Versuch"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ equity έναντι της προσπάθειάς σου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ ارزش موقعیت نسبت به تلاش تو"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%@ equity t.o.v. jouw poging"
           }
         }
       }

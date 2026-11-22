@@ -112,7 +112,7 @@ struct DrillView: View {
                           feedback: model.feedback, showingSolution: model.showingSolution,
                           lastAttempt: model.lastAttempt, lastAttemptScore: model.lastAttemptScore,
                           awaitingRetry: model.awaitingRetry,
-                          solved: model.solvedThisCard,
+                          solved: model.solvedThisCard, celebrating: model.celebrating,
                           onTryAgain: { model.tryAgain() },
                           onShowSolution: { model.revealSolution() },
                           onAdvance: { model.advance() },
@@ -186,8 +186,9 @@ final class DrillModel: ObservableObject {
     @Published private(set) var session: GameSession?
     @Published var feedback: Feedback = .none
     @Published private(set) var showingSolution = false
-    /// The player's most recent attempt on this card, as `[from, to]` pairs (for
-    /// showing what they actually played, in writing). `nil` until they move.
+    /// The player's most recent attempt on this card, as `[from, to]` pairs (shown in
+    /// writing, and compared with the best move by "Show solution", #232). `nil` until
+    /// they move; kept through "Try again" — it is replaced by the next attempt.
     @Published private(set) var lastAttempt: [[Int]]?
     /// Win-probability score of `lastAttempt` (#114), shown alongside it.
     @Published private(set) var lastAttemptScore: Float?
@@ -195,6 +196,11 @@ final class DrillModel: ObservableObject {
     @Published private(set) var awaitingRetry = false
     /// Whether the current card has been solved (a correct attempt was made).
     @Published private(set) var solvedThisCard = false
+    /// A correct attempt is being confirmed ("Well done ✓"); the drill advances by itself
+    /// when it ends (#232).
+    @Published private(set) var celebrating = false
+    /// The pending auto-advance after a correct attempt.
+    private var advanceTask: Task<Void, Never>?
 
     // `play/loop.py` drill tolerances (drill_correct_floor / drill_correct_relative).
     // Hard-coded for now; candidates for the #77 settings work.
@@ -279,7 +285,6 @@ final class DrillModel: ObservableObject {
         guard let b = current, let agent else { return }
         feedback = .checking
         let pairs = move.halfMoves.map { [$0.from.position, $0.to.position] }
-        lastAttempt = pairs
         let stacks = b.boardStacks
         let mover = b.mover
         let best = b.bestScore
@@ -287,11 +292,13 @@ final class DrillModel: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             let score = try? agent.scoreCandidate(boardStacks: stacks, move: pairs, mover: mover,
                                                   config: config)
-            await MainActor.run { self?.applyFeedback(score: score, best: best) }
+            await MainActor.run { self?.applyFeedback(attempt: pairs, score: score, best: best) }
         }
     }
 
-    private func applyFeedback(score: Float?, best: Float) {
+    private func applyFeedback(attempt: [[Int]], score: Float?, best: Float) {
+        // Attempt + score land together, so the "You tried" row swaps in one step.
+        lastAttempt = attempt
         lastAttemptScore = score
         guard let score else {
             awaitingRetry = true
@@ -302,11 +309,14 @@ final class DrillModel: ObservableObject {
         let correctThreshold = max(correctFloor, Double(best) * correctRelative)
         let closeThreshold = max(closeFloor, Double(best) * closeRelative)
         if gap <= correctThreshold {
-            // Solved: leave the move on the board (#114) — no retry, advance with "Next".
+            // Solved: leave the move on the board (#114), confirm briefly, then move on by
+            // itself (#232) — no Next button for a solved card.
             awaitingRetry = false
             if !solvedThisCard { solvedThisCard = true; solvedCount += 1 }
-            feedback = .correct(gap < 0.001 ? String(localized: "Excellent — that’s the best move!")
-                                            : String(localized: "Great — very close to optimal."))
+            let message = gap < 0.001 ? String(localized: "Excellent — that’s the best move!")
+                                      : String(localized: "Great — very close to optimal.")
+            feedback = .correct(message)
+            celebrateThenAdvance(announcing: message)
         } else if gap <= closeThreshold {
             awaitingRetry = true
             feedback = .close(String(localized: "Close — there’s a better move. Try again."))
@@ -317,24 +327,75 @@ final class DrillModel: ObservableObject {
     }
 
     /// Roll the held attempt back to the start so the player can try again (#114).
+    /// The attempt stays in `lastAttempt` (#232: "Show solution" compares your latest).
     func tryAgain() {
         session?.retryAttempt()
         awaitingRetry = false
-        lastAttempt = nil
-        lastAttemptScore = nil
         feedback = .none
     }
 
-    /// Reveal the best move. If an attempt is held, roll it back first so the solution
-    /// highlight (drawn from the pre-move position) lines up with the board (#114).
+    /// Reveal the best move, compared with your latest attempt (or the game move when
+    /// you haven't tried, #232). The highlight is drawn from the pre-move position, so
+    /// first put the board back there: roll back a held attempt (#114) and undo any
+    /// half-built move / pending pick.
     func revealSolution() {
-        if session?.heldAttempt != nil { session?.retryAttempt() }
+        if let session {
+            if session.heldAttempt != nil { session.retryAttempt() }
+            if session.routeChoice != nil { session.cancelRouteChoice() }
+            for _ in 0..<4 where !session.moveBuilder.built.isEmpty { session.undo() }
+            if session.selectedPoint != nil { session.selectPoint(-1) }
+        }
         awaitingRetry = false
         showingSolution = true
     }
 
+    /// How long the "Well done ✓" confirmation stays before the drill moves on (#232).
+    static let celebrationSeconds: Double = 1.2
+    /// With VoiceOver on, the longest we wait for the announcement to finish.
+    private static let voiceOverCelebrationCap: Double = 6
+
+    /// Show the "Well done ✓" confirmation (`celebrating`), announce it to VoiceOver, then
+    /// advance to the next blunder (or the summary). With VoiceOver running it waits for
+    /// the announcement to finish (capped) instead of the fixed ~1 s.
+    private func celebrateThenAdvance(announcing message: String) {
+        celebrating = true
+        let card = index
+        let announcement = String(localized: "Well done ✓") + " " + message
+        let voiceOver = UIAccessibility.isVoiceOverRunning
+        if voiceOver {
+            AccessibilityNotification.Announcement(announcement).post()
+        }
+        advanceTask?.cancel()
+        advanceTask = Task { @MainActor [weak self] in
+            if voiceOver {
+                await Self.waitForAnnouncement(cap: Self.voiceOverCelebrationCap)
+            } else {
+                try? await Task.sleep(nanoseconds: UInt64(Self.celebrationSeconds * 1_000_000_000))
+            }
+            guard !Task.isCancelled, let self, self.index == card, self.celebrating else { return }
+            self.advance()
+        }
+    }
+
+    /// Resolves when VoiceOver finishes an announcement, or after `cap` seconds.
+    private static func waitForAnnouncement(cap: Double) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                let finished = NotificationCenter.default.notifications(
+                    named: UIAccessibility.announcementDidFinishNotification)
+                for await _ in finished { break }
+            }
+            group.addTask { try? await Task.sleep(nanoseconds: UInt64(cap * 1_000_000_000)) }
+            await group.next()
+            group.cancelAll()
+        }
+    }
+
     /// Move to the next blunder (or finish). A card left unsolved counts as skipped.
     func advance() {
+        advanceTask?.cancel()
+        advanceTask = nil
+        celebrating = false
         if !solvedThisCard { skippedCount += 1 }
         if index + 1 < blunders.count {
             loadCard(index + 1)
@@ -361,12 +422,17 @@ private struct DrillCard: View {
     let lastAttemptScore: Float?
     let awaitingRetry: Bool
     let solved: Bool
+    /// A correct attempt is being confirmed before the drill advances by itself (#232).
+    let celebrating: Bool
     let onTryAgain: () -> Void
     let onShowSolution: () -> Void
     let onAdvance: () -> Void
     /// The drill header, when the screen moved it into this card's rail (iPhone
     /// landscape, #109).
     var railHeader: AnyView? = nil
+
+    /// A checker is being dragged on the board (from `PlayableBoardView.onLiftChange`).
+    @State private var dragLifted = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -444,26 +510,61 @@ private struct DrillCard: View {
         }
     }
 
+    /// The move "Show solution" sets against the best (#232): your latest attempt,
+    /// or the move you played in the game when you haven't tried yet.
+    private var comparedMove: [[Int]] { lastAttempt ?? eval.playedMove }
+
+    /// Whether the board overlays may show (#232). They are drawn from the pre-move
+    /// position, so never while it has changed (an attempt held, #114, or half a move
+    /// built), and they step aside while a checker is picked (tapped, dragged or
+    /// awaiting a route choice) so the live amber play highlight reads on its own.
+    private var showsOverlay: Bool {
+        session.heldAttempt == nil && session.moveBuilder.built.isEmpty
+            && session.selectedPoint == nil && session.routeChoice == nil && !dragLifted
+    }
+
+    /// The ghost of the game move is on the board (before an attempt, nothing picked).
+    private var ghostDrawn: Bool { showsOverlay && !showingSolution && !solved }
+    /// The solution comparison is on the board.
+    private var solutionDrawn: Bool { showsOverlay && showingSolution }
+    /// Which marks the solution actually draws (your compared move may equal the best,
+    /// then only the blue shows).
+    private var solutionMarks: (played: Bool, best: Bool) {
+        guard solutionDrawn else { return (false, false) }
+        return MoveHighlightView.drawnMarks(playedMove: comparedMove, bestMove: eval.bestMove)
+    }
+
     private var board: some View {
         ZStack {
-            PlayableBoardView(session: session, flipped: flipped)
-            // Overlays are drawn from the pre-move position, so only show them when the
-            // board is actually there (no attempt held on it) (#114).
-            if session.heldAttempt == nil {
-                if showingSolution {
-                    // Compare what you played (yellow) against the best (blue), both
-                    // green where they agree (#133).
-                    MoveHighlightView(playedMove: eval.playedMove, bestMove: eval.bestMove,
-                                      stacks: eval.boardStacks, flipped: flipped,
-                                      variant: session.game.variant)
-                } else if !solved {
-                    // The move you originally played — "you did this; find better" (#114).
-                    MoveHighlightView(playedMove: eval.playedMove, bestMove: nil,
-                                      stacks: eval.boardStacks, flipped: flipped,
-                                      variant: session.game.variant)
-                }
+            PlayableBoardView(session: session, flipped: flipped,
+                              onLiftChange: { dragLifted = $0 })
+            if solutionDrawn {
+                // Your latest attempt (amber) against the best (blue); shared points
+                // carry both marks (#232).
+                MoveHighlightView(playedMove: comparedMove, bestMove: eval.bestMove,
+                                  stacks: eval.boardStacks, flipped: flipped,
+                                  variant: session.game.variant)
+            } else if ghostDrawn {
+                // The move you played in the game, as a grey dashed ghost — "you did
+                // this; find better" (#114, #232). Your attempt is the live amber.
+                MoveHighlightView(playedMove: eval.playedMove, bestMove: nil,
+                                  stacks: eval.boardStacks, flipped: flipped,
+                                  variant: session.game.variant, playedStyle: .ghost)
+            }
+            if celebrating {
+                // A correct attempt (#232): a brief confirmation over the board, then the
+                // drill moves on by itself. VoiceOver hears it via the model's announcement.
+                Text("Well done ✓")
+                    .font(ChromeType.title2.bold())
+                    .foregroundStyle(ChromeKit.onAccent)
+                    .padding(.horizontal, 28).padding(.vertical, 14)
+                    .background(DrillTint.correct, in: Capsule())
+                    .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    .accessibilityAddTraits(.isStaticText)
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: celebrating)
         .aspectRatio(1, contentMode: .fit)
         .boardLayoutDirection()   // #185: the physical board never mirrors
     }
@@ -492,37 +593,66 @@ private struct DrillCard: View {
 
     /// The scores behind the drill (#114): the move you originally played and its win
     /// chance, your latest attempt and its win chance, and — once revealed — the best
-    /// move with the gap. Mirrors the review's number language.
+    /// move with the gap. Mirrors the review's number language. A row leads with a
+    /// swatch **only while its mark is drawn on the board** (#232), else an empty
+    /// swatch-sized gap so the rows stay aligned: the game move grey dashed while its
+    /// ghost shows (amber when the solution compares it), your attempt amber while the
+    /// solution compares it, the best blue in the solution.
     @ViewBuilder
     private var movesPanel: some View {
+        let marks = solutionMarks
         VStack(alignment: .leading, spacing: 6) {
             moveRow(label: "You played", move: notation(eval.playedMove),
-                    pct: Double(eval.playedScore), tint: CaramelPalette.hl)
+                    pct: Double(eval.playedScore),
+                    style: ghostDrawn ? .ghost
+                        : (lastAttempt == nil && marks.played ? .played : nil))
             if let lastAttempt, let s = lastAttemptScore {
                 moveRow(label: "You tried", move: notation(lastAttempt),
-                        pct: Double(s), tint: ChromeTheme.ink)
+                        pct: Double(s), style: marks.played ? .played : nil)
             }
             if showingSolution {
                 moveRow(label: "Best move", move: notation(eval.bestMove),
-                        pct: Double(eval.bestScore), tint: CaramelPalette.hlBest)
-                let gap = scale.gap(Double(eval.bestScore - eval.playedScore))
-                Group {
-                    if scale.isEquity {
-                        Text("−\(gap) equity vs your move")
-                    } else {
-                        Text("−\(gap) win chance vs your move")
-                    }
-                }
-                .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
+                        pct: Double(eval.bestScore), style: marks.best ? .best : nil)
+                gapLine
+                    .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
             }
         }
     }
 
-    private func moveRow(label: LocalizedStringKey, move: MoveNotation, pct: Double, tint: SColor) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label).font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
-            MoveNotationLine(notation: move, font: .callout.bold(), color: tint)
-            Text("\(percent(pct))").font(.caption.monospacedDigit()).foregroundStyle(ChromeKit.inkDim(0.5))
+    /// How far the best is ahead of the move the board compares it with (#232).
+    @ViewBuilder
+    private var gapLine: some View {
+        if lastAttempt != nil, let tried = lastAttemptScore {
+            let gap = scale.gap(Double(eval.bestScore - tried))
+            if scale.isEquity {
+                Text("−\(gap) equity vs your try")
+            } else {
+                Text("−\(gap) win chance vs your try")
+            }
+        } else {
+            let gap = scale.gap(Double(eval.bestScore - eval.playedScore))
+            if scale.isEquity {
+                Text("−\(gap) equity vs your move")
+            } else {
+                Text("−\(gap) win chance vs your move")
+            }
+        }
+    }
+
+    private func moveRow(label: LocalizedStringKey, move: MoveNotation, pct: Double,
+                         style: MoveMarkStyle?) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            if let style {
+                MoveMarkSwatch(style: style)
+            } else {
+                Color.clear.frame(width: MoveMarkSwatch.size.width, height: MoveMarkSwatch.size.height)
+                    .accessibilityHidden(true)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(label).font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
+                MoveNotationLine(notation: move, font: .callout.bold(), color: ChromeTheme.ink)
+                Text("\(percent(pct))").font(.caption.monospacedDigit()).foregroundStyle(ChromeKit.inkDim(0.5))
+            }
         }
     }
 
@@ -539,7 +669,14 @@ private struct DrillCard: View {
     @ViewBuilder
     private var controls: some View {
         HStack(spacing: 16) {
-            if solved || showingSolution {
+            if celebrating || solved {
+                // Solved (#232): the drill moves on by itself after "Well done ✓" — an
+                // invisible button keeps the row's height so nothing jumps meanwhile.
+                Button("Next →", action: {})
+                    .buttonStyle(DrillButton(tint: ChromeTheme.doneTint))
+                    .hidden()
+                    .accessibilityHidden(true)
+            } else if showingSolution {
                 // Nothing more to do on this card — keep the result on the board (#114).
                 Button("Next →", action: onAdvance)
                     .buttonStyle(DrillButton(tint: ChromeTheme.doneTint))

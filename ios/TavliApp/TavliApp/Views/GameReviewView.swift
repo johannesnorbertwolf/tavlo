@@ -182,8 +182,8 @@ struct GameReviewView: View {
             BoardView(flipped: flipped)
             HandicapBoardCuesView(rules: record.replayConfig.handicapRules, flipped: flipped)   // #148 tier 2
             CheckersView(stacks: eval.boardStacks, flipped: flipped, variant: variant)
-            // Always show your move (amber); `.both` overlays the best move (blue),
-            // with shared elements in green (#133).
+            // Always show your move (amber, solid); `.both` overlays the best move (blue,
+            // dashed), with both marks on shared points (#133, #232).
             MoveHighlightView(playedMove: eval.playedMove,
                               bestMove: overlay == .both ? eval.bestMove : nil,
                               stacks: eval.boardStacks, flipped: flipped, variant: variant)
@@ -218,7 +218,7 @@ struct GameReviewView: View {
                         HStack(alignment: .top, spacing: 28) {
                             VStack(alignment: .leading, spacing: 18) {
                                 overviewSection(eval: eval, finished: finished, onScrub: onScrub)
-                                pickerSection
+                                pickerSection(eval: eval)
                             }
                             moveSection(eval: eval, i: i, count: count, finished: finished)
                         }
@@ -338,7 +338,7 @@ struct GameReviewView: View {
         VStack(alignment: .leading, spacing: 18) {
             overviewSection(eval: eval, finished: finished, onScrub: onScrub)
             moveSection(eval: eval, i: i, count: count, finished: finished)
-            pickerSection
+            pickerSection(eval: eval)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -433,7 +433,7 @@ struct GameReviewView: View {
     }
 
     /// The board-highlight picker + legend and the step filter.
-    private var pickerSection: some View {
+    private func pickerSection(eval: PlyEvaluation) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             // Highlight selector — your move alone, or compared against the best.
             VStack(alignment: .leading, spacing: 8) {
@@ -444,11 +444,16 @@ struct GameReviewView: View {
                 .pickerStyle(.segmented)
                 // Always laid out (hidden when not comparing) so the controls below
                 // don't shift when you toggle Compare (#132).
+                // Line swatches matching the board marks (#232): amber / blue; a point both
+                // moves share carries both marks, so there's no "both" key. An entry shows
+                // only while its mark is drawn — playing the best draws the blue alone.
+                let drawn = MoveHighlightView.drawnMarks(playedMove: eval.playedMove,
+                                                         bestMove: eval.bestMove)
                 HStack(spacing: 14) {
-                    legendDot(CaramelPalette.hl, "played")
-                    legendDot(CaramelPalette.hlBest, "best")
-                    legendDot(CaramelPalette.hlBoth, "both")
+                    if drawn.played { legendSwatch(.played, "played") }
+                    if drawn.best { legendSwatch(.best, "best") }
                 }
+                .frame(minHeight: 16)
                 .font(.caption)
                 .foregroundStyle(ChromeKit.inkDim(0.6))
                 .opacity(overlay == .both ? 1 : 0)
@@ -513,9 +518,9 @@ struct GameReviewView: View {
     // ── Formatting ────────────────────────────────────────────────────────────
 
     /// A small colour swatch + label for the compare legend (#133).
-    private func legendDot(_ color: SColor, _ label: LocalizedStringKey) -> some View {
+    private func legendSwatch(_ style: MoveMarkStyle, _ label: LocalizedStringKey) -> some View {
         HStack(spacing: 5) {
-            Circle().fill(color).frame(width: 10, height: 10)
+            MoveMarkSwatch(style: style)
             Text(label)
         }
     }
