@@ -10120,13 +10120,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Fehler"
+                  "value" : "%lld Fehler"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Fehler"
+                  "value" : "%lld Fehler"
                 }
               }
             }
@@ -10138,13 +10138,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld λάθος"
+                  "value" : "%lld λάθος"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld λάθη"
+                  "value" : "%lld λάθη"
                 }
               }
             }
@@ -10156,13 +10156,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld mistake"
+                  "value" : "%lld mistake"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld mistakes"
+                  "value" : "%lld mistakes"
                 }
               }
             }
@@ -10174,13 +10174,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld اشتباه"
+                  "value" : "%lld اشتباه"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld اشتباه"
+                  "value" : "%lld اشتباه"
                 }
               }
             }
@@ -10192,13 +10192,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld fout"
+                  "value" : "%lld fout"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld fouten"
+                  "value" : "%lld fouten"
                 }
               }
             }
@@ -10214,13 +10214,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Grober Patzer"
+                  "value" : "%lld Grober Patzer"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Grobe Patzer"
+                  "value" : "%lld Grobe Patzer"
                 }
               }
             }
@@ -10232,13 +10232,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld γκάφα"
+                  "value" : "%lld γκάφα"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld γκάφες"
+                  "value" : "%lld γκάφες"
                 }
               }
             }
@@ -10250,13 +10250,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld blunder"
+                  "value" : "%lld blunder"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld blunders"
+                  "value" : "%lld blunders"
                 }
               }
             }
@@ -10268,13 +10268,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld اشتباه فاحش"
+                  "value" : "%lld اشتباه فاحش"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld اشتباه فاحش"
+                  "value" : "%lld اشتباه فاحش"
                 }
               }
             }
@@ -10286,13 +10286,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld blunder"
+                  "value" : "%lld blunder"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld blunders"
+                  "value" : "%lld blunders"
                 }
               }
             }
@@ -10308,13 +10308,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Ungenauigkeit"
+                  "value" : "%lld Ungenauigkeit"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld Ungenauigkeiten"
+                  "value" : "%lld Ungenauigkeiten"
                 }
               }
             }
@@ -10326,13 +10326,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld ανακρίβεια"
+                  "value" : "%lld ανακρίβεια"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld ανακρίβειες"
+                  "value" : "%lld ανακρίβειες"
                 }
               }
             }
@@ -10344,13 +10344,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld inaccuracy"
+                  "value" : "%lld inaccuracy"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld inaccuracies"
+                  "value" : "%lld inaccuracies"
                 }
               }
             }
@@ -10362,13 +10362,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld بی‌دقتی"
+                  "value" : "%lld بی‌دقتی"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld بی‌دقتی"
+                  "value" : "%lld بی‌دقتی"
                 }
               }
             }
@@ -10380,13 +10380,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld onnauwkeurigheid"
+                  "value" : "%lld onnauwkeurigheid"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "%lld onnauwkeurigheden"
+                  "value" : "%lld onnauwkeurigheden"
                 }
               }
             }
