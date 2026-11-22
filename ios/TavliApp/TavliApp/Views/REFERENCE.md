@@ -327,18 +327,24 @@ the published view contract (`selectableSources`, `validTargets`, `selectedPoint
   checker (`liveDrag` becomes non-nil) and when it is let go. The drag lives in the view's
   `@GestureState`, so this is how a caller (the drill's ghost) learns "a checker is picked"
   during a drag, alongside `session.selectedPoint` for a tap.
-- **`MoveMarkStyle`** (#232) — how one move is drawn in review/drill; one meaning per style,
-  told apart by colour **and** stroke so it survives colour blindness (the old green "both"
-  colour, `hlBoth`, is gone — on the mahogany board it vanished for deuteranopes):
+- **`MoveMarkStyle`** (#232) — how one move is drawn in review/drill; one meaning per colour,
+  amber vs blue on the blue–yellow axis that red-green colour blindness keeps (the old green
+  "both" colour, `hlBoth`, is gone — on the mahogany board it vanished for deuteranopes).
+  Only the ghost is dashed — dashed means "not actually on the board":
   | Style | Colour | Frame stroke (×`s`) | Ring stroke (×`s`) | Used for |
   |---|---|---|---|---|
   | `.played` | `hl` amber | solid 5 | solid 3.4 | your move (review), your attempt (drill solution) |
-  | `.best` | `hlBest` blue | 5, dash 12/7 | 3.4, dash 7/4.5 | the best move (review Compare, drill solution, handicap hint) |
+  | `.best` | `hlBest` blue | solid 5 | solid 3.4 | the best move (review Compare, drill solution, handicap hint) |
   | `.ghost` | `hlGhost` grey | 4.2, dash 8/6 | 3, dash 5/4 | the drill's game move before an attempt |
-  `swatchStroke` is the same look at legend size (3 pt / 2.4 pt, dash 5/3 / 3.5/3).
-- **`MoveMarkSwatch(style:)`** — a 24×10 pt `Canvas` line in a `MoveMarkStyle`, the legend
-  swatch next to a move row (drill panel rows, review Compare legend). `accessibilityHidden`;
-  the row's text carries the meaning.
+  `swatchStroke` is the same look at legend size (3 pt solid / 2.4 pt dash 3.5/3).
+- **`MoveMarkSwatch(style:)`** — a 24×10 pt (`MoveMarkSwatch.size`) `Canvas` line in a
+  `MoveMarkStyle`, the legend swatch next to a move row (drill panel rows, review Compare
+  legend). `accessibilityHidden`; the row's text carries the meaning. **A swatch shows only
+  while that exact mark is drawn on the board**; a row whose mark isn't drawn leaves an
+  empty swatch-sized gap (drill) or drops the entry (review legend).
+- **`MoveHighlightView.drawnMarks(playedMove:bestMove:)`** — which of the two moves leaves a
+  mark: the played move unless it is empty or the same as the best (then blue only), the
+  best whenever given and non-empty. Legends use it to decide their swatches.
 - **`MoveHighlightView`** (#133, restyled #232) — a pure `Canvas` rendering a *whole move*
   (`playedMove` + optional `bestMove`, `[from, to]` pairs) from the **pre-move** `stacks`:
   - **Marks by count.** Per point, arrivals vs departures: `min` cancels as a pass-through hop,
@@ -351,12 +357,12 @@ the published view contract (`selectableSources`, `validTargets`, `selectedPoint
     point, `n` = checkers lifted there.
   - **`playedStyle`** (default `.played`; the drill ghost passes `.ghost`) styles `playedMove`;
     `bestMove` is always `.best`.
-  - **Shared points get both marks.** A landing in both moves = the played frame + a blue dashed
+  - **Shared points get both marks.** A landing in both moves = the played frame + a blue
     frame pushed `7·s` outwards (the triangle scaled about its incentre — every edge moves the
     same distance — with the sharp apex cut square `7·s` past the original tip so the spike
     doesn't run into the board's middle; trays grow by `7·s`). Source rings are coloured per
     point **by count**: of `m` played / `b` best checkers lifted there, `min(m, b)` (top-down)
-    get the played ring + a blue dashed ring at `+5·s` radius, then `b − min` blue only, then
+    get the played ring + a blue ring at `+5·s` radius, then `b − min` blue only, then
     `m − min` played only.
   - **Same move → blue only.** When both moves give the same marks (sorted sources + landing
     set), only the best move is drawn (the ✓ is in the panel). `bestMove == nil` shows the
@@ -693,9 +699,10 @@ Per screen (compact only):
   actions; landscape: the header moves into the card's rail (`railHeader`).
 
 **Review/drill board overlays (#232).** The review's Compare mode passes the played move +
-best move to `MoveHighlightView` (amber solid / blue dashed, both marks on shared points,
-blue only when you played the best); its legend is two `MoveMarkSwatch`es ("played",
-"best" — no "both" key). The **drill** board (`DrillCard.board`) shows, over the live
+best move to `MoveHighlightView` (amber / blue, both solid; both marks on shared points,
+blue only when you played the best); its legend shows a `MoveMarkSwatch` for each mark
+actually drawn ("played", "best" — only "best" when you played the best; no "both" key).
+The **drill** board (`DrillCard.board`) shows, over the live
 `PlayableBoardView`:
 - **Before an attempt** — the move you played in the game as a **ghost**
   (`playedStyle: .ghost`, grey dashed). Your attempt is the normal amber in-game play
@@ -710,11 +717,23 @@ blue only when you played the best); its legend is two `MoveMarkSwatch`es ("play
   blue; with no attempt it compares the game move (amber). `revealSolution()` first returns
   the board to the start (rolls back a held attempt, cancels a route choice, undoes a
   half-built move, clears the selection) so the overlay lines up.
-- **Panel rows** lead with a `MoveMarkSwatch` matching the board instead of coloured text
-  (notation is plain ink): "You played" dashed grey (solid amber when the solution compares
-  it), "You tried" solid amber, "Best move" dashed blue. The gap line under the solution is
-  measured against the compared move: "−x win chance vs your try" / "−x equity vs your try"
-  after an attempt, "… vs your move" otherwise.
+- **Panel rows** lead with a `MoveMarkSwatch` instead of coloured text (notation is plain
+  ink) — **only while that row's mark is on the board**, else an empty swatch-sized gap so
+  the rows stay aligned: "You played" grey dashed while the ghost shows, amber when the
+  solution compares the game move (no attempt), nothing otherwise (picking, half move, held
+  attempt, solution comparing your attempt); "You tried" amber only while the solution
+  compares it (and it isn't identical to the best); "Best move" blue in the solution. The
+  gap line under the solution is measured against the compared move: "−x win chance vs your
+  try" / "−x equity vs your try" after an attempt, "… vs your move" otherwise.
+- **Correct attempt → auto-advance.** A graded-correct attempt (`gap ≤ max(0.01, 3 % of
+  best)` — "Excellent — that's the best move!" / "Great — very close to optimal.") stays held
+  on the board, sets `DrillModel.celebrating` and shows a "Well done ✓" capsule
+  (`DrillTint.correct`, `onAccent` text, spring scale-in) over the board; the action row
+  keeps its height with a hidden button. After `celebrationSeconds` (1.2 s) the model calls
+  `advance()` itself (next blunder or the summary; counts as solved). With VoiceOver running
+  it posts an `AccessibilityNotification.Announcement` ("Well done ✓" + the message) and
+  advances when `announcementDidFinishNotification` fires (capped at 6 s). Close/wrong keep
+  Try again / Show solution.
 
 ## DebugOverlay.swift (T11 — debug eval overlay)
 
@@ -1058,7 +1077,7 @@ only when a handicap is active / exists.
   `HandicapActionsRow` above Undo/Done only in a handicap game: "Reroll (n left)" / "Hint (n left)"
   for the human on move (disabled when not allowed), side by side or stacked (`ViewThatFits`), then
   "Best move shown in blue" or "Computer used a reroll (n left)". `PlayableBoardView` draws
-  `session.hint` as a blue (dashed, #232) `MoveHighlightView` over the checkers. `GameView` autosaves on a token
+  `session.hint` as a blue `MoveHighlightView` over the checkers. `GameView` autosaves on a token
   change, hides the vs-Computer record in the win overlay of a handicap game, and passes
   `record.handicap` to the history notation.
 - **Tier 2 (P3b).** `HandicapPreferences` adds `overshoot`/`overshootSide`, `safePoint`/

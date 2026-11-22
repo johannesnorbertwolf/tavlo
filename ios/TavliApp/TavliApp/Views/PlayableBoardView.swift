@@ -438,16 +438,17 @@ struct SourceRingView: View {
     }
 }
 
-/// How one move is drawn on the board in review/drill (#232). One meaning per style,
-/// told apart by colour **and** stroke so it survives colour blindness (the old green
-/// "both" colour did not — #232):
+/// How one move is drawn on the board in review/drill (#232). One meaning per colour,
+/// on the blue–yellow axis that red-green colour blindness keeps (the old green "both"
+/// colour vanished on the mahogany board — #232):
 ///
-/// - `played` — your move (review) / your attempt (drill solution): amber, **solid**.
-/// - `best` — the best move: blue, **dashed**.
+/// - `played` — your move (review) / your attempt (drill solution): amber, solid.
+/// - `best` — the best move (also the in-game handicap hint): blue, solid.
 /// - `ghost` — the drill's reminder of the move you played in the game, before an
-///   attempt: grey, dashed and thinner (low emphasis).
+///   attempt: grey, **dashed** and thinner. Dashed means "not actually on the board".
 ///
-/// `MoveMarkSwatch` draws the same style as a short line for panel legends.
+/// `MoveMarkSwatch` draws the same style as a short line for panel legends; a legend
+/// shows a swatch only while that mark is drawn (`MoveHighlightView.drawnMarks`).
 enum MoveMarkStyle {
     case played
     case best
@@ -465,7 +466,7 @@ enum MoveMarkStyle {
     func frameStroke(_ s: CGFloat) -> StrokeStyle {
         switch self {
         case .played: return StrokeStyle(lineWidth: 5 * s, lineJoin: .round)
-        case .best: return StrokeStyle(lineWidth: 5 * s, lineJoin: .round, dash: [12 * s, 7 * s])
+        case .best: return StrokeStyle(lineWidth: 5 * s, lineJoin: .round)
         case .ghost: return StrokeStyle(lineWidth: 4.2 * s, lineJoin: .round, dash: [8 * s, 6 * s])
         }
     }
@@ -474,7 +475,7 @@ enum MoveMarkStyle {
     func ringStroke(_ s: CGFloat) -> StrokeStyle {
         switch self {
         case .played: return StrokeStyle(lineWidth: 3.4 * s)
-        case .best: return StrokeStyle(lineWidth: 3.4 * s, dash: [7 * s, 4.5 * s])
+        case .best: return StrokeStyle(lineWidth: 3.4 * s)
         case .ghost: return StrokeStyle(lineWidth: 3 * s, dash: [5 * s, 4 * s])
         }
     }
@@ -483,7 +484,7 @@ enum MoveMarkStyle {
     var swatchStroke: StrokeStyle {
         switch self {
         case .played: return StrokeStyle(lineWidth: 3, lineCap: .round)
-        case .best: return StrokeStyle(lineWidth: 3, dash: [5, 3])
+        case .best: return StrokeStyle(lineWidth: 3, lineCap: .round)
         case .ghost: return StrokeStyle(lineWidth: 2.4, dash: [3.5, 3])
         }
     }
@@ -502,9 +503,12 @@ struct MoveMarkSwatch: View {
             line.addLine(to: CGPoint(x: size.width - 2, y: size.height / 2))
             context.stroke(line, with: .color(style.color), style: style.swatchStroke)
         }
-        .frame(width: 24, height: 10)
+        .frame(width: Self.size.width, height: Self.size.height)
         .accessibilityHidden(true)
     }
+
+    /// The swatch's footprint — also the gap a legend row leaves when its mark isn't drawn.
+    static let size = CGSize(width: 24, height: 10)
 }
 
 /// Review/drill move highlighter (#133, restyled #232). Renders a *whole move* with
@@ -526,16 +530,16 @@ struct MoveMarkSwatch: View {
 ///     stack — not every checker sitting there.
 ///
 /// Styles (#232, `MoveMarkStyle`): `playedMove` draws in `playedStyle` (amber solid by
-/// default; the drill's ghost passes `.ghost`), a non-nil `bestMove` in blue dashed.
+/// default; the drill's ghost passes `.ghost`), a non-nil `bestMove` in blue.
 /// Where both moves land on one point, or lift a checker from one point, **both marks
-/// are drawn**: the played frame/ring with a slightly larger blue dashed one around it.
+/// are drawn**: the played frame/ring with a slightly larger blue one around it.
 /// When the two moves are the same (same sources and landings) only the blue is drawn.
 /// With `bestMove == nil` only the played move is shown.
 struct MoveHighlightView: View {
     /// The move to show in `playedStyle` ("your move"). May be empty (e.g. a hint
     /// that only wants the blue best move).
     let playedMove: [[Int]]
-    /// The best move to compare against, in blue dashed; `nil` hides it.
+    /// The best move to compare against, in blue; `nil` hides it.
     let bestMove: [[Int]]?
     /// Pre-move per-slot stacks, so rings track the real checker positions.
     let stacks: [[TavliEngine.Color]]
@@ -589,7 +593,19 @@ struct MoveHighlightView: View {
         return Marks(sources: sources, targets: targets)
     }
 
-    /// One ring on one lifted checker: its own style, plus the blue dashed ring drawn
+    /// Which of the two moves actually leaves a mark on the board — for legends, which
+    /// show a swatch only for a drawn mark (#232). The played move draws unless it is
+    /// empty (no genuine source or landing) or the same as the best (then blue only);
+    /// the best draws whenever it is given and non-empty.
+    static func drawnMarks(playedMove: [[Int]], bestMove: [[Int]]?) -> (played: Bool, best: Bool) {
+        let mine = marks(of: playedMove)
+        let best = bestMove.map { marks(of: $0) }
+        let mineEmpty = mine.sources.isEmpty && mine.targets.isEmpty
+        let bestDrawn = best.map { !($0.sources.isEmpty && $0.targets.isEmpty) } ?? false
+        return (played: !mineEmpty && mine != best, best: bestDrawn)
+    }
+
+    /// One ring on one lifted checker: its own style, plus the blue ring drawn
     /// around it when the best move lifts that checker too.
     private struct Ring { let style: MoveMarkStyle; var outer: MoveMarkStyle? = nil }
 
@@ -608,7 +624,7 @@ struct MoveHighlightView: View {
             let bestTargets = best?.targets ?? []
 
             // Targets first (under the source rings). A point both moves land on gets
-            // the played frame plus a slightly larger blue dashed frame around it —
+            // the played frame plus a slightly larger blue frame around it —
             // including when you reached it with the wrong die (#133).
             for t in mineTargets.union(bestTargets) {
                 let isMine = mineTargets.contains(t), isBest = bestTargets.contains(t)

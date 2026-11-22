@@ -218,7 +218,7 @@ struct GameReviewView: View {
                         HStack(alignment: .top, spacing: 28) {
                             VStack(alignment: .leading, spacing: 18) {
                                 overviewSection(eval: eval, finished: finished, onScrub: onScrub)
-                                pickerSection
+                                pickerSection(eval: eval)
                             }
                             moveSection(eval: eval, i: i, count: count, finished: finished)
                         }
@@ -338,7 +338,7 @@ struct GameReviewView: View {
         VStack(alignment: .leading, spacing: 18) {
             overviewSection(eval: eval, finished: finished, onScrub: onScrub)
             moveSection(eval: eval, i: i, count: count, finished: finished)
-            pickerSection
+            pickerSection(eval: eval)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -433,7 +433,7 @@ struct GameReviewView: View {
     }
 
     /// The board-highlight picker + legend and the step filter.
-    private var pickerSection: some View {
+    private func pickerSection(eval: PlyEvaluation) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             // Highlight selector — your move alone, or compared against the best.
             VStack(alignment: .leading, spacing: 8) {
@@ -444,12 +444,16 @@ struct GameReviewView: View {
                 .pickerStyle(.segmented)
                 // Always laid out (hidden when not comparing) so the controls below
                 // don't shift when you toggle Compare (#132).
-                // Line swatches matching the board marks (#232): amber solid / blue dashed;
-                // a point both moves share carries both marks, so there's no "both" key.
+                // Line swatches matching the board marks (#232): amber / blue; a point both
+                // moves share carries both marks, so there's no "both" key. An entry shows
+                // only while its mark is drawn — playing the best draws the blue alone.
+                let drawn = MoveHighlightView.drawnMarks(playedMove: eval.playedMove,
+                                                         bestMove: eval.bestMove)
                 HStack(spacing: 14) {
-                    legendSwatch(.played, "played")
-                    legendSwatch(.best, "best")
+                    if drawn.played { legendSwatch(.played, "played") }
+                    if drawn.best { legendSwatch(.best, "best") }
                 }
+                .frame(minHeight: 16)
                 .font(.caption)
                 .foregroundStyle(ChromeKit.inkDim(0.6))
                 .opacity(overlay == .both ? 1 : 0)
