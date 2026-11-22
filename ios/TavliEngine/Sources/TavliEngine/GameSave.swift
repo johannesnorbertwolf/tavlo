@@ -277,7 +277,8 @@ public struct GameSave: Codable, Equatable {
         pendingRoll = roll?.isValid == true ? roll : nil
         // Tolerant (#148): an unreadable handicap loads the game unhandicapped.
         let hc = (try? c.decodeIfPresent(HandicapGameState.self, forKey: .handicap)) ?? nil
-        handicap = hc?.setup.isActive == true ? hc : nil
+        // An adjusted game whose items were all switched off mid-game is kept (#236).
+        handicap = hc?.setup.isKept == true ? hc : nil
         // Tolerant (#231): an unreadable level is just unknown.
         aiLevel = ((try? c.decodeIfPresent(Int.self, forKey: .aiLevel)) ?? nil).map(AILevel.clamped)
     }

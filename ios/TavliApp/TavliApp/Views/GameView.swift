@@ -671,14 +671,14 @@ struct GameView: View {
         }
     }
 
-    /// Navigation as icons + a "more" menu (Save / Resign or Leave, history, debug),
-    /// borne-off counters trailing. Every target stays ≥ 44 pt.
+    /// Navigation as icons + a "more" menu (Save / Resign or Leave, history, Settings,
+    /// debug), borne-off counters trailing. Every target stays ≥ 44 pt. Settings lives in
+    /// the menu (#236) so a handicap game's tag and two-digit counters fit a 13 mini.
     private var compactNavBar: some View {
         HStack(spacing: 8) {
             if showsBackButton {
                 BackButton(action: onBack, iconOnly: true)
             }
-            SettingsButton { showSettings = true }
             gameMenu
             HandicapTagButton(session: session, compact: true)   // only in a handicap game (#148)
             Spacer(minLength: 8)
@@ -687,8 +687,8 @@ struct GameView: View {
         }
     }
 
-    /// Save / Resign (offline) or Leave (online), plus move history and the debug
-    /// pane — the actions the iPad shows as separate buttons.
+    /// Save / Resign (offline) or Leave (online), plus move history, Settings and the
+    /// debug pane — the actions the iPad shows as separate buttons.
     private var gameMenu: some View {
         Menu {
             if !session.isTerminal && !(online?.isMatchOver ?? false) {
@@ -708,6 +708,10 @@ struct GameView: View {
             }
             Button { showHistory = true } label: {
                 Label("Move history", systemImage: "clock.arrow.circlepath")
+            }
+            // The phone's Settings entry in a game (#236): the sheet the iPad's gear opens.
+            Button { showSettings = true } label: {
+                Label("Settings", systemImage: "gearshape")
             }
             Button { showDebugPane.toggle() } label: {
                 Label(showDebugPane ? String(localized: "Hide debug pane")
@@ -1011,11 +1015,20 @@ private struct BorneOffView: View {
                     .fill(ChromeTheme.checkerColor(color))
                     .overlay(Circle().stroke(ChromeTheme.ink.opacity(0.35), lineWidth: 1))
                     .frame(width: 18, height: 18)
-                Text("\(count)")
-                    .font(ChromeType.callout.bold())
-                    .monospacedDigit()
-                    .foregroundStyle(ChromeTheme.ink)
+                // One line, never wrapped, two digits wide from the start (#236): the chip
+                // keeps its size at 10 and "12" can't break onto two lines. The hidden
+                // "88" is formatted like the count, so Persian digits reserve their width.
+                ZStack {
+                    Text("\(88)").hidden()
+                    Text("\(count)")
+                }
+                .font(ChromeType.callout.bold())
+                .monospacedDigit()
+                .foregroundStyle(ChromeTheme.ink)
+                .lineLimit(1)
+                .fixedSize()
             }
+            .fixedSize()
             .padding(.horizontal, 10)
             .frame(minHeight: 44)
             .background(ChromeTheme.ink.opacity(0.06))

@@ -173,37 +173,84 @@ struct HandicapSettingsRow: View {
 
 // MARK: - In-game tag
 
-/// The small "Handicap" tag in the game's top bar (only in a handicap game). Tapping it
-/// shows the setup, the estimate and the dice disclosure.
+/// The handicap button in the game's top bar (only in a handicap game): the scale plus the
+/// favoured side's checker dot (#236; no dot when the setup favours nobody). Tapping it
+/// opens the half-height `HandicapInfoSheet`, where the dice, rerolls and hints can be
+/// changed during the game.
 struct HandicapTagButton: View {
     @ObservedObject var session: GameSession
     var compact = false
     @State private var showInfo = false
+    @StateObject private var model = HandicapEstimateModel()
 
     var body: some View {
-        if session.handicap != nil {
+        if let state = session.handicap {
             Button { showInfo = true } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "scalemass")
+                    if let side = favoured(state.setup) {
+                        HandicapSideDot(color: side)
+                    }
                     if !compact { Text("Handicap") }
                 }
                 .font(ChromeType.caption.weight(.semibold))
             }
             .buttonStyle(ChromeButton(role: .secondary))
-            .accessibilityLabel("Handicap")
+            .accessibilityLabel(accessibilityLabel(state.setup))
             .accessibilityIdentifier("handicapTag")
+            .onAppear { refresh(state.setup) }
+            .onChange(of: state.setup) { _, setup in refresh(setup) }
             .sheet(isPresented: $showInfo) {
-                HandicapInfoSheet(session: session)
-                    .presentationDetents([.large])
+                HandicapInfoSheet(session: session, favoured: favoured(state.setup))
+                    // A half-height card on a phone (#236); the iPad keeps its large sheet.
+                    .presentationDetents(ChromeType.isCompact ? [.medium, .large] : [.large])
                     .presentationDragIndicator(.visible)
             }
         }
     }
+
+    /// One-sided setups need no estimate; a two-sided one asks the net (start position,
+    /// this game's real starter) and shows the table-only favourite meanwhile.
+    private func favoured(_ setup: HandicapSetup) -> EngineColor? {
+        HandicapEstimator.favouredSide(setup: setup,
+                                       estimate: setup.beneficiaries.count == 2 ? model.estimate : nil,
+                                       table: HandicapTableResource.table)
+    }
+
+    private func refresh(_ setup: HandicapSetup) {
+        guard setup.beneficiaries.count == 2 else { return }
+        model.update(setup: setup, rule: .fixed(session.startingPlayer))
+    }
+
+    private func accessibilityLabel(_ setup: HandicapSetup) -> String {
+        guard let side = favoured(setup) else { return String(localized: "Handicap, even") }
+        return String(localized: "Handicap, favours \(HandicapCopy.name(side, aiColor: session.aiColor))")
+    }
 }
 
-/// The tag's sheet: the setup line by line, tokens left, and the estimate for this game.
+/// A side's checker disc, sized for chrome text (the handicap button and card).
+struct HandicapSideDot: View {
+    let color: TavliEngine.Color
+    var size: CGFloat = 12
+
+    var body: some View {
+        Circle()
+            .fill(ChromeTheme.checkerColor(color))
+            .overlay(Circle().stroke(ChromeTheme.ink.opacity(0.35), lineWidth: 1))
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// The handicap card (#236; a half-height sheet that can grow): who the setup favours,
+/// then per side the items that may change during the game — weighted dice (Off → Very
+/// strong, from the next roll), rerolls left and hints left (a human side only) — then the
+/// start-only and rule items read-only, the start-position estimate (only before the first
+/// move) and the fair-dice note.
 struct HandicapInfoSheet: View {
     @ObservedObject var session: GameSession
+    /// The side the button shows as favoured (nil = even).
+    var favoured: TavliEngine.Color?
     @Environment(\.dismiss) private var dismiss
     @StateObject private var model = HandicapEstimateModel()
 
@@ -211,44 +258,47 @@ struct HandicapInfoSheet: View {
         ZStack {
             ChromeKit.pageColor.ignoresSafeArea()
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        Text("Handicap")
-                            .font(ChromeType.statsTitle)
-                            .foregroundStyle(ChromeTheme.ink)
-                        Spacer()
-                        Button("Done") { dismiss() }
-                            .buttonStyle(ChromeButton(role: .secondary))
-                    }
+                VStack(alignment: .leading, spacing: 14) {
+                    header
                     if let state = session.handicap {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(HandicapCopy.lines(state.setup, aiColor: session.aiColor), id: \.self) { line in
-                                Label(line, systemImage: "checkmark.circle")
-                                    .font(ChromeType.callout)
+                        ForEach(sides, id: \.self) { c in sideCard(c, state: state) }
+                        Text("Changes count from the next roll and carry over to the next games of a Best of 3.")
+                            .font(ChromeType.caption)
+                            .foregroundStyle(ChromeKit.inkSecondary)
+                        let fixed = HandicapCopy.lines(state.setup, aiColor: session.aiColor, adjustable: false)
+                        if !fixed.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Set at the start")
+                                    .font(ChromeType.body.weight(.semibold))
                                     .foregroundStyle(ChromeTheme.ink)
-                            }
-                            ForEach(tokenLines(state), id: \.self) { line in
-                                Text(line)
+                                ForEach(fixed, id: \.self) { line in
+                                    Label(line, systemImage: "lock")
+                                        .font(ChromeType.callout)
+                                        .foregroundStyle(ChromeTheme.ink)
+                                }
+                                Text("These can't change during a game.")
                                     .font(ChromeType.caption)
                                     .foregroundStyle(ChromeKit.inkSecondary)
                             }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .chromeCard(padding: 16)
-
-                        HandicapEstimateView(estimate: model.estimate, computing: model.computing,
-                                             unavailable: model.unavailable,
-                                             aName: HandicapCopy.name(sideA, aiColor: session.aiColor),
-                                             bName: HandicapCopy.name(sideA.opponent, aiColor: session.aiColor),
-                                             aColor: sideA)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .chromeCard(padding: 16)
-                            .onAppear {
-                                model.update(setup: state.setup, rule: .fixed(session.startingPlayer))
-                            }
-                        Text("Win chances in the review and the win-probability bar still assume fair dice.")
-                            .font(ChromeType.caption)
-                            .foregroundStyle(ChromeKit.inkSecondary)
-                            .opacity(state.setup.altersDice ? 1 : 0)
+                        }
+                        // The estimate is for the start position: only before the first move.
+                        if session.record.plies.isEmpty {
+                            HandicapEstimateView(estimate: model.estimate, computing: model.computing,
+                                                 unavailable: model.unavailable,
+                                                 aName: HandicapCopy.name(sideA, aiColor: session.aiColor),
+                                                 bName: HandicapCopy.name(sideA.opponent, aiColor: session.aiColor),
+                                                 aColor: sideA)
+                                .chromeCard(padding: 16)
+                                .onAppear { refreshEstimate(state.setup) }
+                                .onChange(of: state.setup) { _, s in refreshEstimate(s) }
+                        }
+                        if state.setup.altersDice {
+                            Text("Win chances in the review and the win-probability bar still assume fair dice.")
+                                .font(ChromeType.caption)
+                                .foregroundStyle(ChromeKit.inkSecondary)
+                        }
                     }
                 }
                 .compactPadding(24, compact: 16)
@@ -256,19 +306,109 @@ struct HandicapInfoSheet: View {
                 .frame(maxWidth: .infinity)
             }
         }
+        .accessibilityIdentifier("handicapCard")
     }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Handicap")
+                    .font(ChromeType.statsTitle)
+                    .foregroundStyle(ChromeTheme.ink)
+                HStack(spacing: 6) {
+                    if let favoured {
+                        HandicapSideDot(color: favoured)
+                        Text("Favours \(HandicapCopy.name(favoured, aiColor: session.aiColor))")
+                    } else {
+                        Text("Evenly balanced")
+                    }
+                }
+                .font(ChromeType.callout)
+                .foregroundStyle(ChromeKit.inkSecondary)
+            }
+            Spacer()
+            Button("Done") { dismiss() }
+                .buttonStyle(ChromeButton(role: .secondary))
+        }
+    }
+
+    /// You first vs the computer; White first for two players.
+    private var sides: [EngineColor] { [sideA, sideA.opponent] }
 
     /// The human ("You") vs the computer, White for two players.
     private var sideA: EngineColor { session.aiColor?.opponent ?? .white }
 
-    private func tokenLines(_ s: HandicapGameState) -> [String] {
-        var out: [String] = []
-        for c in [EngineColor.white, .black] {
-            let who = HandicapCopy.name(c, aiColor: session.aiColor)
-            if s.setup[c].rerolls > 0 { out.append(String(localized: "\(who): rerolls left \(s.rerollsLeft[c]) of \(s.setup[c].rerolls)")) }
-            if s.setup[c].hints > 0 { out.append(String(localized: "\(who): hints left \(s.hintsLeft[c]) of \(s.setup[c].hints)")) }
+    /// The dice / rerolls / hints a side may change now.
+    private func sideCard(_ c: EngineColor, state: HandicapGameState) -> some View {
+        let items = state.setup[c]
+        let strength = HandicapDiceStrength(beta: items.diceTilt)
+        // Weighted dice and hints need the net; a game without one keeps them as they are.
+        let netAvailable = session.handicapAgent != nil
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                HandicapSideDot(color: c, size: 16)
+                Text(HandicapCopy.name(c, aiColor: session.aiColor))
+                    .font(ChromeType.body.weight(.semibold))
+                    .foregroundStyle(ChromeTheme.ink)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Weighted dice")
+                    .font(ChromeType.callout)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                HStack(spacing: 12) {
+                    Slider(value: Binding(
+                        get: { Double(strength.rawValue) },
+                        set: { v in
+                            let step = HandicapDiceStrength(rawValue: Int(v.rounded())) ?? .off
+                            session.adjustHandicap(for: c, diceTilt: step.beta)
+                        }),
+                           in: 0...Double(HandicapDiceStrength.allCases.count - 1), step: 1)
+                        .tint(ChromeTheme.undoTint)
+                        .accessibilityLabel(Text("Weighted dice"))
+                        .accessibilityValue(Text(strength.label))
+                    Text(strength.label)
+                        .font(ChromeType.callout)
+                        .foregroundStyle(ChromeTheme.ink)
+                        .lineLimit(1)
+                        .frame(minWidth: ChromeType.isCompact ? 96 : 120, alignment: .trailing)
+                }
+                .disabled(!netAvailable)
+            }
+            countStepper(title: "Rerolls left", value: state.rerollsLeft[c],
+                         range: 0...HandicapSetup.maxRerolls) {
+                session.adjustHandicap(for: c, rerollsLeft: $0)
+            }
+            if session.isHumanSide(c) {
+                countStepper(title: "Hints left", value: state.hintsLeft[c],
+                             range: 0...HandicapSetup.maxHints) {
+                    session.adjustHandicap(for: c, hintsLeft: $0)
+                }
+                .disabled(!netAvailable)
+            }
         }
-        return out
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .chromeCard(padding: 16)
+        .disabled(session.isTerminal)
+        .accessibilityIdentifier(c == sideA ? "handicapSideA" : "handicapSideB")
+    }
+
+    private func countStepper(title: LocalizedStringKey, value: Int, range: ClosedRange<Int>,
+                              set: @escaping (Int) -> Void) -> some View {
+        Stepper(value: Binding(get: { value }, set: set), in: range) {
+            HStack {
+                Text(title)
+                    .font(ChromeType.callout)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                Spacer(minLength: 8)
+                Text("\(value)")
+                    .font(ChromeType.callout.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(ChromeTheme.ink)
+            }
+        }
+    }
+
+    private func refreshEstimate(_ setup: HandicapSetup) {
+        model.update(setup: setup, rule: .fixed(session.startingPlayer))
     }
 }
 
@@ -359,6 +499,8 @@ struct HandicapReviewNote: View {
 /// My Record's separate "Handicap games" block (only once at least one exists).
 struct HandicapRecordBlock: View {
     let stats: HumanGameStats
+    /// How many of them had their handicap adjusted mid-game (#236).
+    var adjusted = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -373,6 +515,14 @@ struct HandicapRecordBlock: View {
                                       : String(localized: "\(stats.total) games"))
                     .font(ChromeType.subheadline)
                     .foregroundStyle(ChromeKit.inkSecondary)
+            }
+            if adjusted > 0 {
+                Label(adjusted == 1 ? String(localized: "1 adjusted during the game")
+                                    : String(localized: "\(adjusted) adjusted during the game"),
+                      systemImage: "slider.horizontal.3")
+                    .font(ChromeType.caption)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                    .accessibilityIdentifier("handicapRecordAdjusted")
             }
             Text("Not counted in your record against the computer.")
                 .font(ChromeType.caption)

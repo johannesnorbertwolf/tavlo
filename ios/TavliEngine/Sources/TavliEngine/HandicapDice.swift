@@ -287,4 +287,22 @@ public enum HandicapEstimator {
         return HandicapEstimate(whiteWinChance: p, unmeasured: unmeasured,
                                 approximate: s.white.hints > 0 || s.black.hints > 0)
     }
+
+    /// Within this of an even game, a two-sided setup favours nobody (`favouredSide`).
+    public static let balancedMargin = 0.01
+
+    /// The side a setup favours (#236, the in-game handicap button), or `nil` when it
+    /// favours nobody. When the items help one side only (`beneficiaries`) that side —
+    /// no estimate needed. When they help both, the net favourite: `estimate` (the net's
+    /// position estimate combined with the table) when known, else the table alone from an
+    /// even position (head start / moves first then count for nothing); `nil` within
+    /// `balancedMargin` of 50 %.
+    public static func favouredSide(setup: HandicapSetup, estimate: HandicapEstimate?,
+                                    table: HandicapTable) -> Color? {
+        let sides = setup.beneficiaries
+        if sides.count < 2 { return sides.first }
+        let p = (estimate ?? combine(positionWhite: 0.5, setup: setup, table: table)).whiteWinChance
+        if abs(p - 0.5) < balancedMargin { return nil }
+        return p > 0.5 ? .white : .black
+    }
 }

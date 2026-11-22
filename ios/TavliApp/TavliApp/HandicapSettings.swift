@@ -231,8 +231,11 @@ enum HandicapCopy {
         return c == .white ? String(localized: "White") : String(localized: "Red")
     }
 
-    /// One line per active item, e.g. "You: head start 2".
-    static func lines(_ setup: HandicapSetup, aiColor: TavliEngine.Color?) -> [String] {
+    /// One line per active item, e.g. "You: head start 2". `adjustable: false` leaves out
+    /// the items the handicap card changes during a game (weighted dice, rerolls, hints,
+    /// #236), keeping the start-only and rule items.
+    static func lines(_ setup: HandicapSetup, aiColor: TavliEngine.Color?,
+                      adjustable: Bool = true) -> [String] {
         var out: [String] = []
         for c in [TavliEngine.Color.white, .black] {
             let i = setup[c]
@@ -242,12 +245,12 @@ enum HandicapCopy {
                                             : String(localized: "\(who): \(i.headStart) checkers start 6 points ahead"))
             }
             if i.movesFirst { out.append(String(localized: "\(who): moves first")) }
-            if i.diceTilt > 0 { out.append(diceLine(c, beta: i.diceTilt, aiColor: aiColor)) }
-            if i.rerolls > 0 {
+            if adjustable && i.diceTilt > 0 { out.append(diceLine(c, beta: i.diceTilt, aiColor: aiColor)) }
+            if adjustable && i.rerolls > 0 {
                 out.append(i.rerolls == 1 ? String(localized: "\(who): 1 reroll per game")
                                           : String(localized: "\(who): \(i.rerolls) rerolls per game"))
             }
-            if i.hints > 0 {
+            if adjustable && i.hints > 0 {
                 out.append(i.hints == 1 ? String(localized: "\(who): 1 hint per game")
                                         : String(localized: "\(who): \(i.hints) hints per game"))
             }

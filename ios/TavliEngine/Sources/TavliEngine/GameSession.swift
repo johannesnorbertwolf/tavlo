@@ -309,8 +309,10 @@ public final class GameSession: ObservableObject {
                 aiLevel: Int? = nil) {
         // A handicap applies only when active and only to house Plakoto (#148); any
         // other combination is simply a normal game.
+        // A resumed adjusted game whose items were all switched off mid-game stays a
+        // handicap game (`isKept`, #236).
         let setup = handicap.map(\.normalized).flatMap {
-            $0.isActive && HandicapSetup.supports(variantID: config.variant.id) ? $0 : nil
+            $0.isKept && HandicapSetup.supports(variantID: config.variant.id) ? $0 : nil
         }
         let starter = setup?.forcedStarter ?? startingPlayer
         // Tier-2 rules (#148 P3b) ride on the config, so every board copy (search,
@@ -609,14 +611,15 @@ public final class GameSession: ObservableObject {
         restoreRollOnStart = false
         cancelHumanAnalysis()
         analysisByPly = [:]
-        let setup = record.handicap
+        // Same handicap (its final values if it was adjusted, #236), fresh tokens (#148).
+        let next = record.handicap?.forNextGame
+        let setup = next?.isActive == true ? next : nil
         let starter = setup?.forcedStarter ?? startingPlayer
-        if let setup {
-            // Same handicap, fresh tokens (#148).
+        if handicap != nil {
             discardPendingHandicapRoll()
             clearHint()
             lastComputerReroll = nil
-            handicap = HandicapGameState(setup: setup)
+            handicap = setup.map(HandicapGameState.init(setup:))
         }
         record.setUpInitialPosition(on: game.board)
         game.dice.set(1, 1)
@@ -1096,6 +1099,51 @@ public final class GameSession: ObservableObject {
     /// Hints left for `color` (0 outside handicap games).
     public func hintsLeft(_ color: Color) -> Int { handicap?.hintsLeft[color] ?? 0 }
 
+    /// Whether `color` is played by a human here (vs the computer: the human; two players:
+    /// both). Hints are only ever for a human side.
+    public func isHumanSide(_ color: Color) -> Bool { aiColor == nil || color != aiColor }
+
+    /// Change the adjustable handicap items for `color` during the game (#236): the
+    /// weighted-dice β (snapped to `HandicapSetup.diceTiltSteps`), the rerolls left and the
+    /// hints left (a human side only). Head start, moves first and the tier-2 rules never
+    /// change mid-game — replays and the review rebuild the game from them.
+    ///
+    /// Takes effect from the **next** roll: every roll (the human's, auto-roll, the
+    /// computer's and its reroll decisions) reads the live setup when it is drawn; a roll
+    /// already being rated keeps going and draws with the β in force when it lands. A new
+    /// rerolls / hints count is both the tokens left this game and the per-game allowance
+    /// the next games of a best-of-three start with. Marks the setup `adjusted` (and
+    /// `alteredDiceEarlier` when the dice were not fair before the change), mirrored into
+    /// `record.handicap` so the save, the game log, My Record and the review's fair-dice
+    /// note see the final setup. No-op outside a handicap game, after it ended, or when
+    /// nothing changes.
+    public func adjustHandicap(for color: Color, diceTilt: Double? = nil,
+                               rerollsLeft: Int? = nil, hintsLeft: Int? = nil) {
+        guard var state = handicap, !isTerminal else { return }
+        let before = state
+        var items = state.setup[color]
+        if let beta = diceTilt {
+            items.diceTilt = HandicapSetup.diceTiltSteps.min { abs($0 - beta) < abs($1 - beta) } ?? 0
+        }
+        if let n = rerollsLeft {
+            let n = min(max(n, 0), HandicapSetup.maxRerolls)
+            items.rerolls = n
+            state.rerollsLeft[color] = n
+        }
+        if let n = hintsLeft, isHumanSide(color) {
+            let n = min(max(n, 0), HandicapSetup.maxHints)
+            items.hints = n
+            state.hintsLeft[color] = n
+        }
+        let diceWereAltered = state.setup.altersDice
+        state.setup[color] = items
+        guard state != before else { return }
+        state.setup.adjusted = true
+        state.setup.alteredDiceEarlier = state.setup.alteredDiceEarlier || diceWereAltered
+        handicap = state
+        record.handicap = state.setup
+    }
+
     /// Whether the human on move may ask for a hint now: hints left, a net to search
     /// with, their own turn with the dice rolled, and no hint already showing.
     public var canHint: Bool {
@@ -1185,7 +1233,10 @@ public final class GameSession: ObservableObject {
                 self.hintPending = false
                 guard let pairs, !pairs.isEmpty else { return }
                 self.hint = pairs
-                self.handicap?.hintsLeft[color] -= 1
+                // Never below zero: the count may have been set to 0 while it computed (#236).
+                if let left = self.handicap?.hintsLeft[color] {
+                    self.handicap?.hintsLeft[color] = max(left - 1, 0)
+                }
             }
         }
     }

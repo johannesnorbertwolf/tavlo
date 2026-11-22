@@ -717,7 +717,8 @@ SwiftUI-free (Foundation + Combine), so it's covered by `swift test`
   wires `session.onGameOver` to `store.record(humanWon: winner == humanColor)`.
 - **Handicap games (#148)** — `HumanGameRecord.handicap` (optional, omitted when `nil`, so a log
   without handicap games is unchanged). `stats` counts only normal games; `handicapStats` only
-  handicap games; `record(humanWon:handicap:)`.
+  handicap games; `record(humanWon:handicap:)`. `adjustedHandicapGames` (#236) counts the ones whose
+  setup carries `adjusted` (handicap changed mid-game); pre-#236 records decode as not adjusted.
 
 ## Handicaps, tier 1 (#148)
 
@@ -782,6 +783,40 @@ for m = 0…8 both sides. Every replay from the start goes through
   2-ply) on a board copy off the main actor; publishes `hint` (`[from, to]` pairs) without playing;
   charged only when it arrives; cleared on the next checker move / new turn (`hintEpoch`).
 - Tokens publish through `handicap` (Equatable) so the app autosaves on a spend.
+
+**Mid-game changes (#236).** `GameSession.adjustHandicap(for:diceTilt:rerollsLeft:hintsLeft:)`
+changes, for either side (the computer's too), the weighted-dice β (snapped to `diceTiltSteps`),
+the rerolls left (0…4) and the hints left (0…5, a human side only — `isHumanSide(_:)`). Head start,
+moves first and the tier-2 rules never change mid-game: replays, notation and the review rebuild
+the game from the start position and rules, which therefore stay valid.
+- **From the next roll.** Nothing is cached: `roll()`, auto-roll and `takeAITurn` read
+  `weightedTiltForCurrentPlayer` / `computerMayReroll` from the live `handicap` at each roll,
+  `drawHandicapRoll` reads β when it draws, and `applyComputerRerolls` reads tokens and β per
+  reroll. A roll already being rated draws with the β in force when it lands.
+- **Allowance = new count.** A new rerolls / hints count is both the tokens left and the setup's
+  per-game allowance (so the decode clamp `left ≤ allowance` holds and later games start with it).
+  A hint arriving after its count was set to 0 is shown, never charged below 0.
+- **Marks.** The change sets `HandicapSetup.adjusted` and, when the dice were not fair before it
+  (`altersDice`), `alteredDiceEarlier`; `altersDice` includes it, so the review's "win chances assume
+  fair dice" note (read from `record.handicap.altersDice`) stays right after weighted dice / rerolls
+  are switched off. Both keys are written only when true (an unadjusted setup encodes exactly as
+  before; old JSON decodes with both false). `record.handicap` mirrors the live setup, so the
+  autosave (`GameSave.handicap`), the game log, My Record (`HumanGameRecord.handicap`) and the
+  review all see the **final** setup. `isKept` (= `isActive || adjusted`): an adjusted game whose
+  items were all switched off keeps its handicap on save/resume (`GameSave` decode and
+  `GameSession.init` accept it) — it still started as a handicap game.
+- **Next game.** `forNextGame` drops the marks; `newGame` and the app's best-of-three
+  (`RootView.startNextMatchGame`) start the next game from the final setup with fresh tokens (an
+  inactive one = a normal game). Two-player handicap games always get a `handicapAgent` (not only
+  when the setup needs the net), so weighted dice / hints can be switched on mid-game.
+- **Favoured side** (the in-game button): `HandicapSetup.beneficiaries` — a side's own head start,
+  moves first, weighted dice, rerolls, hints, overshoot, safe point or extra checkers help it;
+  fewer checkers or a smaller home help its opponent. `HandicapEstimator.favouredSide(setup:
+  estimate:table:)`: one beneficiary → that side; both → the estimate's favourite (the net position
+  estimate + table when known, else the table alone from 0.5), `nil` within `balancedMargin` (1 pp).
+- Tests: `HandicapAdjustTests` (next human / computer roll uses the new β, computer rerolls with
+  tokens added mid-game, tokens + marks, save/resume and game-log round trips, old JSON, My Record
+  count, next game, favoured side).
 
 **Dice maths (`HandicapDice`) — keep in sync with the Python** (`domain/handicap.py`
 `tilted_roll_probs`/`weighted_faces`, `ai/agent.py` `roll_values`, `ai/handicap_sweep.py`

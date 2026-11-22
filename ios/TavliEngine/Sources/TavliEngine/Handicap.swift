@@ -148,12 +148,24 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     public var version: Int
     public var white: HandicapItems
     public var black: HandicapItems
+    /// The weighted dice, rerolls or hints were changed during the game (#236). The setup
+    /// then holds the **final** values; head start, moves first and the tier-2 rules never
+    /// change mid-game, so replays and the review still start from the same position under
+    /// the same rules. Written only when true (an unadjusted setup encodes as before).
+    public var adjusted: Bool
+    /// An adjusted game had weighted dice or rerolls at some point before its final setup
+    /// (#236), so its dice were not fair even if the final setup's are (`altersDice`).
+    /// Written only when true.
+    public var alteredDiceEarlier: Bool
 
     public init(white: HandicapItems = .none, black: HandicapItems = .none,
-                version: Int = HandicapSetup.currentVersion) {
+                version: Int = HandicapSetup.currentVersion,
+                adjusted: Bool = false, alteredDiceEarlier: Bool = false) {
         self.version = version
         self.white = white
         self.black = black
+        self.adjusted = adjusted
+        self.alteredDiceEarlier = alteredDiceEarlier
     }
 
     public subscript(color: Color) -> HandicapItems {
@@ -167,7 +179,8 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     /// Clamped ranges; "moves first" on both sides cancels out (the normal start rule
     /// applies), so it is dropped from both.
     public var normalized: HandicapSetup {
-        var s = HandicapSetup(white: white.clamped, black: black.clamped, version: version)
+        var s = HandicapSetup(white: white.clamped, black: black.clamped, version: version,
+                              adjusted: adjusted, alteredDiceEarlier: alteredDiceEarlier)
         if s.white.movesFirst && s.black.movesFirst {
             s.white.movesFirst = false
             s.black.movesFirst = false
@@ -204,7 +217,37 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     /// The same setup with every tier-2 item off (the net's position estimate, which
     /// must not see the tier-2 rules: §11).
     public var tier1Only: HandicapSetup {
-        HandicapSetup(white: white.tier1Only, black: black.tier1Only, version: version)
+        HandicapSetup(white: white.tier1Only, black: black.tier1Only, version: version,
+                      adjusted: adjusted, alteredDiceEarlier: alteredDiceEarlier)
+    }
+
+    /// The setup the next game of a match (or a "new game") starts with (#236): the same
+    /// items, without the mid-game adjustment marks (a fresh game is not adjusted).
+    public var forNextGame: HandicapSetup {
+        HandicapSetup(white: white, black: black, version: version)
+    }
+
+    /// Whether a game holds on to this setup: any item, or an adjusted game whose items
+    /// were all switched off mid-game (#236; it stays a handicap game, tagged adjusted).
+    public var isKept: Bool { isActive || adjusted }
+
+    /// The colours this setup helps (#236): a side's own head start, moves first, weighted
+    /// dice, rerolls, hints, overshoot, safe point or extra checkers help it; fewer checkers
+    /// or a smaller home help its opponent.
+    public var beneficiaries: Set<Color> {
+        var out: Set<Color> = []
+        let n = normalized
+        for c in Color.allCases {
+            let i = n[c]
+            if i.headStart > 0 || i.movesFirst || i.diceTilt > 0 || i.rerolls > 0 || i.hints > 0
+                || i.overshoot || i.safePoint > 0 || i.checkers > Self.normalCheckers {
+                out.insert(c)
+            }
+            if i.checkers < Self.normalCheckers || i.homeSize < Self.normalHomeSize {
+                out.insert(c.opponent)
+            }
+        }
+        return out
     }
 
     /// Whether either side's dice are tilted.
@@ -213,7 +256,8 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     public var hasRerolls: Bool { white.rerolls > 0 || black.rerolls > 0 }
     /// Whether the dice were not fair for the whole game (weighted dice or rerolls):
     /// the review's win chances, which assume fair dice, then carry a note.
-    public var altersDice: Bool { hasWeightedDice || hasRerolls }
+    /// An adjusted game (#236) counts its earlier weighted dice / rerolls too.
+    public var altersDice: Bool { hasWeightedDice || hasRerolls || alteredDiceEarlier }
     /// Whether any item needs the value net during play (dice, rerolls, hints).
     public var needsEvaluator: Bool {
         hasWeightedDice || hasRerolls || white.hints > 0 || black.hints > 0
@@ -243,14 +287,28 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
         }
     }
 
-    // Tolerant decode: items default to "off"; version defaults to 1.
-    private enum CodingKeys: String, CodingKey { case version, white, black }
+    // Tolerant decode: items default to "off"; version defaults to 1; the #236
+    // adjustment marks default to false (every pre-#236 setup).
+    private enum CodingKeys: String, CodingKey { case version, white, black, adjusted, alteredDiceEarlier }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         white = try c.decodeIfPresent(HandicapItems.self, forKey: .white) ?? .none
         black = try c.decodeIfPresent(HandicapItems.self, forKey: .black) ?? .none
+        adjusted = (try? c.decodeIfPresent(Bool.self, forKey: .adjusted)) ?? false
+        alteredDiceEarlier = (try? c.decodeIfPresent(Bool.self, forKey: .alteredDiceEarlier)) ?? false
+    }
+
+    /// The marks are written only when set, so an unadjusted setup encodes exactly as
+    /// before #236 (and an older reader just ignores them).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(version, forKey: .version)
+        try c.encode(white, forKey: .white)
+        try c.encode(black, forKey: .black)
+        if adjusted { try c.encode(true, forKey: .adjusted) }
+        if alteredDiceEarlier { try c.encode(true, forKey: .alteredDiceEarlier) }
     }
 }
 
