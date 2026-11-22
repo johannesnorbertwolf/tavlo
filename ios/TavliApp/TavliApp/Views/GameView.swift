@@ -1199,7 +1199,7 @@ private struct MatchScoreboardView: View {
     var body: some View {
         if compact {
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) { scoreLine; Text(verbatim: "·"); gameLine }
+                HStack(spacing: 6) { scoreLine; Text(verbatim: ChromeDigits.isRightToLeft ? "،" : "·"); gameLine }
                 VStack(spacing: 2) { scoreLine; gameLine }
             }
             .font(ChromeType.caption)

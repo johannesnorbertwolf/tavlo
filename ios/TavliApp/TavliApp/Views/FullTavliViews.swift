@@ -79,7 +79,7 @@ struct FullTavliScoreboardView: View {
         let leg = Text(legCaption(index: legIndex, variantID: state.legVariantIDs[legIndex]))
             .lineLimit(1)
         return ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) { score; Text(verbatim: "·"); leg }
+            HStack(spacing: 6) { score; Text(verbatim: ChromeDigits.isRightToLeft ? "،" : "·"); leg }
             VStack(spacing: 2) { score; leg }
         }
         .font(ChromeType.caption)

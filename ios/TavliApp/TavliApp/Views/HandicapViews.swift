@@ -92,7 +92,7 @@ struct HandicapEstimateView: View {
                         .foregroundStyle(ChromeTheme.ink)
                     if computing { ProgressView().controlSize(.small) }
                 }
-                Text("\(aName) \(pct(a)) · \(bName) \(pct(1 - a))")
+                Text(verbatim: "\(aName) \(pct(a))\(ChromeDigits.listSeparator)\(bName) \(pct(1 - a))")
                     .font(ChromeType.title3.weight(.semibold).monospacedDigit())
                     .foregroundStyle(ChromeTheme.ink)
                     .accessibilityIdentifier("handicapEstimate")

@@ -126,7 +126,7 @@ struct NewGameSheet: View {
                     levelChip(n)
                 }
             }
-            caption("\(AILevelCopy.name(level)) · \(AILevelCopy.description(level))")
+            caption("\(AILevelCopy.name(level))\(ChromeDigits.listSeparator)\(AILevelCopy.description(level))")
         }
     }
 
