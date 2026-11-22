@@ -965,6 +965,29 @@ too), and `match.recordGame(winner:points:)`.
     logged or counted (`isDebugSeededGame`). Launch with
     `xcrun simctl launch <udid> com.plakoto.TavliApp -debugHandicapBearOff` (the same
     `-settings.appearance` / `-AppleLanguages` overrides work).
+  - **App Store screenshot scenes** (#184, `#if DEBUG` only, `ScreenshotScenes.swift`), driven by
+    `ios/scripts/appstore_screenshots.sh` (builds once, then per locale × device launches each scene and
+    saves `<outdir>/<locale>/<device>/NN-name.png`). Every scene runs on `ScreenshotFixture.swift`, a
+    **generated** realistic house-Plakoto game (you = White vs the level-8 computer; you play 1-ply with
+    some selection noise) with its complete review analysis + dice luck embedded as Swift literals —
+    regenerate it with the env-gated `ScreenshotFixtureGenerator` test (command in its header). Scenes also
+    force, in the volatile argument domain (never persisted), the win-probability bar on, in-play analysis
+    off and level 8.
+    - `-screenshotGame`: the fixture's mid-game game (`playPlies`) replayed to just before one of your
+      turns with both sides pinning and the game still open (`gamePly`, `darkGamePly` in dark appearance,
+      or `-screenshotGamePly N`), that ply's dice already rolled (via `pendingRoll`). Never autosaved,
+      logged or counted (`isDebugSeededGame`).
+    - `-screenshotReview`: `GameReviewView` on the fixture's review game, opening on your worst move (or
+      `-screenshotReviewPly N`); `GameReviewModel` shows the fixture's analysis + luck as is (no game-log
+      read, no deepening pass, so no spinner). On the phone the detail scroll view opens scrolled to the
+      chart (extra bottom padding lets it reach the top), so the chart + summary sit under the board.
+    - `-screenshotDrill` (+ `-screenshotDrillSolution`): `DrillView` on the fixture's mistakes, opened on
+      its last card (so not the review scene's position); with the second flag on its solution (your move
+      amber vs best blue).
+    - `-screenshotHandicap`: the handicap builder sheet (page-sized on iPad) over the start screen with a
+      preset (you: head start 2, moves first, 2 rerolls, 3 hints). `-screenshotNewGame`: the new-game sheet
+      over the start screen.
+    - The ladybug debug-pane toggle is hidden in every scene.
   - **Resume from the list** (`resume(_:)`) loads the chosen `SaveMetadata`, derives `humanColor`
     from `save.aiColor.opponent`, carries `save.name` forward into `autosaveName` (so continued
     play keeps the same identity), and switches into the replayed session.

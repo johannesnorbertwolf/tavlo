@@ -9,6 +9,15 @@ struct DebugToggleButton: View {
     @Binding var isOn: Bool
 
     var body: some View {
+        #if DEBUG
+        // App Store screenshot scenes (#184) show no debug affordance.
+        if !ScreenshotScenes.isAny { button }
+        #else
+        button
+        #endif
+    }
+
+    private var button: some View {
         Button { isOn.toggle() } label: {
             Image(systemName: "ladybug.fill")
                 .font(ChromeType.title2)

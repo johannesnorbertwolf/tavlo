@@ -10,6 +10,9 @@ struct TavliApp: App {
         // Retired settings (#189): strength slider → level, Play as "Ask" → Random.
         // Before RootView's init, whose cold-launch resume reads the search config.
         AppSettings.migrateLegacySettings()
+        #if DEBUG
+        ScreenshotScenes.applySettings()   // App Store screenshot scenes (#184), DEBUG only
+        #endif
         Self.styleDarkSegmentedControls()
     }
 

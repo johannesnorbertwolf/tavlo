@@ -50,6 +50,12 @@ struct GameReviewView: View {
         self.humanColor = humanColor
         self.opponentName = opponentName
         _model = StateObject(wrappedValue: GameReviewModel())
+        #if DEBUG
+        // App Store screenshot scene (#184): open on the chosen move.
+        if ScreenshotScenes.analysis(for: record.gameId) != nil {
+            _selectedPly = State(initialValue: ScreenshotScenes.reviewPly)
+        }
+        #endif
     }
 
     /// Preview-only: seed a terminal phase so `#Preview`s skip analysis. `trajectory`
@@ -420,7 +426,7 @@ struct GameReviewView: View {
                     .frame(width: layout.boardSide, height: layout.boardSide)
                 navRow(i: i, plies: plies)
                     .padding(.horizontal, 12)
-                ScrollView {
+                compactDetailScroll {
                     panelInfo(eval: eval, finished: finished, onScrub: onScrub)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
@@ -428,6 +434,29 @@ struct GameReviewView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+
+    /// The phone's scrolling detail. DEBUG: the App Store review scene (#184) opens it
+    /// scrolled to the chart, so the chart + summary sit under the compared move.
+    @ViewBuilder
+    private func compactDetailScroll<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        #if DEBUG
+        if ScreenshotScenes.isReview {
+            // Room below the summary so the chart can scroll up to the top.
+            let scroll = ScrollView { content().padding(.bottom, 240) }
+            ScrollViewReader { reader in
+                scroll.onAppear {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        reader.scrollTo(ScreenshotScenes.chartAnchor, anchor: .top)
+                    }
+                }
+            }
+        } else {
+            ScrollView { content() }
+        }
+        #else
+        ScrollView { content() }
+        #endif
     }
 
     /// The detail, what changes as you page first: the move, the step filter, then the
@@ -461,6 +490,9 @@ struct GameReviewView: View {
                                         bottomLabel: naming.name(leadingColor.opponent),
                                         onScrub: onScrub)
                 }
+                #if DEBUG
+                .id(ScreenshotScenes.chartAnchor)   // App Store review scene (#184)
+                #endif
             }
 
             summaryCard(finished: finished)
@@ -782,6 +814,15 @@ final class GameReviewModel: ObservableObject {
         // 2-ply "Analyzing…" pass (the phase is already `.reviewing`, so `report` stays
         // quiet). With a complete 2-ply seed only the 3-ply borderline refinement remains.
         let cached = gameLog.analysis(forGameId: record.gameId) ?? []
+        #if DEBUG
+        // App Store screenshot fixture (#184): its analysis (+ luck) is complete — show it
+        // as is, with no deepening pass and so no spinner.
+        if let fixture = ScreenshotScenes.analysis(for: record.gameId) {
+            luck = GameReview.cachedLuck(record: record, analysis: fixture)
+            finish(with: GameReview.cachedResult(record: record, analysis: fixture))
+            return
+        }
+        #endif
         luck = GameReview.cachedLuck(record: record, analysis: cached)   // nil ⇒ computed below
         if !cached.isEmpty {
             for eval in GameReview.cachedResult(record: record, analysis: cached).evaluations {

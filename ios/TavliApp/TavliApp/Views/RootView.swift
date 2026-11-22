@@ -50,6 +50,13 @@ struct RootView: View {
         // UI-test hook: start directly in a deterministic human-vs-AI game so the
         // board interaction can be driven without the picker or random dice.
         #if DEBUG
+        if let seeded = ScreenshotScenes.gameSession() {
+            // `-screenshotGame` (#184, DEBUG only): the App Store mid-game scene.
+            _session = State(initialValue: seeded)
+            _humanColor = State(initialValue: .white)
+            _autosaveName = State(initialValue: RootView.newAutosaveName())
+            return
+        }
         if let seeded = RootView.debugHandicapSession() {
             // `-debugHandicapBearOff` (#236, DEBUG only): a handicap game with two-digit
             // borne-off counts, for checking the phone's top bar and the handicap card.
@@ -221,6 +228,7 @@ struct RootView: View {
         }
         #if DEBUG
         .debugReviewSample()   // `-debugReviewSample`: straight into a sample review (#232)
+        .screenshotScenes()    // `-screenshotReview` / `-screenshotDrill` / `-screenshotHandicap` (#184)
         #endif
         // Online (#134): sign in to Game Center at launch without UI, so a tapped turn
         // notification reaches the listener; the sign-in sheet waits for Play Online.
@@ -552,12 +560,13 @@ struct RootView: View {
         return f
     }()
 
-    /// Whether this launch plays the DEBUG-seeded game (`-debugHandicapBearOff`, #236):
-    /// its board is set directly, not replayed, so it is never autosaved, logged or
-    /// counted. Always `false` in a release build.
+    /// Whether this launch plays a DEBUG-seeded game (`-debugHandicapBearOff`, #236, or
+    /// the `-screenshotGame` scene, #184): never autosaved, logged or counted. Always
+    /// `false` in a release build.
     private static var isDebugSeededGame: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-debugHandicapBearOff")
+            || ScreenshotScenes.isGame
         #else
         return false
         #endif
@@ -571,7 +580,7 @@ struct RootView: View {
     /// handicap card; `nil` without the argument.
     @MainActor
     private static func debugHandicapSession() -> GameSession? {
-        guard isDebugSeededGame else { return nil }
+        guard ProcessInfo.processInfo.arguments.contains("-debugHandicapBearOff") else { return nil }
         let setup = HandicapSetup(white: HandicapItems(headStart: 2, rerolls: 2, hints: 3),
                                   black: HandicapItems(diceTilt: HandicapDiceStrength.moderate.beta))
         let config = GameVariantSetting.plakoto.config
@@ -712,7 +721,12 @@ private struct ModePickerView: View {
                 }
             }
         }
-        .onAppear { reload() }
+        .onAppear {
+            reload()
+            #if DEBUG
+            if ScreenshotScenes.isNewGame { showNewGame = true }   // App Store scene (#184)
+            #endif
+        }
         .sheet(isPresented: $showStats) { statsSheet }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showSaves, onDismiss: reload) {
