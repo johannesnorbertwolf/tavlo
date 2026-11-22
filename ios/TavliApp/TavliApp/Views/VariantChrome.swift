@@ -79,6 +79,19 @@ struct EvalScale {
                                         : "\(Int((d * 100).rounded()))%")
     }
 
+    /// An amount in win-chance-equivalent percentage points (#231: dice luck, decision
+    /// loss) for display (#233): "8%" / with `decimals: 1` "2.1%", or equity for a
+    /// 2-point variant (one point of equity = 50 pp) with two more decimals ("0.16" /
+    /// "0.042"), so both resolve the same amount. `signed` prefixes "+" / "−" (none on
+    /// a zero). Locale digits.
+    func points(_ pp: Double, signed: Bool = false, decimals: Int = 0) -> String {
+        let magnitude = isEquity ? String(format: "%.\(decimals + 2)f", abs(pp) / 50)
+                                 : String(format: "%.\(decimals)f%%", abs(pp))
+        let isZero = !magnitude.contains { $0.isNumber && $0 != "0" }
+        let sign = !signed || isZero ? "" : (pp < 0 ? "−" : "+")
+        return ChromeDigits.localized(sign + magnitude)
+    }
+
     /// "−12% win chance" / "−0.48 equity" — the cost of a move vs the best.
     func lossLabel(_ d: Double) -> String {
         isEquity ? String(localized: "−\(gap(d)) equity")

@@ -334,14 +334,14 @@ the published view contract (`selectableSources`, `validTargets`, `selectedPoint
   | Style | Colour | Frame stroke (×`s`) | Ring stroke (×`s`) | Used for |
   |---|---|---|---|---|
   | `.played` | `hl` amber | solid 5 | solid 3.4 | your move (review), your attempt (drill solution) |
-  | `.best` | `hlBest` blue | solid 5 | solid 3.4 | the best move (review Compare, drill solution, handicap hint) |
+  | `.best` | `hlBest` blue | solid 5 | solid 3.4 | the best move (review — your moves, drill solution, handicap hint) |
   | `.ghost` | `hlGhost` grey | 4.2, dash 8/6 | 3, dash 5/4 | the drill's game move before an attempt |
   `swatchStroke` is the same look at legend size (3 pt solid / 2.4 pt dash 3.5/3).
 - **`MoveMarkSwatch(style:)`** — a 24×10 pt (`MoveMarkSwatch.size`) `Canvas` line in a
-  `MoveMarkStyle`, the legend swatch next to a move row (drill panel rows, review Compare
-  legend). `accessibilityHidden`; the row's text carries the meaning. **A swatch shows only
-  while that exact mark is drawn on the board**; a row whose mark isn't drawn leaves an
-  empty swatch-sized gap (drill) or drops the entry (review legend).
+  `MoveMarkStyle`, the legend swatch next to a move row (drill and review panel rows).
+  `accessibilityHidden`; the row's text carries the meaning. **A swatch shows only while
+  that exact mark is drawn on the board**; a row whose mark isn't drawn leaves an empty
+  swatch-sized gap so the rows stay aligned.
 - **`MoveHighlightView.drawnMarks(playedMove:bestMove:)`** — which of the two moves leaves a
   mark: the played move unless it is empty or the same as the best (then blue only), the
   best whenever given and non-empty. Legends use it to decide their swatches.
@@ -631,7 +631,7 @@ never drops below 0.72 ink opacity.
   captions): light is exactly the old opacity, dark is the solid tan so captions keep AA
   instead of fading. Low-alpha ink *fills* (chips, separators, bars at 0.06–0.12) stay
   `ink.opacity(x)` — over dark surfaces they read as warm veils. The view-local status
-  colours (`DrillView` correct/close/wrong, the review best/gap, `StatsPanelView`
+  colours (`DrillView` correct/close/wrong, `StatsPanelView`
   win/loss) follow the same light → dark mapping (olive → `#86c46c`, amber → `#e09a42`,
   red → `#ff8d72`).
 - **`.chromeCard(padding:)`** (View extension) — pads content (default 20), card fill,
@@ -693,18 +693,22 @@ Per screen (compact only):
   portrait (`regularPortraitMode`) = `topBar`, the board (side = full width minus
   24 pt gutters, shrunk only to keep ~250 pt of detail visible — 340 pt below 700 pt
   width), Prev/Next, then the detail in a `ScrollView`, as two columns ≥ 700 pt wide
-  (chart + pickers | move + played/best). Close is laid out in `topBar` on every
+  (move + filter | chart + summary). Close is laid out in `topBar` on every
   review layout — it floats only on the analysing/message screens — so it can never
-  cover the chart or board. `panelInfo` = `overviewSection` (no-blunders note +
-  chart) + `moveSection` (counter, dice, played/best) + `pickerSection` (overlay +
-  step filter).
+  cover the chart or board. **Detail order (#233): what changes as you page comes
+  first** — `panelInfo` = `moveSection` (turn, mover, dice + level badge, played/best
+  rows, loss line) + `filterPicker` + `overviewSection` (chart, then the summary card),
+  in every rail and the one-column portraits; the two-column iPad portrait puts move +
+  filter in the leading column and chart + summary in the other. On a 13 mini in
+  portrait the played/best rows and the loss line sit above the fold.
 - **DrillView** — portrait: board edge-to-edge between the prompt and the feedback/
   actions; landscape: the header moves into the card's rail (`railHeader`).
 
-**Review/drill board overlays (#232).** The review's Compare mode passes the played move +
-best move to `MoveHighlightView` (amber / blue, both solid; both marks on shared points,
-blue only when you played the best); its legend shows a `MoveMarkSwatch` for each mark
-actually drawn ("played", "best" — only "best" when you played the best; no "both" key).
+**Review/drill board overlays (#232, #233).** The review always compares on your own
+plies with a choice: `MoveHighlightView` gets the played move + best move (amber / blue,
+both solid; both marks on shared points, blue only when you played the best). The
+opponent's plies and forced plies pass no best move, so amber is just "the move played".
+The move rows are the legend (see GameReviewView.swift below).
 The **drill** board (`DrillCard.board`) shows, over the live
 `PlayableBoardView`:
 - **Before an attempt** — the move you played in the game as a **ghost**
@@ -737,6 +741,76 @@ The **drill** board (`DrillCard.board`) shows, over the live
   it posts an `AccessibilityNotification.Announcement` ("Well done ✓" + the message) and
   advances when `announcementDidFinishNotification` fires (capped at 6 s). Close/wrong keep
   Try again / Show solution.
+
+## GameReviewView.swift (#62 post-game review; reworked around your moves in #233)
+
+Full-screen, board-centric review reached from the game-over card ("Review game"). Layouts
+(iPhone portrait/landscape, iPad landscape rail / portrait one or two columns) are in
+"Compact (iPhone) layout" above; this section is the content.
+
+- **Who's who.** `GameReviewView(record:agent:humanColor:opponentName:)`. `opponentName`
+  (default `nil`) is the online opponent's name; offline it is "Computer" when the record
+  has an `aiColor`. `localColor` = `humanColor` vs the computer or online, `nil` in a
+  two-player game; the naming is `WinnerNaming` (You / Computer / name, or White / Red),
+  the same as the game chrome and the Moves sheet. The reviewed side ("your" moves, the
+  summary, the drill) is always `humanColor` (White in a two-player game, as before).
+  Review isn't offered online today (the online session has no model), so no caller
+  passes `opponentName` yet; it is there so an online review reads You vs the name.
+- **Board.** Always compare (no Your move / Compare toggle): on your plies with a choice the
+  best move is drawn in blue next to yours in amber (`boardBestMove`); best played = blue
+  only. Opponent and forced plies draw just the move played (amber).
+- **Move section.** "Turn N" — numbered like the Moves sheet (#190): one turn per pair of
+  plies with `localColor ?? .white` first, so `turn = (ply+1)/2` when that side started,
+  else `ply/2 + 1`. Then `MoverChip` (checker-colour dot + name, neutral capsule), the small
+  refining spinner while deeper passes run (the 1-/2-/3-ply chip is gone), the dice and a
+  `SeverityBadge` ("?? Blunder", "? Mistake", "?! Inaccuracy": the `MoveSeverity` symbol,
+  LTR-isolated under RTL, + `MoveSeverity.localizedName` in a neutral ink capsule, a touch
+  stronger for a blunder) — on your moves, and on the opponent's only when it can err
+  (`record.opponentCanErr(of:)`, #231). Rows: "You played" / "Computer played" / "%@
+  played" and "Best move", each label over a `MoveMarkSwatch` + notation + value; a swatch
+  only while that mark is on the board (`MoveHighlightView.drawnMarks`), else a same-size
+  gap. Status line (indented to the notation): "Best move played ✓" / "Computer played the
+  best ✓", else `EvalScale.lossLabel` (ink from a mistake up, secondary ink below), or
+  "Only move available" for a forced ply. No green, no red: amber and blue mean only your
+  move / the best move.
+- **Summary card** (`summaryCard`, a `.chromeCard(padding: 14)` at the end of the detail,
+  under the chart), from `model.result.summary(for: humanColor, luck: model.luck)`:
+  "**Accuracy 91%** · 2 mistakes · 1 blunder · 3 inaccuracies" (one `Text`
+  concatenation; counts only when > 0, plural variations in the catalog with a
+  non-breaking space after the number, inaccuracies in secondary ink); "No mistakes —
+  nicely played!" under it once the analysis is finished with no ? / ??. Then one line,
+  once the luck pass is in, as **per-move averages** (sums grow with game length and
+  can pass 100 %): "Dice: +0.5% per roll for you · Your moves: −2.1% per move". Dice =
+  your mean `PlyLuck.luckPoints` over your rolls (passes included) minus the opponent's
+  mean over theirs; moves = `decisionLoss / choicePlies` (your mean loss over plies with
+  a choice). Both via `EvalScale.points(_:signed:decimals: 1)`: win-chance pp to one
+  decimal ("2.1%"), or equity = pp / 50 with three decimals ("0.042") for a 2-point
+  variant; locale digits. Wording: "Dice: even" when |net| < 0.05 pp, "Dice: x per roll
+  for %@" when it favoured the other side, "Moves by %@: x per move" in a two-player game.
+  While the luck pass runs (only when there is an agent): a mini spinner + "Measuring dice
+  luck…". The separator is " · ", or the Persian comma "، " under RTL (a "·" next to a
+  Persian digit reads like a zero). The card is omitted when there is neither accuracy (no
+  choice plies) nor luck.
+- **Chart** (`WinProbabilityChart`): every ply, `topColor` = `localColor ?? .white` up
+  (your side up; White in a two-player game), labelled with the names (You / Computer).
+  Band, trace and labels take the checker colour of the side they belong to. Markers by
+  size + symbol in the board's ivory (`CaramelPalette.triangleFill`, not amber/blue): your
+  ? = ring r 5 + "?", your ?? = heavier ring r 7 + "??" (the mark above the ring, below
+  near the top edge); the opponent's ? / ?? = a small faint ring, only when it can err.
+  Inaccuracies are not marked. Selected-move dot as before. Scrub → the filter's nearest
+  move.
+- **Filter** (`filterPicker`, segmented, right under the move): **My moves** (default; your plies
+  with a choice, forced skipped) · **Mistakes** (your ? and ??; the segment shows only while
+  you have one, and the filter falls back to My moves if they vanish) · **All moves**. The
+  card is tracked by `selectedPly` (a `plyNumber`, so streamed-in plies don't shift it;
+  `nil` = the filter's first move). Prev/Next, the swipe and the chart scrub step only
+  within the filter (`navigable`); switching filter snaps to its nearest move. When the
+  filter holds nothing yet (early streaming) every ply is navigable.
+- **Chrome.** Close = a neutral 44 pt circle on `ChromeKit.secondaryFill`; Prev/Next =
+  `ChromeButton(.secondary, fullWidth)`; "Drill blunders" = `ChromeButton(.secondary)`,
+  still blunders only (`model.blunderPlies`).
+- **Debug.** `-debugReviewSample` (+ `-debugReviewAs red`, `-debugReviewLevel N`), see
+  RootView.
 
 ## DebugOverlay.swift (T11 — debug eval overlay)
 
@@ -877,7 +951,10 @@ too), and `match.recordGame(winner:points:)`.
     full-screen `GameReviewView` over the root at launch, on a seeded sample game (house
     Plakoto, you = White vs the computer, 24 plies of seeded random legal moves, then the
     computer wins by resignation) — straight into review/drill for checking their visuals,
-    with plenty of blunders to drill. Nothing is saved or counted. Combine with
+    with plenty of blunders to drill. Nothing is saved or counted. #233 options:
+    `-debugReviewAs red` reviews as Red (the computer plays White and starts), and
+    `-debugReviewLevel N` records the computer's level (N < 8 makes its mistakes show on
+    the chart and its cards carry level badges; unset = unknown = full strength). Combine with
     `-settings.appearance light|dark` and `-AppleLanguages "(fa)"` (argument-domain
     overrides) for screenshots, e.g.
     `xcrun simctl launch <udid> com.plakoto.TavliApp -debugReviewSample -settings.appearance dark`.
@@ -1175,6 +1252,8 @@ that would need agreement. Glossary:
 | Computer (the AI opponent) | Υπολογιστής |
 | White / Red | Λευκά / Κόκκινα |
 | blunder / drill / review | γκάφα / εξάσκηση / ανάλυση |
+| inaccuracy / mistake / accuracy (review levels, #233) | ανακρίβεια / λάθος / ακρίβεια |
+| turn (a full turn, review) | γύρος |
 | win chance / equity | πιθανότητα νίκης / equity (kept, like de/nl) |
 | Best of 3 | 2 στα 3 |
 | handicap / hint / weighted dice / head start / safe point | χάντικαπ / βοήθεια / ευνοϊκά ζάρια / προβάδισμα / ασφαλής θέση |
@@ -1257,7 +1336,9 @@ register, تو):
 | You | تو |
 | White / Red | سفید / قرمز |
 | win chance / equity | شانس برد / ارزش موقعیت |
-| blunder | اشتباه بزرگ |
+| blunder | اشتباه بزرگ (the review's level badge and counts: اشتباه فاحش, #233) |
+| inaccuracy / mistake / accuracy (#233) | بی‌دقتی / اشتباه / دقت |
+| turn (a full turn, review) | دور |
 | review / drill | بررسی / تمرین |
 | resign / forfeit | تسلیم / انصراف |
 | handicap / hint / reroll | هندیکپ / راهنمایی / تاس دوباره |
