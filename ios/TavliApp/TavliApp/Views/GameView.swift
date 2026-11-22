@@ -1199,7 +1199,7 @@ private struct MatchScoreboardView: View {
     var body: some View {
         if compact {
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) { scoreLine; Text(verbatim: "·"); gameLine }
+                HStack(spacing: 6) { scoreLine; Text(verbatim: ChromeDigits.isRightToLeft ? "،" : "·"); gameLine }
                 VStack(spacing: 2) { scoreLine; gameLine }
             }
             .font(ChromeType.caption)
@@ -1587,7 +1587,9 @@ enum ChromeType {
     /// the display serif, or the system serif where it lacks the UI script (#225).
     /// The "Tavlo" brand wordmark itself always keeps `wordmark`.
     static var localizedWordmark: Font {
-        displaySerifCoversUI ? wordmark : .system(size: pt(96), design: .serif)
+        // The system fallback (Persian, #229) has taller, heavier glyphs and long titles
+        // ("بازی آنلاین"): 96 pt filled the whole phone width, so it runs smaller there.
+        displaySerifCoversUI ? wordmark : .system(size: pt(68), design: .serif)
     }
 
     // Debug overlay (developer chrome, but it was 9–10 pt — illegible on device).

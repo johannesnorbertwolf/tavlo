@@ -103,7 +103,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : " · %lld رد شد"
+            "value" : "، %lld رد شد"
           }
         },
         "nl" : {
@@ -382,86 +382,86 @@
         }
       }
     },
-    "−%@ win chance" : {
+    "%@ win chance" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ Gewinnchance"
+            "value" : "%@ Gewinnchance"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ πιθανότητα νίκης"
+            "value" : "%@ πιθανότητα νίκης"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ شانس برد"
+            "value" : "%@ شانس برد"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ winstkans"
+            "value" : "%@ winstkans"
           }
         }
       }
     },
-    "−%@ win chance vs your move" : {
+    "%@ win chance vs your move" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ Gewinnchance ggü. deinem Zug"
+            "value" : "%@ Gewinnchance ggü. deinem Zug"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ πιθανότητα νίκης έναντι της κίνησής σου"
+            "value" : "%@ πιθανότητα νίκης έναντι της κίνησής σου"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ شانس برد نسبت به حرکت تو"
+            "value" : "%@ شانس برد نسبت به حرکت تو"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ winstkans t.o.v. jouw zet"
+            "value" : "%@ winstkans t.o.v. jouw zet"
           }
         }
       }
     },
-    "−%@ win chance vs your try" : {
+    "%@ win chance vs your try" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ Gewinnchance ggü. deinem Versuch"
+            "value" : "%@ Gewinnchance ggü. deinem Versuch"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ πιθανότητα νίκης έναντι της προσπάθειάς σου"
+            "value" : "%@ πιθανότητα νίκης έναντι της προσπάθειάς σου"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ شانس برد نسبت به تلاش تو"
+            "value" : "%@ شانس برد نسبت به تلاش تو"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ winstkans t.o.v. jouw poging"
+            "value" : "%@ winstkans t.o.v. jouw poging"
           }
         }
       }
@@ -4028,30 +4028,30 @@
         }
       }
     },
-    "−%@ equity" : {
+    "%@ equity" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ Equity"
+            "value" : "%@ Equity"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ equity"
+            "value" : "%@ equity"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ ارزش موقعیت"
+            "value" : "%@ ارزش موقعیت"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ equity"
+            "value" : "%@ equity"
           }
         }
       }
@@ -4073,7 +4073,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "مارس · ۲ امتیاز"
+            "value" : "مارس، ۲ امتیاز"
           }
         },
         "nl" : {
@@ -4101,7 +4101,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "برد ساده · ۱ امتیاز"
+            "value" : "برد ساده، ۱ امتیاز"
           }
         },
         "nl" : {
@@ -4241,7 +4241,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ · دو نفره"
+            "value" : "%@، دو نفره"
           }
         },
         "nl" : {
@@ -4280,58 +4280,58 @@
         }
       }
     },
-    "−%@ equity vs your move" : {
+    "%@ equity vs your move" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ Equity gegenüber deinem Zug"
+            "value" : "%@ Equity gegenüber deinem Zug"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ equity έναντι της κίνησής σου"
+            "value" : "%@ equity έναντι της κίνησής σου"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ ارزش موقعیت نسبت به حرکت تو"
+            "value" : "%@ ارزش موقعیت نسبت به حرکت تو"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ equity t.o.v. jouw zet"
+            "value" : "%@ equity t.o.v. jouw zet"
           }
         }
       }
     },
-    "−%@ equity vs your try" : {
+    "%@ equity vs your try" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ Equity gegenüber deinem Versuch"
+            "value" : "%@ Equity gegenüber deinem Versuch"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ equity έναντι της προσπάθειάς σου"
+            "value" : "%@ equity έναντι της προσπάθειάς σου"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ ارزش موقعیت نسبت به تلاش تو"
+            "value" : "%@ ارزش موقعیت نسبت به تلاش تو"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "−%@ equity t.o.v. jouw poging"
+            "value" : "%@ equity t.o.v. jouw poging"
           }
         }
       }
@@ -4465,7 +4465,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "بازی %1$lld از ۳ · %2$@"
+            "value" : "بازی %1$lld از ۳، %2$@"
           }
         },
         "nl" : {
@@ -4661,7 +4661,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ · ۱ امتیاز"
+            "value" : "%@، ۱ امتیاز"
           }
         },
         "nl" : {
@@ -4689,7 +4689,7 @@
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ · %2$lld امتیاز"
+            "value" : "%1$@، %2$lld امتیاز"
           }
         },
         "nl" : {
@@ -10360,6 +10360,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "اشتباهی برای تمرین نیست — آفرین!"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@، %2$@"
           }
         }
       }

@@ -625,18 +625,18 @@ private struct DrillCard: View {
     @ViewBuilder
     private var gapLine: some View {
         if lastAttempt != nil, let tried = lastAttemptScore {
-            let gap = scale.gap(Double(eval.bestScore - tried))
+            let gap = scale.lossGap(Double(eval.bestScore - tried))
             if scale.isEquity {
-                Text("−\(gap) equity vs your try")
+                Text("\(gap) equity vs your try")
             } else {
-                Text("−\(gap) win chance vs your try")
+                Text("\(gap) win chance vs your try")
             }
         } else {
-            let gap = scale.gap(Double(eval.bestScore - eval.playedScore))
+            let gap = scale.lossGap(Double(eval.bestScore - eval.playedScore))
             if scale.isEquity {
-                Text("−\(gap) equity vs your move")
+                Text("\(gap) equity vs your move")
             } else {
-                Text("−\(gap) win chance vs your move")
+                Text("\(gap) win chance vs your move")
             }
         }
     }

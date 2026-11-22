@@ -1005,7 +1005,7 @@ private enum SaveCopy {
         let when = dateFormatter.string(from: meta.savedAt)
         let moves = meta.plyCount == 1 ? String(localized: "1 move")
                                        : String(localized: "\(meta.plyCount) moves")
-        return "\(when) · \(moves)"
+        return String(localized: "\(when) · \(moves)")
     }
 
     static let dateFormatter: DateFormatter = {

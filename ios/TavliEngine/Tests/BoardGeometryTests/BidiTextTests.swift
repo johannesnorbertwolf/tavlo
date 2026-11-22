@@ -32,4 +32,28 @@ final class BidiTextTests: XCTestCase {
         XCTAssertEqual(BidiText.replacingASCIIDigits(in: "63%", zero: "0"), "63%")
         XCTAssertEqual(BidiText.replacingASCIIDigits(in: "no digits", zero: "۰"), "no digits")
     }
+
+    func testDecimalPointOnlyBetweenDigits() {
+        XCTAssertEqual(BidiText.replacingDecimalPoint(in: "+۰.۵۲", with: "٫"), "+۰.۵۲")  // Persian digits: not ASCII
+        XCTAssertEqual(BidiText.replacingDecimalPoint(in: "+0.52", with: "٫"), "+0٫52")
+        XCTAssertEqual(BidiText.replacingDecimalPoint(in: "v1. 0.5", with: "٫"), "v1. 0٫5")
+        XCTAssertEqual(BidiText.replacingDecimalPoint(in: "+0.52", with: "."), "+0.52")
+    }
+
+    func testLocalizedNumberIsByteIdenticalForWesternDigits() {
+        XCTAssertEqual(BidiText.localizedNumber("+0.52", zero: "0", decimalSeparator: "."), "+0.52")
+        XCTAssertEqual(BidiText.localizedNumber("\u{2212}0.48", zero: "0", decimalSeparator: ","), "\u{2212}0.48")
+    }
+
+    func testLocalizedNumberPersianKeepsSignInsideTheIsolate() {
+        XCTAssertEqual(BidiText.localizedNumber("\u{2212}0.48", zero: "۰", decimalSeparator: "٫"),
+                       "\u{2066}\u{2212}۰٫۴۸\u{2069}")
+        XCTAssertEqual(BidiText.localizedNumber("\u{2212}16%", zero: "۰", decimalSeparator: "٫"),
+                       "\u{2066}\u{2212}۱۶%\u{2069}")
+    }
+
+    func testListSeparator() {
+        XCTAssertEqual(BidiText.listSeparator(rightToLeft: false), " \u{00B7} ")
+        XCTAssertEqual(BidiText.listSeparator(rightToLeft: true), "\u{060C} ")
+    }
 }
