@@ -49,6 +49,16 @@ struct RootView: View {
     init() {
         // UI-test hook: start directly in a deterministic human-vs-AI game so the
         // board interaction can be driven without the picker or random dice.
+        #if DEBUG
+        if let seeded = RootView.debugHandicapSession() {
+            // `-debugHandicapBearOff` (#236, DEBUG only): a handicap game with two-digit
+            // borne-off counts, for checking the phone's top bar and the handicap card.
+            _session = State(initialValue: seeded)
+            _humanColor = State(initialValue: .white)
+            _autosaveName = State(initialValue: RootView.newAutosaveName())
+            return
+        }
+        #endif
         if ProcessInfo.processInfo.arguments.contains("-uiTestGame") {
             let s = RootView.makeSession(humanColor: .black, startingPlayer: .black)
             s.setDice(3, 5)
@@ -184,6 +194,7 @@ struct RootView: View {
                 ModePickerView(store: store,
                                stats: statsStore.stats,
                                handicapStats: statsStore.handicapStats,
+                               handicapAdjusted: statsStore.adjustedHandicapGames,
                                onPlay: {
                                    // The remembered setup (#189): colour (Random draws a
                                    // side now), variant and length from the new-game sheet.
@@ -227,7 +238,8 @@ struct RootView: View {
         // well before any game can end, so the hook is always armed in time.
         .task(id: session.map(ObjectIdentifier.init)) {
             guard let session,
-                  !ProcessInfo.processInfo.arguments.contains("-uiTestGame") else { return }
+                  !ProcessInfo.processInfo.arguments.contains("-uiTestGame"),
+                  !Self.isDebugSeededGame else { return }
             // `onGameFinished` (#143) fires for every end — wins of 1 or 2 points and
             // draws. The vs-AI W/L record only takes decided vs-AI games (a draw is
             // neither; a two-player game isn't the human's record).
@@ -270,7 +282,7 @@ struct RootView: View {
     /// games are never resumed); on the picker (`session == nil`) the prior
     /// auto-save is left intact.
     private func persistAutosave() {
-        guard let session else { return }
+        guard let session, !Self.isDebugSeededGame else { return }
         let name = autosaveName.isEmpty ? Self.newAutosaveName() : autosaveName
         Self.persist(session: session, fullTavli: fullTavli, name: name, store: store)
     }
@@ -399,9 +411,11 @@ struct RootView: View {
     /// ceremony — the starter alternates deterministically from the match's base.
     private func startNextMatchGame() {
         guard let match else { return }
-        // A handicap match (#148) keeps the setup the match started with; every game gets
-        // fresh tokens, and "moves first" overrides the alternating starter.
-        let handicap = session?.record.handicap
+        // A handicap match (#148) keeps the setup the match started with — its final
+        // values if it was adjusted during the game (#236) — every game gets fresh tokens
+        // and is not "adjusted" itself, and "moves first" overrides the alternating
+        // starter. A setup adjusted down to nothing makes the next game a normal one.
+        let handicap = session?.record.handicap?.forNextGame
         autosaveName = Self.newAutosaveName()
         session = Self.makeSession(humanColor: humanColor,
                                    startingPlayer: HandicapSetup.startingPlayer(
@@ -471,8 +485,9 @@ struct RootView: View {
                 break
             }
         }
-        // A two-player handicap game (#148) needs the net for its dice/hints.
-        let handicapAgent = agent == nil && save.handicap?.setup.needsEvaluator == true
+        // A two-player handicap game (#148) needs the net for its dice/hints — also when
+        // they are only switched on mid-game (#236), so any handicap gets one.
+        let handicapAgent = agent == nil && save.handicap != nil
             ? GameSession.makeAgent(config: GameConfig(variantID: save.variant)) : nil
         let s = GameSession.resume(from: save, agent: agent,
                                    searchConfig: AppSettings.searchConfig,
@@ -537,6 +552,47 @@ struct RootView: View {
         return f
     }()
 
+    /// Whether this launch plays the DEBUG-seeded game (`-debugHandicapBearOff`, #236):
+    /// its board is set directly, not replayed, so it is never autosaved, logged or
+    /// counted. Always `false` in a release build.
+    private static var isDebugSeededGame: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-debugHandicapBearOff")
+        #else
+        return false
+        #endif
+    }
+
+    #if DEBUG
+    /// `-debugHandicapBearOff` (#236): you (White) vs the computer in a house-Plakoto
+    /// handicap game — you: 2 rerolls, 3 hints, a 2-checker head start; the computer:
+    /// moderate weighted dice — seeded straight into a bear-off with 12 White and 10 Red
+    /// checkers off, White to roll. For screenshots of the two-digit counters and the
+    /// handicap card; `nil` without the argument.
+    @MainActor
+    private static func debugHandicapSession() -> GameSession? {
+        guard isDebugSeededGame else { return nil }
+        let setup = HandicapSetup(white: HandicapItems(headStart: 2, rerolls: 2, hints: 3),
+                                  black: HandicapItems(diceTilt: HandicapDiceStrength.moderate.beta))
+        let config = GameVariantSetting.plakoto.config
+        let session = GameSession(startingPlayer: .white, config: config,
+                                  agent: GameSession.makeAgent(config: config), aiColor: .black,
+                                  searchConfig: AppSettings.searchConfig,
+                                  animationTimings: AppSettings.animationTimings,
+                                  autoRoll: false, handicap: setup,
+                                  aiLevel: AppSettings.aiLevel)
+        let board = session.game.board
+        for i in board.points.indices { board.setPoint(i, pieces: []) }
+        board.setPoint(25, pieces: Array(repeating: .white, count: 12))
+        board.setPoint(20, pieces: [.white])
+        board.setPoint(22, pieces: [.white, .white])
+        board.setPoint(0, pieces: Array(repeating: .black, count: 10))
+        for p in 2...6 { board.setPoint(p, pieces: [.black]) }
+        session.start()
+        return session
+    }
+    #endif
+
     /// A new session under `variant` (#143): vs-AI with that variant's model, or a
     /// two-player game (`vsAI: false`, no agent).
     @MainActor
@@ -545,8 +601,9 @@ struct RootView: View {
                                     vsAI: Bool = true,
                                     handicap: HandicapSetup? = nil) -> GameSession {
         let config = variant.config
-        // Two players have no agent; a handicap that needs the net gets one (#148).
-        let handicapAgent = !vsAI && handicap?.needsEvaluator == true
+        // Two players have no agent; a handicap game gets one (#148) — even if nothing
+        // needs the net yet, the handicap card can switch on weighted dice / hints (#236).
+        let handicapAgent = !vsAI && handicap?.isActive == true
             ? GameSession.makeAgent(config: config) : nil
         let session = GameSession(
             startingPlayer: startingPlayer,
@@ -586,6 +643,8 @@ private struct ModePickerView: View {
     let stats: HumanGameStats
     /// Handicap games' record (#148); its block shows only once one exists.
     var handicapStats: HumanGameStats = .empty
+    /// How many of them were adjusted mid-game (#236), tagged in the block.
+    var handicapAdjusted = 0
     /// Start a vs-AI game with the remembered setup (#189).
     let onPlay: () -> Void
     /// Start a two-player (pass-and-play) game of the selected variant (#143).
@@ -844,7 +903,7 @@ private struct ModePickerView: View {
                     StatsPanelView(stats: stats)
                         .padding(.horizontal, ChromeType.isCompact ? 16 : 24)
                     if handicapStats.total > 0 {
-                        HandicapRecordBlock(stats: handicapStats)
+                        HandicapRecordBlock(stats: handicapStats, adjusted: handicapAdjusted)
                             .padding(.horizontal, ChromeType.isCompact ? 16 : 24)
                             .padding(.top, 12)
                     }

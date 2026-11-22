@@ -674,8 +674,11 @@ App-side helpers in `ChromeKit.swift`:
 train mascot (logo tile, avatar, locomotive art) was removed on every layout.
 
 Per screen (compact only):
-- **GameView** — portrait: icon nav bar (Back · Settings · ⋯ menu with Save/Resign or
-  Leave, Move history, debug pane; compact borne-off chips trailing), free space, then
+- **GameView** — portrait: icon nav bar (Back · ⋯ menu with Save/Resign or Leave, Move
+  history, Settings (#236: moved from its own gear so a handicap game's tag fits a 13 mini),
+  debug pane · the handicap tag in a handicap game; compact borne-off chips trailing: one line,
+  `fixedSize`, two digits wide from the start via a hidden `"\(88)"` formatted like the count, so
+  Persian digits reserve their own width and "12" never wraps), free space, then
   turn status + one-line scoreboard + win bar + Undo/Done
   right above the board, all in `FitOrScroll`. Landscape: the same pieces in the rail
   beside a full-height board. The debug pane floats over the board (by design); its
@@ -878,6 +881,13 @@ too), and `match.recordGame(winner:points:)`.
     `-settings.appearance light|dark` and `-AppleLanguages "(fa)"` (argument-domain
     overrides) for screenshots, e.g.
     `xcrun simctl launch <udid> com.plakoto.TavliApp -debugReviewSample -settings.appearance dark`.
+  - **`-debugHandicapBearOff`** (#236, `#if DEBUG` only, checked first): you (White) vs the
+    computer in a handicap game (you: head start 2, rerolls 2, hints 3; computer: moderate weighted
+    dice) seeded straight into a bear-off with 12 White / 10 Red off — for checking the two-digit
+    counters and the handicap card. Its board is set, not replayed, so it is never autosaved,
+    logged or counted (`isDebugSeededGame`). Launch with
+    `xcrun simctl launch <udid> com.plakoto.TavliApp -debugHandicapBearOff` (the same
+    `-settings.appearance` / `-AppleLanguages` overrides work).
   - **Resume from the list** (`resume(_:)`) loads the chosen `SaveMetadata`, derives `humanColor`
     from `save.aiColor.opponent`, carries `save.name` forward into `autosaveName` (so continued
     play keeps the same identity), and switches into the replayed session.
@@ -1071,9 +1081,23 @@ only when a handicap is active / exists.
   "You 57% · Computer 43%", the unmeasured line ("Weighted dice and rerolls: not measured yet, so
   not in the number."), the hints note, and "If both played at the computer's full strength."
 - **Game.** `HandicapTagButton` (icon-only `compact` in the iPhone nav bar and iPad portrait top
-  bar; labelled under the status card in the iPad landscape panel) opens `HandicapInfoSheet`
-  (large detent): setup lines, tokens left, the estimate with the game's real starter
-  (`.fixed(session.startingPlayer)`), and the fair-dice caveat. `ControlsView` shows
+  bar; labelled under the status card in the iPad landscape panel) shows ⚖ plus the favoured
+  side's checker dot (`HandicapSideDot`, #236; none when even; VoiceOver "Handicap, favours You" /
+  "Handicap, even"): `HandicapEstimator.favouredSide` — a one-sided setup needs no net; a two-sided
+  one runs its own `HandicapEstimateModel` (start position, `.fixed(session.startingPlayer)`) and
+  shows the table-only favourite meanwhile. It opens `HandicapInfoSheet` as a **card**
+  (`.presentationDetents([.medium, .large])`): header "Handicap" + "● Favours You" / "Evenly
+  balanced" + Done; one card per side (You first vs the computer, White first for two players) with
+  the weighted-dice slider (Off → Very strong, `HandicapDiceStrength`), a "Rerolls left" stepper
+  (0…4) and, for a human side only, a "Hints left" stepper (0…5) — each change calls
+  `session.adjustHandicap` (from the next roll; dice/hints disabled without a `handicapAgent`, all
+  disabled once the game is over); the caption "Changes count from the next roll and carry over to
+  the next games of a Best of 3."; a read-only "Set at the start" card (`HandicapCopy.lines(...,
+  adjustable: false)`: head start, moves first, overshoot, safe point, checkers, home size — they
+  can't change mid-game because replays and the review rebuild the game from them); the estimate
+  only before the first move (`record.plies.isEmpty`; it is a start-position number); the fair-dice
+  caveat when `setup.altersDice`. The tokens' change autosaves through the existing
+  `.onChange(of: session.handicap)`. `ControlsView` shows
   `HandicapActionsRow` above Undo/Done only in a handicap game: "Reroll (n left)" / "Hint (n left)"
   for the human on move (disabled when not allowed), side by side or stacked (`ViewThatFits`), then
   "Best move shown in blue" or "Computer used a reroll (n left)". `PlayableBoardView` draws
@@ -1103,13 +1127,16 @@ only when a handicap is active / exists.
 - **Stats.** `RootView` records a finished vs-Computer handicap game with its setup
   (`statsStore.record(humanWon:handicap:)`) — every game of a handicap match too, never the
   vs-Computer record (the match overlay shows no record at all); My Record shows `HandicapRecordBlock` under
-  `StatsPanelView` only when `handicapStats.total > 0` (the sheet grows from 480 to 680 pt then).
+  `StatsPanelView` only when `handicapStats.total > 0` (the sheet grows from 480 to 680 pt then),
+  with "n adjusted during the game" when any had their handicap changed mid-game
+  (`statsStore.adjustedHandicapGames`, #236).
 - **Starting games.** `RootView.beginGame` / opening-roll completion / `beginTwoPlayer` call
   `HandicapPreferences.setupForNewGame`; a forced starter ("moves first") skips the opening roll;
   `makeSession(handicap:)` gives a two-player game a `handicapAgent` when the setup needs the net;
   `prepareResume` does the same for a two-player handicap save. A best-of-three's next game
-  (`startNextMatchGame`) reuses the finished game's `record.handicap` (the setup the match started
-  with, fresh tokens) and its starter is `HandicapSetup.startingPlayer(for:default:)` ("moves
+  (`startNextMatchGame`) reuses the finished game's `record.handicap?.forNextGame` (the setup the
+  match started with, or its final values if adjusted mid-game, #236; fresh tokens, not marked
+  adjusted; adjusted down to nothing = a normal game) and its starter is `HandicapSetup.startingPlayer(for:default:)` ("moves
   first" beats the alternation); "Rematch" re-reads the settings via `beginGame`. Full Tavli legs
   never get one.
 
@@ -1202,6 +1229,9 @@ Arabic. The display face Cormorant Garamond has no Arabic glyphs; `ChromeType.st
 `localizedWordmark` detect that (the Greek #225 probe) and switch to the system serif design, which
 falls back to the system Arabic face — no tofu, no mixed weights. The "Tavlo" wordmark stays Latin
 (`ChromeType.wordmark`, never localized). Inter is not used for chrome.
+
+**#236 strings** (handicap button + card, My Record tag) come from `ios/scripts/add_handicap_card_strings.py`
+(de/nl/el/fa in one dict; Greek and Persian await review like the rest).
 
 **Strings.** `ios/scripts/add_persian_strings.py` holds every `fa` translation as a dict and writes them
 into `Localizable.xcstrings` (idempotent; re-run after a catalog conflict). Glossary (informal-polite

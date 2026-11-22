@@ -159,6 +159,12 @@ public final class HumanStatsStore: ObservableObject {
         HumanGameStats(records: records.filter { $0.handicap != nil })
     }
 
+    /// How many handicap games had their handicap adjusted mid-game (#236); My Record
+    /// tags them. Pre-#236 records count as not adjusted.
+    public var adjustedHandicapGames: Int {
+        records.filter { $0.handicap?.adjusted == true }.count
+    }
+
     /// Record the outcome of one completed game and persist it. `handicap` marks a
     /// handicap game (kept out of `stats`).
     public func record(humanWon: Bool, handicap: HandicapSetup? = nil, date: Date = Date()) {
