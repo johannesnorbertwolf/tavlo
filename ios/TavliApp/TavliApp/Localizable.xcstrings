@@ -171,69 +171,6 @@
       }
     },
     "—" : {},
-    "· Blunder %@ of %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Grober Patzer %1$@ von %2$@"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Γκάφα %1$@ από %2$@"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "· Blunder %1$@ of %2$@"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· اشتباه بزرگ %1$@ از %2$@"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Blunder %1$@ van %2$@"
-          }
-        }
-      }
-    },
-    "· Blunder %lld of %lld" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Grober Patzer %1$lld von %2$lld"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Γκάφα %1$lld από %2$lld"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· اشتباه بزرگ %1$lld از %2$lld"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Blunder %1$lld van %2$lld"
-          }
-        }
-      }
-    },
     "(%@)" : {},
     "(pass)" : {
       "localizations" : {
@@ -1436,35 +1373,6 @@
         }
       }
     },
-    "Drill blunders" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drill starten"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ξεκίνα εξάσκηση"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تمرین اشتباه‌ها"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drill starten"
-          }
-        }
-      }
-    },
     "Drill complete" : {
       "localizations" : {
         "de" : {
@@ -1518,34 +1426,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Uitstekend — dat is de beste zet!"
-          }
-        }
-      }
-    },
-    "Finding your blunders…" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suche grobe Patzer…"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ψάχνω τις γκάφες σου…"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "در حال پیدا کردن اشتباه‌هایت…"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Blunders zoeken…"
           }
         }
       }
@@ -2121,34 +2001,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Verder →"
-          }
-        }
-      }
-    },
-    "No blunders to drill — well played!" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keine groben Patzer — gut gespielt!"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Καμία γκάφα για εξάσκηση — μπράβο!"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اشتباهی برای تمرین نیست — آفرین!"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Geen blunders — goed gespeeld!"
           }
         }
       }
@@ -10390,6 +10242,124 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Zetten van %1$@: %2$@ per zet"
+          }
+        }
+      }
+    },
+    "Drill mistakes" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drill starten"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drill starten"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ξεκίνα εξάσκηση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمرین اشتباه‌ها"
+          }
+        }
+      }
+    },
+    "· Mistake %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Mistake %1$lld of %2$lld"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Fehler %1$lld von %2$lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Fout %1$lld van %2$lld"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· Λάθος %1$lld από %2$lld"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· اشتباه %1$lld از %2$lld"
+          }
+        }
+      }
+    },
+    "Finding your mistakes…" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suche deine Fehler…"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je fouten zoeken…"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ψάχνω τα λάθη σου…"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در حال پیدا کردن اشتباه‌هایت…"
+          }
+        }
+      }
+    },
+    "No mistakes to drill — well played!" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Fehler zum Üben — gut gespielt!"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geen fouten om te oefenen — goed gespeeld!"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κανένα λάθος για εξάσκηση — μπράβο!"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اشتباهی برای تمرین نیست — آفرین!"
           }
         }
       }

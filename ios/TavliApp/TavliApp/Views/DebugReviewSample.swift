@@ -6,7 +6,7 @@ import TavliEngine
 /// visuals without playing a game first. Launch with `-debugReviewSample`: the app
 /// opens a full-screen `GameReviewView` over a seeded sample game (house Plakoto, you =
 /// White vs the computer, 24 plies of seeded random legal moves, then the computer
-/// "wins" by resignation). Random play leaves plenty of blunders, so "Drill blunders"
+/// "wins" by resignation). Random play leaves plenty of blunders, so "Drill mistakes"
 /// is always offered. Nothing is saved or counted in the stats. Compiled out of release
 /// builds.
 enum DebugReviewSample {

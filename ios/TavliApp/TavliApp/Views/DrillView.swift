@@ -80,7 +80,7 @@ struct DrillView: View {
                 .font(.title3.bold())
                 .foregroundStyle(ChromeTheme.ink)
             if case .drilling = model.phase {
-                Text("· Blunder \(model.index + 1) of \(model.total)")
+                Text("· Mistake \(model.index + 1) of \(model.total)")
                     .font(.callout)
                     .foregroundStyle(ChromeKit.inkDim(0.6))
             }
@@ -98,12 +98,12 @@ struct DrillView: View {
         case .analyzing:
             centered {
                 ProgressView().progressViewStyle(.circular).tint(ChromeTheme.ink)
-                Text("Finding your blunders…")
+                Text("Finding your mistakes…")
                     .font(.callout).foregroundStyle(ChromeKit.inkDim(0.7))
             }
         case .empty:
             centered {
-                Text("No blunders to drill — well played!")
+                Text("No mistakes to drill — well played!")
                     .font(.callout).foregroundStyle(ChromeKit.inkDim(0.7))
             }
         case .drilling:
@@ -256,9 +256,11 @@ final class DrillModel: ObservableObject {
             return
         }
 
-        // Only the human's own blunders are drillable — opponent plies may now be in
-        // the result too (#132).
-        blunders = result.evaluations.filter { $0.mover == humanColor && $0.isBlunder }
+        // Only the human's own mistakes and blunders (? and ??) are drillable — opponent
+        // plies may be in the result too (#132). The absolute severity scale (#231) puts the
+        // old relative 10% line (~5 pp in an even position) between ? and ??, so drilling
+        // both keeps the drill's volume while grading every position alike.
+        blunders = result.evaluations.filter { $0.mover == humanColor && $0.severity >= .mistake }
         guard !blunders.isEmpty else { phase = .empty; return }
         loadCard(0)
         phase = .drilling

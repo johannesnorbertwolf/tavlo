@@ -686,7 +686,7 @@ Per screen (compact only):
   width minus a 16 pt gutter, spacing 12, padding 16, in `FitOrScroll`; in landscape the
   vs-AI record is condensed to its overall line so the card fits a 13 mini without scrolling.
 - **OpeningRollView** — same arrangement (Back, status, manual choice, board).
-- **GameReviewView** — portrait: Close + "Drill blunders" bar, edge-to-edge board,
+- **GameReviewView** — portrait: Close + "Drill mistakes" bar, edge-to-edge board,
   Prev/Next pinned under it, move detail + chart in a scrollable card; landscape: board
   + rail (bar, scrolling detail, Prev/Next). **iPad (#193) uses the same structure**:
   landscape = board + a 320 pt rail (`topBar`, scrolling `panelInfo`, `navRow`);
@@ -807,8 +807,8 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   within the filter (`navigable`); switching filter snaps to its nearest move. When the
   filter holds nothing yet (early streaming) every ply is navigable.
 - **Chrome.** Close = a neutral 44 pt circle on `ChromeKit.secondaryFill`; Prev/Next =
-  `ChromeButton(.secondary, fullWidth)`; "Drill blunders" = `ChromeButton(.secondary)`,
-  still blunders only (`model.blunderPlies`).
+  `ChromeButton(.secondary, fullWidth)`; "Drill mistakes" = `ChromeButton(.secondary)`,
+  shown when you have any ? / ?? move; the drill covers exactly those (`severity >= .mistake`).
 - **Debug.** `-debugReviewSample` (+ `-debugReviewAs red`, `-debugReviewLevel N`), see
   RootView.
 

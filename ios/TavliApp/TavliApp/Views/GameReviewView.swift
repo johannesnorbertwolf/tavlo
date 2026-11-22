@@ -359,7 +359,7 @@ struct GameReviewView: View {
     }
 
     /// Close + Drill on one bar (the drill button sized to its label; drilling is
-    /// offered whenever the game had blunders). Every review layout leads with it.
+    /// offered whenever you made a ? or ?? move). Every review layout leads with it.
     @ViewBuilder
     private var topBar: some View {
         if record.handicap?.altersDice == true {
@@ -377,8 +377,8 @@ struct GameReviewView: View {
         HStack(spacing: 12) {
             CloseButton { dismiss() }
             Spacer(minLength: 0)
-            if !model.blunderPlies.isEmpty {
-                Button("Drill blunders") { showDrill = true }
+            if hasMistakes {
+                Button("Drill mistakes") { showDrill = true }
                     .buttonStyle(ChromeButton(role: .secondary))
                     .fixedSize()
             }
@@ -755,8 +755,6 @@ final class GameReviewModel: ObservableObject {
     /// The full win-probability trajectory for the chart (#105): every evaluated ply.
     var chartEvaluations: [PlyEvaluation] { allEvaluations }
 
-    /// Ply numbers flagged as blunders — drives the chart rings + the detail badge (#105).
-    var blunderPlies: Set<Int> { Set(blunders.map(\.plyNumber)) }
 
     init() {}
 
