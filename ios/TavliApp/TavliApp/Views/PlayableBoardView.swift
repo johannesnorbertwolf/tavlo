@@ -59,6 +59,12 @@ struct PlayableBoardView: View {
     /// this to lock the board on the opponent's turn.
     var interactive: Bool = true
 
+    /// Told when a checker is lifted by a drag (`true`) and when it is let go
+    /// (`false`). The drag lives in this view's gesture state, not the session, so a
+    /// caller that reacts to "a checker is picked" (the drill's ghost, #232) needs this
+    /// alongside `session.selectedPoint`. `nil` (the default) = nobody listens.
+    var onLiftChange: ((Bool) -> Void)? = nil
+
     /// Translation (points) past which a press is treated as a drag, not a tap.
     private let dragThreshold: CGFloat = 10
 
@@ -228,6 +234,7 @@ struct PlayableBoardView: View {
                 hitFlights.removeAll { ids.contains($0.id) }
             }
         }
+        .onChange(of: liveDrag != nil) { _, lifted in onLiftChange?(lifted) }
         // Online (#134): lock the board on the opponent's turn — blocks tap-to-roll
         // and tap/drag while letting the incoming move animate.
         .disabled(!interactive)
@@ -431,10 +438,79 @@ struct SourceRingView: View {
     }
 }
 
-/// Review/drill move highlighter (#133). Renders a *whole move* with the Caramel
-/// highlight language — amber ring on each source point's moved checkers, amber
-/// frame on each landing triangle — extended three ways the live `SourceRingView`
-/// / `TargetHighlightView` pair did not:
+/// How one move is drawn on the board in review/drill (#232). One meaning per style,
+/// told apart by colour **and** stroke so it survives colour blindness (the old green
+/// "both" colour did not — #232):
+///
+/// - `played` — your move (review) / your attempt (drill solution): amber, **solid**.
+/// - `best` — the best move: blue, **dashed**.
+/// - `ghost` — the drill's reminder of the move you played in the game, before an
+///   attempt: grey, dashed and thinner (low emphasis).
+///
+/// `MoveMarkSwatch` draws the same style as a short line for panel legends.
+enum MoveMarkStyle {
+    case played
+    case best
+    case ghost
+
+    var color: SwiftUI.Color {
+        switch self {
+        case .played: return CaramelPalette.hl
+        case .best: return CaramelPalette.hlBest
+        case .ghost: return CaramelPalette.hlGhost
+        }
+    }
+
+    /// Stroke for a landing frame (triangle / tray box), in board units scaled by `s`.
+    func frameStroke(_ s: CGFloat) -> StrokeStyle {
+        switch self {
+        case .played: return StrokeStyle(lineWidth: 5 * s, lineJoin: .round)
+        case .best: return StrokeStyle(lineWidth: 5 * s, lineJoin: .round, dash: [12 * s, 7 * s])
+        case .ghost: return StrokeStyle(lineWidth: 4.2 * s, lineJoin: .round, dash: [8 * s, 6 * s])
+        }
+    }
+
+    /// Stroke for a source ring around a checker, in board units scaled by `s`.
+    func ringStroke(_ s: CGFloat) -> StrokeStyle {
+        switch self {
+        case .played: return StrokeStyle(lineWidth: 3.4 * s)
+        case .best: return StrokeStyle(lineWidth: 3.4 * s, dash: [7 * s, 4.5 * s])
+        case .ghost: return StrokeStyle(lineWidth: 3 * s, dash: [5 * s, 4 * s])
+        }
+    }
+
+    /// The same stroke at legend size (points), for `MoveMarkSwatch`.
+    var swatchStroke: StrokeStyle {
+        switch self {
+        case .played: return StrokeStyle(lineWidth: 3, lineCap: .round)
+        case .best: return StrokeStyle(lineWidth: 3, dash: [5, 3])
+        case .ghost: return StrokeStyle(lineWidth: 2.4, dash: [3.5, 3])
+        }
+    }
+}
+
+/// A short line in a `MoveMarkStyle` — the legend swatch next to a move row (drill
+/// panel, review legend; #232), matching how that move is drawn on the board.
+/// Decorative: the row's text label carries the meaning.
+struct MoveMarkSwatch: View {
+    let style: MoveMarkStyle
+
+    var body: some View {
+        Canvas { context, size in
+            var line = Path()
+            line.move(to: CGPoint(x: 2, y: size.height / 2))
+            line.addLine(to: CGPoint(x: size.width - 2, y: size.height / 2))
+            context.stroke(line, with: .color(style.color), style: style.swatchStroke)
+        }
+        .frame(width: 24, height: 10)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Review/drill move highlighter (#133, restyled #232). Renders a *whole move* with
+/// the Caramel highlight language — a ring on each source point's moved checkers, a
+/// frame on each landing triangle — extended three ways the live `SourceRingView` /
+/// `TargetHighlightView` pair did not:
 ///
 ///  1. **Every source is highlighted**, not just the first half-move's. A compound
 ///     move (two half-moves, or up to four under a Pasch double) rings all of them.
@@ -449,14 +525,17 @@ struct SourceRingView: View {
 ///     point (usually one, up to four with doubles), taken from the top of the
 ///     stack — not every checker sitting there.
 ///
-/// Pass a non-nil `bestMove` to compare: the played move draws amber, the best move
-/// blue, and any element belonging to **both** draws green (you played the best
-/// there). With `bestMove == nil` only the played move is shown, all amber.
+/// Styles (#232, `MoveMarkStyle`): `playedMove` draws in `playedStyle` (amber solid by
+/// default; the drill's ghost passes `.ghost`), a non-nil `bestMove` in blue dashed.
+/// Where both moves land on one point, or lift a checker from one point, **both marks
+/// are drawn**: the played frame/ring with a slightly larger blue dashed one around it.
+/// When the two moves are the same (same sources and landings) only the blue is drawn.
+/// With `bestMove == nil` only the played move is shown.
 struct MoveHighlightView: View {
-    /// The move to show in amber ("your move"). May be empty (e.g. a drill solution
+    /// The move to show in `playedStyle` ("your move"). May be empty (e.g. a hint
     /// that only wants the blue best move).
     let playedMove: [[Int]]
-    /// The best move to compare against, in blue; `nil` hides it (show yours only).
+    /// The best move to compare against, in blue dashed; `nil` hides it.
     let bestMove: [[Int]]?
     /// Pre-move per-slot stacks, so rings track the real checker positions.
     let stacks: [[TavliEngine.Color]]
@@ -464,6 +543,14 @@ struct MoveHighlightView: View {
     /// The game's rules (#143): a source on a bar position (Portes entry) is ringed
     /// on the bar, and `stacks` are split into trays + bars the same way the board is.
     var variant: any GameVariant = GameVariants.plakoto
+    /// How `playedMove` is drawn (#232): `.played` (amber solid) or `.ghost` (the
+    /// drill's game move, grey dashed).
+    var playedStyle: MoveMarkStyle = .played
+
+    /// How far (board units) the outer blue mark of a shared point sits outside the
+    /// inner one: half the inner stroke + a hair of gap + half the blue stroke.
+    private static let frameOutset: CGFloat = 7
+    private static let ringOutset: CGFloat = 5
 
     private var displayStacks: [[TavliEngine.Color]] {
         stacks.count == BoardLayout.slotCount ? stacks : BoardLayout.displayStacks(stacks, variant: variant)
@@ -471,10 +558,16 @@ struct MoveHighlightView: View {
 
     /// The genuine source points and landing points of a move, after cancelling
     /// hop-overs *by count* (#133). `sources` lists each genuine source point
-    /// once per checker lifted there (so the rings can be coloured per *piece*: two
-    /// checkers leaving one point can ring different colours); `targets` is the set
-    /// of genuine landing points.
-    private struct Marks { var sources: [Int]; var targets: Set<Int> }
+    /// once per checker lifted there (so a point can carry several rings); `targets`
+    /// is the set of genuine landing points.
+    private struct Marks: Equatable {
+        var sources: [Int]
+        var targets: Set<Int>
+
+        static func == (a: Marks, b: Marks) -> Bool {
+            a.sources.sorted() == b.sources.sorted() && a.targets == b.targets
+        }
+    }
 
     private static func marks(of move: [[Int]]) -> Marks {
         let pairs = move.filter { $0.count == 2 }
@@ -496,91 +589,147 @@ struct MoveHighlightView: View {
         return Marks(sources: sources, targets: targets)
     }
 
-    /// Amber when only the played move owns an element, blue when only the best move,
-    /// green when both. Used for the landing triangles, which stay point-level: if any
-    /// move lands there in both played and best it's green — including the case where
-    /// you reached the square with the wrong die (#133).
-    private static func color(played: Bool, best: Bool) -> SwiftUI.Color {
-        if played && best { return CaramelPalette.hlBoth }
-        return best ? CaramelPalette.hlBest : CaramelPalette.hl
-    }
+    /// One ring on one lifted checker: its own style, plus the blue dashed ring drawn
+    /// around it when the best move lifts that checker too.
+    private struct Ring { let style: MoveMarkStyle; var outer: MoveMarkStyle? = nil }
 
     var body: some View {
         Canvas { context, size in
             let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped)
             let s = geo.scale
-            let played = Self.marks(of: playedMove)
             let best = bestMove.map { Self.marks(of: $0) }
+            // Your move equal to the best → blue only (#232; the ✓ lives in the panel).
+            let mine: Marks? = {
+                let m = Self.marks(of: playedMove)
+                if let best, best == m { return nil }
+                return m
+            }()
+            let mineTargets = mine?.targets ?? []
+            let bestTargets = best?.targets ?? []
 
-            // Targets first (under the source rings, so a shared point's ring reads).
-            for t in played.targets.union(best?.targets ?? []) {
-                let c = Self.color(played: played.targets.contains(t),
-                                   best: best?.targets.contains(t) ?? false)
-                drawTarget(&context, geo: geo, point: t, color: c, s: s)
+            // Targets first (under the source rings). A point both moves land on gets
+            // the played frame plus a slightly larger blue dashed frame around it —
+            // including when you reached it with the wrong die (#133).
+            for t in mineTargets.union(bestTargets) {
+                let isMine = mineTargets.contains(t), isBest = bestTargets.contains(t)
+                if isMine {
+                    drawTarget(&context, geo: geo, point: t, style: playedStyle, outset: 0, s: s)
+                }
+                if isBest {
+                    drawTarget(&context, geo: geo, point: t, style: .best,
+                               outset: isMine ? Self.frameOutset : 0, s: s)
+                }
             }
-            // Source rings, coloured **per point by count** (#133): of the pieces
-            // lifted from a point, the number both moves agree on is green (regardless
-            // of where each went — a right point / wrong move still counts), any extra
-            // the best move lifts from there are blue, and any extra you lifted that the
-            // best wouldn't are amber. So played-1 / best-2 from one point reads as one
-            // green + one blue, not two green.
+            // Source rings, per point **by count** (#133): of the pieces lifted from a
+            // point, the number both moves agree on carry both rings (regardless of
+            // where each went — a right point / wrong move still counts), any extra the
+            // best move lifts there are blue only, and any extra you lifted that the best
+            // wouldn't are yours only. So played-1 / best-2 from one point reads as one
+            // double ring + one blue ring.
             let toDisplay = { (p: Int) in BoardLayout.displaySlot(forSource: p, variant: variant) }
-            let playedSources = played.sources.map(toDisplay)
+            let mineSources = (mine?.sources ?? []).map(toDisplay)
             let bestSources = (best?.sources ?? []).map(toDisplay)
             let shown = displayStacks
-            for src in Set(playedSources).union(bestSources) {
-                let played = playedSources.filter { $0 == src }.count
-                let best = bestSources.filter { $0 == src }.count
-                let green = min(played, best)
-                let colors = Array(repeating: CaramelPalette.hlBoth, count: green)
-                    + Array(repeating: CaramelPalette.hlBest, count: best - green)   // best wants more off here
-                    + Array(repeating: CaramelPalette.hl, count: played - green)     // you lifted more than best
-                drawSourceRings(&context, geo: geo, point: src, colors: colors,
-                                stacks: shown, s: s)
+            for src in Set(mineSources).union(bestSources) {
+                let m = mineSources.filter { $0 == src }.count
+                let b = bestSources.filter { $0 == src }.count
+                let shared = min(m, b)
+                let rings = Array(repeating: Ring(style: playedStyle, outer: .best), count: shared)
+                    + Array(repeating: Ring(style: .best), count: b - shared)      // best wants more off here
+                    + Array(repeating: Ring(style: playedStyle), count: m - shared) // you lifted more than best
+                drawSourceRings(&context, geo: geo, point: src, rings: rings, stacks: shown, s: s)
             }
         }
         .aspectRatio(1, contentMode: .fit)
         .allowsHitTesting(false)
     }
 
-    /// Frame the landing triangle (1…24) or the bear-off tray box (0/25).
+    /// Frame the landing triangle (1…24) or the bear-off tray box (0/25), pushed
+    /// `outset` board units outwards (the outer mark of a shared point).
     private func drawTarget(_ context: inout GraphicsContext, geo: BoardGeometry,
-                            point n: Int, color: SwiftUI.Color, s: CGFloat) {
+                            point n: Int, style: MoveMarkStyle, outset: CGFloat, s: CGFloat) {
         if n >= 1 && n <= 24 {
             let pt = geo.point(n)
+            let corners = Self.outsetTriangle(pt.baselineLeft, pt.baselineRight, pt.tip,
+                                              by: outset * s)
             var tri = Path()
-            tri.move(to: pt.baselineLeft)
-            tri.addLine(to: pt.baselineRight)
-            tri.addLine(to: pt.tip)
+            tri.move(to: corners[0])
+            for c in corners.dropFirst() { tri.addLine(to: c) }
             tri.closeSubpath()
-            context.stroke(tri, with: .color(color),
-                           style: StrokeStyle(lineWidth: 5 * s, lineJoin: .round))
+            context.stroke(tri, with: .color(style.color), style: style.frameStroke(s))
         } else if n == 0 || n == 25 {
-            let tray = geo.point(n).hitRect.insetBy(dx: 5 * s, dy: 10 * s)
-            context.stroke(Path(roundedRect: tray, cornerRadius: 8 * s),
-                           with: .color(color), lineWidth: 5 * s)
+            let tray = geo.point(n).hitRect.insetBy(dx: (5 - outset) * s, dy: (10 - outset) * s)
+            context.stroke(Path(roundedRect: tray, cornerRadius: (8 + outset) * s),
+                           with: .color(style.color), style: style.frameStroke(s))
         }
     }
 
-    /// Ring the top checkers of the source point (the ones lifted off), one ring per
-    /// entry in `colors`, applied top-down.
+    /// The triangle `a b c` (`c` = the sharp tip) with every edge pushed `d` outwards:
+    /// scaled about its incentre, which moves each edge by the same distance. The
+    /// tip is then cut square `d` past the original tip — a point's apex is so sharp
+    /// that the pure outset spike would reach far into the middle of the board.
+    private static func outsetTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint,
+                                       by d: CGFloat) -> [CGPoint] {
+        guard d > 0 else { return [a, b, c] }
+        let la = hypot(b.x - c.x, b.y - c.y)   // side opposite a
+        let lb = hypot(c.x - a.x, c.y - a.y)
+        let lc = hypot(a.x - b.x, a.y - b.y)
+        let perimeter = la + lb + lc
+        guard perimeter > 0 else { return [a, b, c] }
+        let incentre = CGPoint(x: (la * a.x + lb * b.x + lc * c.x) / perimeter,
+                               y: (la * a.y + lb * b.y + lc * c.y) / perimeter)
+        let area = abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) / 2
+        let inradius = 2 * area / perimeter
+        guard inradius > 0 else { return [a, b, c] }
+        let k = (inradius + d) / inradius
+        let scaled = [a, b, c].map {
+            CGPoint(x: incentre.x + k * ($0.x - incentre.x), y: incentre.y + k * ($0.y - incentre.y))
+        }
+        let (a2, b2, c2) = (scaled[0], scaled[1], scaled[2])
+        // Cut the tip: along the axis u (incentre → tip), keep only what lies within
+        // `d` past the original tip.
+        let axis = CGPoint(x: c.x - incentre.x, y: c.y - incentre.y)
+        let axisLength = hypot(axis.x, axis.y)
+        guard axisLength > 0 else { return scaled }
+        let u = CGPoint(x: axis.x / axisLength, y: axis.y / axisLength)
+        func along(_ p: CGPoint) -> CGFloat { (p.x - c.x) * u.x + (p.y - c.y) * u.y }
+        let overshoot = along(c2)
+        guard overshoot > d else { return scaled }
+        func cut(towards q: CGPoint) -> CGPoint {
+            let t = (d - overshoot) / (along(q) - overshoot)
+            return CGPoint(x: c2.x + t * (q.x - c2.x), y: c2.y + t * (q.y - c2.y))
+        }
+        return [a2, b2, cut(towards: b2), cut(towards: a2)]
+    }
+
+    /// Ring the top checkers of the source point (the ones lifted off), one entry of
+    /// `rings` per checker, applied top-down.
     private func drawSourceRings(_ context: inout GraphicsContext, geo: BoardGeometry,
-                                 point n: Int, colors: [SwiftUI.Color],
+                                 point n: Int, rings: [Ring],
                                  stacks: [[TavliEngine.Color]], s: CGFloat) {
         // Points 1…24 and the bar slots (a Portes entry, #143).
         guard (1...24).contains(n) || BoardLayout.isBarSlot(n), stacks.indices.contains(n),
-              !colors.isEmpty else { return }
+              !rings.isEmpty else { return }
         let r = geo.checkerRadius
         let visible = min(stacks[n].count, 5)
-        let count = min(colors.count, visible)
-        let ringR = r + 3.2 * s
+        let count = min(rings.count, visible)
         for i in 0..<count {
             let slot = visible - 1 - i
             let c = geo.checkerCenter(point: n, slot: slot)
-            let ring = Path(ellipseIn: CGRect(x: c.x - ringR, y: c.y - ringR,
-                                              width: 2 * ringR, height: 2 * ringR))
-            context.stroke(ring, with: .color(colors[i]), lineWidth: 3.4 * s)
+            let ring = rings[i]
+            stroke(&context, ringAround: c, radius: r + 3.2 * s, style: ring.style, s: s)
+            if let outer = ring.outer {
+                stroke(&context, ringAround: c, radius: r + (3.2 + Self.ringOutset) * s,
+                       style: outer, s: s)
+            }
         }
+    }
+
+    private func stroke(_ context: inout GraphicsContext, ringAround c: CGPoint,
+                        radius: CGFloat, style: MoveMarkStyle, s: CGFloat) {
+        let circle = Path(ellipseIn: CGRect(x: c.x - radius, y: c.y - radius,
+                                            width: 2 * radius, height: 2 * radius))
+        context.stroke(circle, with: .color(style.color), style: style.ringStroke(s))
     }
 }
 

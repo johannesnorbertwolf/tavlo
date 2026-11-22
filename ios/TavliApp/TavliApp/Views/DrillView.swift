@@ -186,8 +186,9 @@ final class DrillModel: ObservableObject {
     @Published private(set) var session: GameSession?
     @Published var feedback: Feedback = .none
     @Published private(set) var showingSolution = false
-    /// The player's most recent attempt on this card, as `[from, to]` pairs (for
-    /// showing what they actually played, in writing). `nil` until they move.
+    /// The player's most recent attempt on this card, as `[from, to]` pairs (shown in
+    /// writing, and compared with the best move by "Show solution", #232). `nil` until
+    /// they move; kept through "Try again" — it is replaced by the next attempt.
     @Published private(set) var lastAttempt: [[Int]]?
     /// Win-probability score of `lastAttempt` (#114), shown alongside it.
     @Published private(set) var lastAttemptScore: Float?
@@ -279,7 +280,6 @@ final class DrillModel: ObservableObject {
         guard let b = current, let agent else { return }
         feedback = .checking
         let pairs = move.halfMoves.map { [$0.from.position, $0.to.position] }
-        lastAttempt = pairs
         let stacks = b.boardStacks
         let mover = b.mover
         let best = b.bestScore
@@ -287,11 +287,13 @@ final class DrillModel: ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             let score = try? agent.scoreCandidate(boardStacks: stacks, move: pairs, mover: mover,
                                                   config: config)
-            await MainActor.run { self?.applyFeedback(score: score, best: best) }
+            await MainActor.run { self?.applyFeedback(attempt: pairs, score: score, best: best) }
         }
     }
 
-    private func applyFeedback(score: Float?, best: Float) {
+    private func applyFeedback(attempt: [[Int]], score: Float?, best: Float) {
+        // Attempt + score land together, so the "You tried" row swaps in one step.
+        lastAttempt = attempt
         lastAttemptScore = score
         guard let score else {
             awaitingRetry = true
@@ -317,18 +319,24 @@ final class DrillModel: ObservableObject {
     }
 
     /// Roll the held attempt back to the start so the player can try again (#114).
+    /// The attempt stays in `lastAttempt` (#232: "Show solution" compares your latest).
     func tryAgain() {
         session?.retryAttempt()
         awaitingRetry = false
-        lastAttempt = nil
-        lastAttemptScore = nil
         feedback = .none
     }
 
-    /// Reveal the best move. If an attempt is held, roll it back first so the solution
-    /// highlight (drawn from the pre-move position) lines up with the board (#114).
+    /// Reveal the best move, compared with your latest attempt (or the game move when
+    /// you haven't tried, #232). The highlight is drawn from the pre-move position, so
+    /// first put the board back there: roll back a held attempt (#114) and undo any
+    /// half-built move / pending pick.
     func revealSolution() {
-        if session?.heldAttempt != nil { session?.retryAttempt() }
+        if let session {
+            if session.heldAttempt != nil { session.retryAttempt() }
+            if session.routeChoice != nil { session.cancelRouteChoice() }
+            for _ in 0..<4 where !session.moveBuilder.built.isEmpty { session.undo() }
+            if session.selectedPoint != nil { session.selectPoint(-1) }
+        }
         awaitingRetry = false
         showingSolution = true
     }
@@ -367,6 +375,9 @@ private struct DrillCard: View {
     /// The drill header, when the screen moved it into this card's rail (iPhone
     /// landscape, #109).
     var railHeader: AnyView? = nil
+
+    /// A checker is being dragged on the board (from `PlayableBoardView.onLiftChange`).
+    @State private var dragLifted = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -444,23 +455,36 @@ private struct DrillCard: View {
         }
     }
 
+    /// The move "Show solution" sets against the best (#232): your latest attempt,
+    /// or the move you played in the game when you haven't tried yet.
+    private var comparedMove: [[Int]] { lastAttempt ?? eval.playedMove }
+
+    /// Whether the board overlays may show (#232). They are drawn from the pre-move
+    /// position, so never while it has changed (an attempt held, #114, or half a move
+    /// built), and they step aside while a checker is picked (tapped, dragged or
+    /// awaiting a route choice) so the live amber play highlight reads on its own.
+    private var showsOverlay: Bool {
+        session.heldAttempt == nil && session.moveBuilder.built.isEmpty
+            && session.selectedPoint == nil && session.routeChoice == nil && !dragLifted
+    }
+
     private var board: some View {
         ZStack {
-            PlayableBoardView(session: session, flipped: flipped)
-            // Overlays are drawn from the pre-move position, so only show them when the
-            // board is actually there (no attempt held on it) (#114).
-            if session.heldAttempt == nil {
+            PlayableBoardView(session: session, flipped: flipped,
+                              onLiftChange: { dragLifted = $0 })
+            if showsOverlay {
                 if showingSolution {
-                    // Compare what you played (yellow) against the best (blue), both
-                    // green where they agree (#133).
-                    MoveHighlightView(playedMove: eval.playedMove, bestMove: eval.bestMove,
+                    // Your latest attempt (amber, solid) against the best (blue, dashed);
+                    // shared points carry both marks (#232).
+                    MoveHighlightView(playedMove: comparedMove, bestMove: eval.bestMove,
                                       stacks: eval.boardStacks, flipped: flipped,
                                       variant: session.game.variant)
                 } else if !solved {
-                    // The move you originally played — "you did this; find better" (#114).
+                    // The move you played in the game, as a grey dashed ghost — "you did
+                    // this; find better" (#114, #232). Your attempt is the live amber.
                     MoveHighlightView(playedMove: eval.playedMove, bestMove: nil,
                                       stacks: eval.boardStacks, flipped: flipped,
-                                      variant: session.game.variant)
+                                      variant: session.game.variant, playedStyle: .ghost)
                 }
             }
         }
@@ -492,37 +516,58 @@ private struct DrillCard: View {
 
     /// The scores behind the drill (#114): the move you originally played and its win
     /// chance, your latest attempt and its win chance, and — once revealed — the best
-    /// move with the gap. Mirrors the review's number language.
+    /// move with the gap. Mirrors the review's number language. Each row leads with a
+    /// swatch of how that move is drawn on the board (#232): the game move dashed grey
+    /// (solid amber when the solution compares it), your attempt solid amber, the best
+    /// dashed blue.
     @ViewBuilder
     private var movesPanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             moveRow(label: "You played", move: notation(eval.playedMove),
-                    pct: Double(eval.playedScore), tint: CaramelPalette.hl)
+                    pct: Double(eval.playedScore),
+                    style: showingSolution && lastAttempt == nil ? .played : .ghost)
             if let lastAttempt, let s = lastAttemptScore {
                 moveRow(label: "You tried", move: notation(lastAttempt),
-                        pct: Double(s), tint: ChromeTheme.ink)
+                        pct: Double(s), style: .played)
             }
             if showingSolution {
                 moveRow(label: "Best move", move: notation(eval.bestMove),
-                        pct: Double(eval.bestScore), tint: CaramelPalette.hlBest)
-                let gap = scale.gap(Double(eval.bestScore - eval.playedScore))
-                Group {
-                    if scale.isEquity {
-                        Text("−\(gap) equity vs your move")
-                    } else {
-                        Text("−\(gap) win chance vs your move")
-                    }
-                }
-                .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
+                        pct: Double(eval.bestScore), style: .best)
+                gapLine
+                    .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
             }
         }
     }
 
-    private func moveRow(label: LocalizedStringKey, move: MoveNotation, pct: Double, tint: SColor) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(label).font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
-            MoveNotationLine(notation: move, font: .callout.bold(), color: tint)
-            Text("\(percent(pct))").font(.caption.monospacedDigit()).foregroundStyle(ChromeKit.inkDim(0.5))
+    /// How far the best is ahead of the move the board compares it with (#232).
+    @ViewBuilder
+    private var gapLine: some View {
+        if lastAttempt != nil, let tried = lastAttemptScore {
+            let gap = scale.gap(Double(eval.bestScore - tried))
+            if scale.isEquity {
+                Text("−\(gap) equity vs your try")
+            } else {
+                Text("−\(gap) win chance vs your try")
+            }
+        } else {
+            let gap = scale.gap(Double(eval.bestScore - eval.playedScore))
+            if scale.isEquity {
+                Text("−\(gap) equity vs your move")
+            } else {
+                Text("−\(gap) win chance vs your move")
+            }
+        }
+    }
+
+    private func moveRow(label: LocalizedStringKey, move: MoveNotation, pct: Double,
+                         style: MoveMarkStyle) -> some View {
+        HStack(alignment: .center, spacing: 8) {
+            MoveMarkSwatch(style: style)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(label).font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
+                MoveNotationLine(notation: move, font: .callout.bold(), color: ChromeTheme.ink)
+                Text("\(percent(pct))").font(.caption.monospacedDigit()).foregroundStyle(ChromeKit.inkDim(0.5))
+            }
         }
     }
 

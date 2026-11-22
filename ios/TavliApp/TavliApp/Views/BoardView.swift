@@ -180,7 +180,7 @@ public struct BoardView: View {
 /// light value is the original hex (light mode is unchanged), the dark value is the
 /// "C3 · Espresso + warm text" walnut board from `design/dark-mode/themes.js`: a dark
 /// walnut frame with a caramel edge, a near-black play surface, cream-gold points,
-/// slightly brighter checkers, a brighter review blue/green. Tokens with a single
+/// slightly brighter checkers, a brighter review blue. Tokens with a single
 /// `Color(hex:)` are the same in both schemes (amber highlights, ring/text colours).
 enum CaramelPalette {
     static let frameTop = Color(light: 0xe8c089, dark: 0x6e4526)
@@ -225,11 +225,15 @@ enum CaramelPalette {
     static let hlEdge = Color(hex: 0x7a5400)
     static let hlFill = Color(hex: 0xf6c623)  // slightly lighter for the fill-mode target
 
-    // Review/drill move-comparison colors (#133): your move = amber (`hl`), the AI's
-    // best move = blue, and an element played *and* best = green. Chosen to read on
-    // both the ivory triangles and the mahogany frame.
+    // Review/drill move-comparison colours (#133, #232): one meaning per colour — your
+    // move = amber (`hl`, solid stroke), the best move = blue (dashed stroke). No green
+    // "both" colour any more (#232: it vanished on the mahogany board for red-green colour
+    // blindness); a point shared by both moves carries both marks instead. Chosen to read
+    // on the ivory triangles and the mahogany frame (and their walnut dark versions).
     static let hlBest = Color(light: 0x2f7fd1, dark: 0x4a9bf0)   // blue: the best move
-    static let hlBoth = Color(light: 0x3fa64a, dark: 0x4cc25a)   // green: you played the best here
+    /// The drill's "ghost" of the move you played in the game (#232): a neutral grey,
+    /// drawn dashed and thinner, so it reads as a quiet reminder next to the amber/blue.
+    static let hlGhost = Color(light: 0x857f77, dark: 0x8f8a84)
 
     // Route choice (#169): the candidate intermediate points of an ambiguous Portes
     // two-dice move. Live play never shows the review colours, so it reuses the review
