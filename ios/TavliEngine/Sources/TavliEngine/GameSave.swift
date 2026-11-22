@@ -32,6 +32,10 @@ public struct GameRecord: Equatable, Sendable {
     /// The tier-1 handicap the game is played under (#148), or `nil` for a normal game
     /// (the overwhelmingly common case — nothing else changes then).
     public var handicap: HandicapSetup?
+    /// The computer's `AILevel` (1…8) for a vs-computer game (#231), recorded when the
+    /// game starts (lowered if the level is turned down mid-game); `nil` for two-player
+    /// and online games, and for games logged before #231. See `opponentCanErr(of:)`.
+    public var aiLevel: Int?
 
     public init(startingPlayer: Color,
                 aiColor: Color? = nil,
@@ -41,8 +45,10 @@ public struct GameRecord: Equatable, Sendable {
                 variantID: String = GameVariants.defaultID,
                 isDraw: Bool = false,
                 points: Int? = nil,
-                handicap: HandicapSetup? = nil) {
+                handicap: HandicapSetup? = nil,
+                aiLevel: Int? = nil) {
         self.handicap = handicap
+        self.aiLevel = aiLevel
         self.gameId = gameId
         self.isDraw = isDraw
         self.points = points
@@ -51,6 +57,16 @@ public struct GameRecord: Equatable, Sendable {
         self.aiColor = aiColor
         self.plies = plies
         self.outcome = outcome
+    }
+
+    /// Whether the opponent of `color` can make mistakes worth flagging in a review
+    /// (#231): a human opponent (no computer side, or `color` is the computer) can; a
+    /// computer opponent can below full strength (`aiLevel < 8`); a full-strength or
+    /// unknown-level computer (pre-#231 logs) is treated as playing the analysis's
+    /// own best moves, so it can't.
+    public func opponentCanErr(of color: Color) -> Bool {
+        guard let aiColor, aiColor == color.opponent else { return true }
+        return AILevel.canErr(level: aiLevel)
     }
 }
 public struct PlyRecord: Codable, Equatable, Sendable {
@@ -104,16 +120,32 @@ public struct AnalysisEntry: Codable, Equatable, Sendable {
     /// Deepest look-ahead depth this evaluation reached (1/2/3 under progressive
     /// analysis, #103).
     public let depth: Int
+    /// The ply's dice luck for its mover (#231, `PlyLuck.luck`: `v(rolled) − E[v]` at
+    /// 1-ply, raw value units), or `nil` until the luck pass has run. Optional and
+    /// omitted when `nil`, so files without it are unchanged and older readers ignore
+    /// it (no schema bump). An entry with an **empty `playedMove`** is a pass ply that
+    /// carries only luck (`GameReview.cachedResult` never matches it to a move).
+    public let luck: Double?
 
     public init(plyNumber: Int, playedMove: [[Int]], playedScore: Double,
-                bestMove: [[Int]], bestScore: Double, depth: Int) {
+                bestMove: [[Int]], bestScore: Double, depth: Int, luck: Double? = nil) {
         self.plyNumber = plyNumber
         self.playedMove = playedMove
         self.playedScore = playedScore
         self.bestMove = bestMove
         self.bestScore = bestScore
         self.depth = depth
+        self.luck = luck
     }
+
+    /// This entry with `luck` replaced.
+    public func withLuck(_ luck: Double?) -> AnalysisEntry {
+        AnalysisEntry(plyNumber: plyNumber, playedMove: playedMove, playedScore: playedScore,
+                      bestMove: bestMove, bestScore: bestScore, depth: depth, luck: luck)
+    }
+
+    /// A pass ply's luck-only entry (empty moves, #231).
+    public var isPass: Bool { playedMove.isEmpty }
 }
 
 /// A serialized game. Stores only the move history (not the board), so it loads
@@ -178,6 +210,11 @@ public struct GameSave: Codable, Equatable {
     /// older reader ignores the key (the game then loads unhandicapped). A malformed
     /// value decodes as `nil`.
     public var handicap: HandicapGameState?
+    /// The computer's level for a vs-computer game (#231, `GameRecord.aiLevel`), or
+    /// `nil` (two-player / online / pre-#231). Written only when present — no schema
+    /// bump; older readers ignore it, older files decode as `nil`. An out-of-range value
+    /// is clamped to 1…8.
+    public var aiLevel: Int?
 
     public init(schemaVersion: Int = GameSave.currentSchemaVersion,
                 gameId: UUID? = nil,
@@ -192,8 +229,10 @@ public struct GameSave: Codable, Equatable {
                 points: Int? = nil,
                 fullTavli: FullTavliSession? = nil,
                 pendingRoll: PendingRoll? = nil,
-                handicap: HandicapGameState? = nil) {
+                handicap: HandicapGameState? = nil,
+                aiLevel: Int? = nil) {
         self.schemaVersion = schemaVersion
+        self.aiLevel = aiLevel
         self.handicap = handicap
         self.pendingRoll = pendingRoll
         self.fullTavli = fullTavli
@@ -211,7 +250,7 @@ public struct GameSave: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, gameId, name, savedAt, startingPlayer, aiColor, outcome, history, analysis, variant
-        case points, fullTavli, pendingRoll, handicap
+        case points, fullTavli, pendingRoll, handicap, aiLevel
     }
 
     /// The `outcome` string a drawn game is saved with.
@@ -239,6 +278,8 @@ public struct GameSave: Codable, Equatable {
         // Tolerant (#148): an unreadable handicap loads the game unhandicapped.
         let hc = (try? c.decodeIfPresent(HandicapGameState.self, forKey: .handicap)) ?? nil
         handicap = hc?.setup.isActive == true ? hc : nil
+        // Tolerant (#231): an unreadable level is just unknown.
+        aiLevel = ((try? c.decodeIfPresent(Int.self, forKey: .aiLevel)) ?? nil).map(AILevel.clamped)
     }
 
     /// Encode the version the on-disk shape actually warrants: `2` only when an
@@ -261,6 +302,7 @@ public struct GameSave: Codable, Equatable {
         try c.encodeIfPresent(fullTavli, forKey: .fullTavli)
         try c.encodeIfPresent(pendingRoll, forKey: .pendingRoll)
         try c.encodeIfPresent(handicap, forKey: .handicap)
+        try c.encodeIfPresent(aiLevel, forKey: .aiLevel)
     }
 }
 
@@ -281,7 +323,8 @@ public extension GameSave {
                   analysis: analysis,
                   variant: record.variantID,
                   points: record.points,
-                  handicap: record.handicap.map { HandicapGameState(setup: $0) })
+                  handicap: record.handicap.map { HandicapGameState(setup: $0) },
+                  aiLevel: record.aiLevel)
     }
 
     /// The save reinterpreted as a `GameRecord`, restoring its `gameId` (a fresh one
@@ -296,7 +339,8 @@ public extension GameSave {
             variantID: variant,
             isDraw: outcome == GameSave.drawOutcome,
             points: points,
-            handicap: handicap?.setup
+            handicap: handicap?.setup,
+            aiLevel: aiLevel
         )
     }
 }

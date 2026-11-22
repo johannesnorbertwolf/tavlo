@@ -11,7 +11,7 @@ private typealias SColor = SwiftUI.Color
 /// to page through the blunders. Blunders **stream in** as they're found, so the
 /// first one shows immediately while the rest analyze in the background.
 ///
-/// The threshold is fixed at 10% for now; a configurable one is tracked in #77.
+/// A blunder is `PlyEvaluation.severity == .blunder` (≥ 10 pp absolute loss, #231).
 /// Pure presentation — all analysis lives in `TavliEngine`.
 struct GameReviewView: View {
     let record: GameRecord
@@ -558,19 +558,17 @@ final class GameReviewModel: ObservableObject {
     /// graph and the drill are complete from here, while 2-/3-ply refine in place.
     @Published private(set) var firstPassComplete = false
 
-    /// `play/loop.py` default — flag moves ≥10% worse than the best.
-    private let threshold = 0.10
     /// The human under review — only this side's plies count as blunders (#132).
     private var humanColor: TavliEngine.Color = .white
     private var blunders: [PlyEvaluation] = []
     /// Every evaluated human ply, in play order — the win-probability chart's data
-    /// source (#105). A superset of `blunders` (this same list filtered at `threshold`).
+    /// source (#105). A superset of `blunders` (this same list filtered to `.blunder`).
     private var allEvaluations: [PlyEvaluation] = []
     private var started = false
     private var finished = false
 
     /// The evaluated plies found so far, as a result the drill can consume directly
-    /// (it re-filters to blunders at its own threshold).
+    /// (it re-filters to its own blunders).
     var result: GameReviewResult { GameReviewResult(evaluations: allEvaluations) }
 
     /// The full win-probability trajectory for the chart (#105): every evaluated ply.
@@ -588,7 +586,7 @@ final class GameReviewModel: ObservableObject {
         self.started = true
         self.finished = true
         self.allEvaluations = trajectory
-        self.blunders = trajectory.filter { $0.isBlunder(threshold: threshold) }
+        self.blunders = trajectory.filter { $0.isBlunder }
         self.firstPassComplete = true
     }
 
@@ -607,6 +605,7 @@ final class GameReviewModel: ObservableObject {
         // 2-ply "Analyzing…" pass (the phase is already `.reviewing`, so `report` stays
         // quiet). With a complete 2-ply seed only the 3-ply borderline refinement remains.
         let cached = gameLog.analysis(forGameId: record.gameId) ?? []
+        luck = GameReview.cachedLuck(record: record, analysis: cached)   // nil ⇒ computed below
         if !cached.isEmpty {
             for eval in GameReview.cachedResult(record: record, analysis: cached).evaluations {
                 ingest(eval)
@@ -634,15 +633,28 @@ final class GameReviewModel: ObservableObject {
         }.value
 
         finish(with: reviewed)
-        // Write the (possibly deepened) analysis back so it never recomputes (#104). No-op
-        // if the game isn't logged (e.g. a preview/test record). Off the main actor.
+        // Write the (possibly deepened) analysis back so it never recomputes (#104), then
+        // run the dice-luck pass (#231) once if the log has none yet and attach it — both
+        // in one detached task so the two writes can't race. `attachAnalysis` keeps luck
+        // already stored. No-op if the game isn't logged (e.g. a preview/test record).
         let gameId = record.gameId
         let entries = [AnalysisEntry](reviewResult: reviewed)
-        if !entries.isEmpty {
-            let log = gameLog
-            Task.detached { try? log.attachAnalysis(entries, forGameId: gameId) }
-        }
+        let needsLuck = luck == nil
+        let log = gameLog
+        let computed = await Task.detached(priority: .utility) { () -> [PlyLuck]? in
+            if !entries.isEmpty { try? log.attachAnalysis(entries, forGameId: gameId) }
+            guard needsLuck else { return nil }
+            let luck = GameReview.analyzeLuck(record: record, agent: agent)
+            try? log.attachLuck(luck, forGameId: gameId)
+            return luck
+        }.value
+        if let computed { luck = computed }
     }
+
+    /// Per-ply dice luck for both sides (#231): from the saved analysis when complete,
+    /// else computed after the main analysis. `nil` until known. Feeds
+    /// `result.summary(for:luck:)`.
+    @Published private(set) var luck: [PlyLuck]?
 
     /// A streamed evaluation: upsert it by ply number (a deeper pass replaces the
     /// shallower result, #103) and open the pager as soon as the first move is scored.
@@ -655,7 +667,7 @@ final class GameReviewModel: ObservableObject {
             allEvaluations.append(eval)
             allEvaluations.sort { $0.plyNumber < $1.plyNumber }
         }
-        blunders = allEvaluations.filter { $0.mover == humanColor && $0.isBlunder(threshold: threshold) }
+        blunders = allEvaluations.filter { $0.mover == humanColor && $0.isBlunder }
         phase = .reviewing(finished: false)
     }
 
@@ -674,7 +686,7 @@ final class GameReviewModel: ObservableObject {
         finished = true
         firstPassComplete = true
         allEvaluations = result.evaluations
-        blunders = result.evaluations.filter { $0.mover == humanColor && $0.isBlunder(threshold: threshold) }
+        blunders = result.evaluations.filter { $0.mover == humanColor && $0.isBlunder }
         phase = allEvaluations.isEmpty ? .nothingToReview : .reviewing(finished: true)
     }
 }

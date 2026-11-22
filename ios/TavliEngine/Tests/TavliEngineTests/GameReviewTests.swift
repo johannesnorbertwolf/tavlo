@@ -110,9 +110,8 @@ final class GameReviewTests: XCTestCase {
     // MARK: - Blunder flagging
 
     /// The worst-scoring legal move at the opening is scored exactly, but the opening
-    /// is so near-even that its shortfall is under one percentage point — so the
-    /// absolute floor in `isBlunder` correctly keeps it from registering as a blunder
-    /// at any relative threshold (#105 rule). The analyzer wiring (exact played/best
+    /// is so near-even that its shortfall is under one percentage point — so it rates
+    /// `.none` under the absolute rule (#231). The analyzer wiring (exact played/best
     /// scores, a positive relative gap) is still verified.
     func testNearEvenWorstMoveIsNotABlunder() {
         let (moves, scores) = openingScores(color: .white, die1: 6, die2: 5)
@@ -136,34 +135,35 @@ final class GameReviewTests: XCTestCase {
         XCTAssertEqual(e.bestScore, bestScore, accuracy: 1e-5)
         XCTAssertGreaterThan(e.relativeGap, 0)
 
-        // Near-even opening: the absolute shortfall is under a point, so it is not a
-        // blunder — even at a zero relative threshold.
+        // Near-even opening: the absolute shortfall is under a point, so it is not even
+        // an inaccuracy.
         XCTAssertLessThan(e.absoluteGap, 0.01)
-        XCTAssertFalse(e.isBlunder(threshold: 0.10))
-        XCTAssertFalse(e.isBlunder(threshold: 0.0))
-        XCTAssertTrue(result.blunders(threshold: 0.10).isEmpty)
+        XCTAssertEqual(e.severity, MoveSeverity.none)
+        XCTAssertFalse(e.isBlunder)
+        XCTAssertTrue(result.blunders.isEmpty)
     }
 
     /// A large *relative* miss on a near-even position whose *absolute* shortfall is
-    /// under one percentage point is not a blunder (the `isBlunder` absolute floor).
+    /// under one percentage point rates `.none` (the rule is absolute, #231).
     func testTinyAbsoluteGapIsNotABlunder() {
         let e = PlyEvaluation(plyNumber: 1, die1: 1, die2: 2, boardStacks: [],
                               mover: .white, playedMove: [], playedScore: 0.040,
                               bestMove: [], bestScore: 0.048)
         XCTAssertGreaterThanOrEqual(e.relativeGap, 0.10)   // 0.008 / 0.048 ≈ 17%
         XCTAssertLessThan(e.absoluteGap, 0.01)             // 0.008 < 0.01
-        XCTAssertFalse(e.isBlunder(threshold: 0.10))
+        XCTAssertEqual(e.severity, MoveSeverity.none)
+        XCTAssertFalse(e.isBlunder)
     }
 
-    /// Meeting both the relative threshold and the one-percentage-point absolute floor
-    /// flags a blunder.
+    /// A 15-point absolute loss is a blunder.
     func testGapPastBothThresholdsIsABlunder() {
         let e = PlyEvaluation(plyNumber: 1, die1: 1, die2: 2, boardStacks: [],
                               mover: .white, playedMove: [], playedScore: 0.80,
                               bestMove: [], bestScore: 0.95)
         XCTAssertGreaterThanOrEqual(e.relativeGap, 0.10)
-        XCTAssertGreaterThanOrEqual(e.absoluteGap, 0.01)
-        XCTAssertTrue(e.isBlunder(threshold: 0.10))
+        XCTAssertEqual(e.decisionLoss, 15, accuracy: 1e-4)
+        XCTAssertEqual(e.severity, .blunder)
+        XCTAssertTrue(e.isBlunder)
     }
 
     /// Playing the AI's own best move yields a zero gap and is never flagged.
@@ -180,8 +180,8 @@ final class GameReviewTests: XCTestCase {
         XCTAssertEqual(result.evaluations.count, 1)
         let e = result.evaluations[0]
         XCTAssertEqual(e.relativeGap, 0, accuracy: 1e-6)
-        XCTAssertFalse(e.isBlunder(threshold: 0.10))
-        XCTAssertTrue(result.blunders(threshold: 0.10).isEmpty)
+        XCTAssertEqual(e.severity, MoveSeverity.none)
+        XCTAssertTrue(result.blunders.isEmpty)
     }
 
     // MARK: - What gets evaluated
@@ -248,7 +248,7 @@ final class GameReviewTests: XCTestCase {
         // Forced plies are flagged and carry a zero gap (never a blunder).
         for e in result.evaluations where !e.hadChoice {
             XCTAssertEqual(e.absoluteGap, 0, accuracy: 1e-6)
-            XCTAssertFalse(e.isBlunder(threshold: 0.0))
+            XCTAssertEqual(e.severity, MoveSeverity.none)
         }
     }
 

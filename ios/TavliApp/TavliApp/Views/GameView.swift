@@ -447,6 +447,7 @@ struct GameView: View {
             .onChange(of: aiLevel) { _, _ in
                 guard online == nil else { return }
                 session.searchConfig = AppSettings.searchConfig
+                session.noteAILevel(AppSettings.aiLevel)   // the review's "can err" (#231)
             }
         }
     }

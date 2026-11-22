@@ -1,11 +1,65 @@
 import Foundation
 
+/// How costly a move was (#231), by its **absolute** decision loss — the win-chance
+/// equivalent the played move gave up against the best (`PlyEvaluation.decisionLoss`,
+/// in percentage points). Lower bounds are inclusive:
+///
+/// | Severity | Mark | Loss |
+/// |---|---|---|
+/// | `none` | — | < 2 pp |
+/// | `inaccuracy` | ?! | 2 – 5 pp |
+/// | `mistake` | ? | 5 – 10 pp |
+/// | `blunder` | ?? | ≥ 10 pp |
+///
+/// Forced plies (`hadChoice == false`) are always `none`. Ordered: `blunder` is the
+/// most severe, so `severity >= .mistake` reads naturally.
+public enum MoveSeverity: Int, Comparable, CaseIterable, Sendable {
+    case none = 0, inaccuracy, mistake, blunder
+
+    /// Inclusive lower bounds, in win-chance-equivalent percentage points.
+    public static let inaccuracyThreshold = 2.0
+    public static let mistakeThreshold = 5.0
+    public static let blunderThreshold = 10.0
+
+    /// The annotation mark (`?!` / `?` / `??`), or `nil` for `none`.
+    public var symbol: String? {
+        switch self {
+        case .none: return nil
+        case .inaccuracy: return "?!"
+        case .mistake: return "?"
+        case .blunder: return "??"
+        }
+    }
+
+    /// The severity of a decision loss of `lossPoints` percentage points. A tiny
+    /// tolerance keeps a gap computed from `Float` scores (0.6 − 0.58 = 0.01999…) on
+    /// the boundary it was meant to hit.
+    public static func classify(lossPoints: Double) -> MoveSeverity {
+        let loss = lossPoints + 1e-4
+        if loss >= blunderThreshold { return .blunder }
+        if loss >= mistakeThreshold { return .mistake }
+        if loss >= inaccuracyThreshold { return .inaccuracy }
+        return .none
+    }
+
+    public static func < (a: MoveSeverity, b: MoveSeverity) -> Bool { a.rawValue < b.rawValue }
+}
+
 /// One human ply, re-evaluated after the game. Ports the per-ply analysis of the
 /// CLI's `_collect_blunders` (`play/loop.py`): the position the player faced, the
 /// move they played and its score, and the AI's best move and score at the same
-/// position. Whether it counts as a *blunder* is a threshold question left to the
-/// consumer (`isBlunder(threshold:)`), so the analysis runs once and the UI can
-/// filter at any threshold.
+/// position. How costly the move was is `severity` (#231: none / inaccuracy /
+/// mistake / blunder by absolute decision loss), so the analysis runs once and the
+/// UI can filter at any level.
+///
+/// **Scores and 2-point variants.** `playedScore`/`bestScore` are the network value
+/// `v ∈ [0, 1]`: a win probability for Plakoto, *normalized expected points*
+/// `v = 0.5 + E / (2·maxPoints)` for variants with 2-point wins (`reportsEquity`).
+/// `decisionLoss` converts a gap to **win-chance-equivalent percentage points** —
+/// the single-game win chance that costs the same expected points (one point of
+/// equity = 50 pp) — so the severity thresholds mean the same in every variant:
+/// a blunder always gives up ≥ 0.2 expected points (10 pp in Plakoto, an equity
+/// loss of ≥ 0.20 as `EvalScale` labels it in Portes/Fevga).
 public struct PlyEvaluation: Sendable {
     /// 1-based index of this ply within `record.plies`.
     public let plyNumber: Int
@@ -13,15 +67,15 @@ public struct PlyEvaluation: Sendable {
     public let die2: Int
     /// The board (per-point stacks, bottom→top) the player faced **before** moving.
     public let boardStacks: [[Color]]
-    /// The side that made this move (always the human under review).
+    /// The side that made this move.
     public let mover: Color
     /// The move actually played, as recorded `[from, to]` half-move pairs.
     public let playedMove: [[Int]]
-    /// Win probability for `mover` of the played move (1-ply afterstate at `depth`).
+    /// Value for `mover` of the played move (1-ply afterstate at `depth`).
     public let playedScore: Float
     /// The AI's best legal move at this position, as `[from, to]` half-move pairs.
     public let bestMove: [[Int]]
-    /// Win probability for `mover` of the best move.
+    /// Value for `mover` of the best move.
     public let bestScore: Float
     /// Whether the position offered a real choice (more than one legal move). When
     /// `false` the ply was forced — a single legal move — so `playedMove == bestMove`
@@ -33,11 +87,14 @@ public struct PlyEvaluation: Sendable {
     /// each ply first at depth 1, then re-emits it deeper (2, then 3 for the close
     /// calls); consumers key by `plyNumber` and replace with the deeper result.
     public let depth: Int
+    /// The variant's `maxPoints` (1 = Plakoto's win probability, 2 = a 2-point
+    /// variant's normalized equity). Scales gaps to `decisionLoss` (#231).
+    public let pointScale: Int
 
     public init(plyNumber: Int, die1: Int, die2: Int, boardStacks: [[Color]],
                 mover: Color, playedMove: [[Int]], playedScore: Float,
                 bestMove: [[Int]], bestScore: Float, hadChoice: Bool = true,
-                depth: Int = 2) {
+                depth: Int = 2, pointScale: Int = 1) {
         self.plyNumber = plyNumber
         self.die1 = die1
         self.die2 = die2
@@ -49,31 +106,41 @@ public struct PlyEvaluation: Sendable {
         self.bestScore = bestScore
         self.hadChoice = hadChoice
         self.depth = depth
+        self.pointScale = max(1, pointScale)
     }
 
     /// Relative shortfall of the played move vs the best, `(best - played)/best`,
-    /// guarding `best == 0`. Mirrors the CLI's relative-gap metric.
+    /// guarding `best == 0`. Only drives the 3-ply refinement band now; flagging
+    /// uses the absolute `severity` (#231).
     public var relativeGap: Double {
         bestScore > 0 ? Double(bestScore - playedScore) / Double(bestScore) : 0
     }
 
-    /// Absolute win-probability shortfall, in [0, 1].
+    /// Absolute value shortfall in raw network units, in [0, 1].
     public var absoluteGap: Double { Double(max(0, bestScore - playedScore)) }
 
-    /// A blunder when the relative gap meets `threshold` (e.g. 0.10 = 10%) **and**
-    /// the played move is at least one percentage point (absolute) below the best —
-    /// so a large *relative* miss on a near-even position (e.g. 4.5% vs 5.0%) doesn't
-    /// register as a blunder.
-    public func isBlunder(threshold: Double) -> Bool {
-        bestScore > 0 && relativeGap >= threshold && absoluteGap >= 0.01
+    /// The decision loss in **win-chance-equivalent percentage points** (#231):
+    /// `absoluteGap · 100 · pointScale`. Plakoto: the win chance given up. 2-point
+    /// variants: the expected-points loss × 50 (see the type doc).
+    public var decisionLoss: Double { absoluteGap * 100 * Double(pointScale) }
+
+    /// none / inaccuracy / mistake / blunder by `decisionLoss` (#231). Forced plies
+    /// are always `none`.
+    public var severity: MoveSeverity {
+        hadChoice ? MoveSeverity.classify(lossPoints: decisionLoss) : .none
     }
+
+    /// `severity == .blunder` (≥ 10 pp) — the rule the review badge and the drill use.
+    public var isBlunder: Bool { severity == .blunder }
+
+    /// This move's accuracy, 0…100 (Lichess's per-move formula on `decisionLoss`).
+    public var accuracy: Double { GameReviewSummary.moveAccuracy(lossPoints: decisionLoss) }
 }
 
 /// The result of reviewing a finished game: every human ply that actually moved,
 /// re-evaluated, in play order — including forced single-legal-move plies (flagged
 /// `hadChoice: false`) so the timeline runs unbroken to the final move (#131).
-/// `blunders(threshold:)` filters to the ones worth flagging (forced plies have a
-/// zero gap and never flag).
+/// `blunders` filters to the ones worth flagging (forced plies never flag).
 public struct GameReviewResult: Sendable {
     public let evaluations: [PlyEvaluation]
 
@@ -81,9 +148,19 @@ public struct GameReviewResult: Sendable {
         self.evaluations = evaluations
     }
 
-    /// The evaluated plies whose relative gap meets `threshold`, in play order.
-    public func blunders(threshold: Double) -> [PlyEvaluation] {
-        evaluations.filter { $0.isBlunder(threshold: threshold) }
+    /// The evaluated plies rated `.blunder` (#231), in play order (both sides —
+    /// filter by `mover` for one player's).
+    public var blunders: [PlyEvaluation] { evaluations.filter(\.isBlunder) }
+
+    /// The plies at or above `severity`, in play order.
+    public func plies(atLeast severity: MoveSeverity) -> [PlyEvaluation] {
+        evaluations.filter { $0.severity >= severity }
+    }
+
+    /// `color`'s game summary (#231): accuracy, counts per severity, decision loss,
+    /// and — when `luck` is given — the luck totals for `color` and its opponent.
+    public func summary(for color: Color, luck: [PlyLuck]? = nil) -> GameReviewSummary {
+        GameReviewSummary(color: color, evaluations: evaluations, luck: luck)
     }
 }
 
@@ -166,7 +243,8 @@ public enum GameReview {
                         playedScore: scores[playedIdx],
                         bestMove: pairs(of: legal[bestIdx]),
                         bestScore: scores[bestIdx],
-                        hadChoice: legal.count > 1
+                        hadChoice: legal.count > 1,
+                        pointScale: variant.maxPoints
                     )
                     evaluations.append(evaluation)
                     onEvaluation?(evaluation)
@@ -271,7 +349,8 @@ public enum GameReview {
                 boardStacks: ctx.boardStacks, mover: ctx.mover,
                 playedMove: entry.playedMove, playedScore: Float(entry.playedScore),
                 bestMove: entry.bestMove, bestScore: Float(entry.bestScore),
-                hadChoice: legalMoveCount(ctx, config: config) > 1, depth: entry.depth)
+                hadChoice: legalMoveCount(ctx, config: config) > 1, depth: entry.depth,
+                pointScale: config.variant.maxPoints)
         }
 
         for (pass, depth) in depths.enumerated() {
@@ -361,7 +440,7 @@ public enum GameReview {
             boardStacks: ctx.boardStacks, mover: ctx.mover,
             playedMove: ctx.playedPairs, playedScore: scores[playedIdx],
             bestMove: pairs(of: legal[bestIdx]), bestScore: scores[bestIdx],
-            hadChoice: legal.count > 1, depth: depth)
+            hadChoice: legal.count > 1, depth: depth, pointScale: config.variant.maxPoints)
     }
 
     // Deepening cutoffs (#103). Pass 1 (→2-ply) re-scores *every* real-choice ply, so
@@ -424,7 +503,8 @@ public enum GameReview {
                 boardStacks: ctx.boardStacks, mover: ctx.mover,
                 playedMove: entry.playedMove, playedScore: Float(entry.playedScore),
                 bestMove: entry.bestMove, bestScore: Float(entry.bestScore),
-                hadChoice: legalMoveCount(ctx, config: config) > 1, depth: entry.depth)
+                hadChoice: legalMoveCount(ctx, config: config) > 1, depth: entry.depth,
+                pointScale: config.variant.maxPoints)
         }
         return GameReviewResult(evaluations: evaluations.sorted { $0.plyNumber < $1.plyNumber })
     }

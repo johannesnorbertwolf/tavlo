@@ -305,7 +305,8 @@ public final class GameSession: ObservableObject {
                 autoRoll: Bool = false,
                 inPlayAnalysis: Bool = false,
                 handicap: HandicapSetup? = nil,
-                handicapAgent: Agent? = nil) {
+                handicapAgent: Agent? = nil,
+                aiLevel: Int? = nil) {
         // A handicap applies only when active and only to house Plakoto (#148); any
         // other combination is simply a normal game.
         let setup = handicap.map(\.normalized).flatMap {
@@ -320,8 +321,10 @@ public final class GameSession: ObservableObject {
         self.agent = agent
         self.handicap = setup.map(HandicapGameState.init(setup:))
         self.handicapAgent = setup == nil ? nil : (handicapAgent ?? agent)
+        // The computer's level (#231) only means something with a computer side.
         self.record = GameRecord(startingPlayer: starter, aiColor: aiColor,
-                                 variantID: config.variant.id, handicap: setup)
+                                 variantID: config.variant.id, handicap: setup,
+                                 aiLevel: aiColor == nil ? nil : aiLevel.map(AILevel.clamped))
         self.searchConfig = searchConfig
         self.animationTimings = animationTimings
         self.autoRoll = autoRoll
@@ -330,6 +333,15 @@ public final class GameSession: ObservableObject {
     }
 
     public var currentPlayer: Color { game.currentPlayer }
+
+    /// Note the computer's level after it changed mid-game (#231). The record keeps the
+    /// **lowest** level the computer played at — any weaker stretch means it could
+    /// have erred. No-op without a computer side.
+    public func noteAILevel(_ level: Int) {
+        guard record.aiColor != nil else { return }
+        let level = AILevel.clamped(level)
+        record.aiLevel = min(record.aiLevel ?? level, level)
+    }
 
     /// Whether the game has ended (someone won). Saves are only meaningful for
     /// non-terminal games — the app clears the auto-save once this is true.
@@ -610,7 +622,8 @@ public final class GameSession: ObservableObject {
         game.dice.set(1, 1)
         game.setPlayer(starter)
         record = GameRecord(startingPlayer: starter, aiColor: record.aiColor,
-                            variantID: record.variantID, handicap: setup)
+                            variantID: record.variantID, handicap: setup,
+                            aiLevel: record.aiLevel)
         legalMoves = []
         moveBuilder = MoveBuilder(legalMoves: [], board: game.board)
         clearSelection()
@@ -1636,7 +1649,8 @@ public final class GameSession: ObservableObject {
                                   autoRoll: autoRoll,
                                   inPlayAnalysis: inPlayAnalysis,
                                   handicap: save.handicap?.setup,
-                                  handicapAgent: handicapAgent)
+                                  handicapAgent: handicapAgent,
+                                  aiLevel: save.aiLevel)
         // Restore the tokens left (#148); the start position already has the head start.
         if let saved = save.handicap, let live = session.handicap {
             session.handicap = HandicapGameState(setup: live.setup,

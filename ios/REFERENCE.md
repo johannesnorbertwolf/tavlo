@@ -538,9 +538,18 @@ tests, no model/fixtures needed):
   byte-identical to the pre-#171 format and an older reader just ignores the key. Decoding is
   tolerant: a malformed value or dice outside 1…6 decode as `nil` (the save still loads, awaiting
   a roll). `snapshot(name:)` / `snapshot(name:fullTavli:)` copy the session's `pendingRoll`;
-  `GameSave(record:…)` (the game log) never sets it. `AnalysisEntry { plyNumber, playedMove, playedScore, bestMove, bestScore, depth }` is the
+  `GameSave(record:…)` (the game log) never sets it. `AnalysisEntry { plyNumber, playedMove, playedScore, bestMove, bestScore, depth, luck? }` is the
   durable per-ply analysis (no `boardStacks` — reconstructed by replay; scores as `Double`; field
-  names match the Python schema). `[AnalysisEntry](reviewResult:)` projects a `GameReviewResult`.
+  names match the Python schema; `luck` (#231) is optional and omitted when `nil`, so no schema bump
+  and older files/readers are unaffected). An entry with an **empty `playedMove`** is a luck-only
+  **pass** ply (scores = the pass's 1-ply value, depth 1); `cachedResult` never matches it to a move.
+  **`aiLevel` (#231)** — optional on `GameRecord` and `GameSave` (written only when present, no
+  version bump, clamped to 1…8 on decode, unreadable ⇒ `nil`): the computer's level for a
+  vs-computer game. `GameSession(aiLevel:)` records it only when there is an `aiColor` (RootView's
+  `makeSession` passes `AppSettings.aiLevel`); `resume` restores it; `restart` keeps it;
+  `noteAILevel(_:)` (GameView, when the level changes mid-game) keeps the **lowest** level played.
+  Two-player, online and pre-#231 games are `nil`. `GameRecord.opponentCanErr(of:)`: human
+  opponent → true; computer opponent → `AILevel.canErr(level:)` (level < 8; 8 or unknown → false). `[AnalysisEntry](reviewResult:)` projects a `GameReviewResult`.
   Bridges: `GameSave(record:name:savedAt:analysis:)` flattens (carrying `gameId`/`outcome`), and
   `GameSave.record` reads back (a pre-#104 save gets a fresh `gameId`). Colors serialize as `rawValue`.
 - **`SaveStore.swift`** — file-backed store, one pretty-printed JSON file per game under
@@ -560,7 +569,10 @@ tests, no model/fixtures needed):
   resume autosave slot, which `SaveStore` keeps). Reuses `GameSave` as the wire format, so a logged
   game is itself replayable. `append` writes/overwrites by id; `list()` returns `GameLogMetadata`
   (adds outcome/aiColor/`hasAnalysis`); `analysis(forGameId:)` reads a game's saved analysis and
-  `attachAnalysis(_:forGameId:)` patches it back (bumping that file to v2). After a review,
+  `attachAnalysis(_:forGameId:)` patches it back (bumping that file to v2). #231: it **carries
+  stored luck** — a new entry without `luck` inherits the stored one for the same ply + played
+  move, and stored luck-only pass entries are kept — so re-attaching a fresh review never drops
+  the luck pass; `attachLuck(_:forGameId:)` writes a `[PlyLuck]` in via `withLuck`. After a review,
   `GameReviewModel` writes its `analysis` back here, and on a later review/drill of the same game
   it loads the cached analysis and rebuilds via `GameReview.cachedResult` — no model, near-instant.
   **In-play analysis (#146):** the game-over hook also writes `session.inPlayAnalysis` straight into
@@ -908,11 +920,53 @@ from the AI's best choice. SwiftUI-free (Foundation + Core ML via `Agent`), so i
   `boardStacks` snapshot (for rendering the position faced), `mover`, the `playedMove`/`bestMove`
   `[from,to]` pairs and their win-probability scores (for `mover`), `hadChoice` (false ⇒ a forced
   ply the UI labels "Only move available" rather than praising), `depth` (the search depth this
-  result was scored at — 1/2/3 under progressive analysis), plus derived `relativeGap`
-  `(best − played)/best`, `absoluteGap`, and `isBlunder(threshold:)`.
-- **`GameReviewResult`** — every analyzed ply (`evaluations`); `blunders(threshold:)` filters to
-  those whose relative gap meets the threshold. The consumer filters at any threshold (the iPad UI
-  fixes it at **10%**, matching the CLI default; a configurable one is tracked in #77).
+  result was scored at — 1/2/3 under progressive analysis), `pointScale` (the variant's
+  `maxPoints`, stamped by every `GameReview` constructor; default 1), plus derived `relativeGap`
+  `(best − played)/best` (now only the 3-ply band), `absoluteGap`, `decisionLoss`, `severity`,
+  `isBlunder` and `accuracy` (see *Mistake levels, luck, accuracy* below).
+- **`GameReviewResult`** — every analyzed ply (`evaluations`); `blunders` (severity `.blunder`,
+  both sides — filter by `mover`), `plies(atLeast:)`, `summary(for:luck:)`.
+
+### Mistake levels, luck, accuracy (#231)
+
+- **Severity (`MoveSeverity`).** By **absolute** decision loss, inclusive lower bounds:
+  `none` < 2 pp ≤ `inaccuracy` (?!) < 5 pp ≤ `mistake` (?) < 10 pp ≤ `blunder` (??). Forced plies
+  are always `none`. `classify(lossPoints:)` adds a 1e-4 pp tolerance so Float scores hit their
+  boundary. Replaces the relative `isBlunder(threshold:)` (gap/best ≥ 10% and ≥ 1 pp), which is
+  removed; the review badge, chart rings, "My blunders" toggle and the drill now use `isBlunder`
+  (= `.blunder`).
+- **2-point variants.** Scores are the net value `v = 0.5 + E/(2·maxPoints)`, so a raw gap `d`
+  is `2·maxPoints·d` expected points (what `EvalScale.gap` shows as equity). `decisionLoss =
+  d · 100 · maxPoints` is the **single-game win-chance equivalent** of that equity loss (1 point =
+  50 pp). The thresholds therefore mean the same expected-points cost everywhere: a blunder gives
+  up ≥ 0.2 points — 10 pp in Plakoto, an equity loss ≥ 0.20 in Portes/Fevga (= a raw value gap of
+  only 0.05 there). Luck uses the same scaling (`PlyLuck.luckPoints`).
+- **Dice luck (`DiceLuck`, `PlyLuck`).** At each ply's pre-roll position, every distinct roll
+  (21; doubles 1/36, others 2/36; generic over `config.dieSides`) gets `v(r)` = the mover's best
+  1-ply move value (`Agent.evaluateMoves`, so every prediction is inside `Agent.value`'s
+  autoreleasepool), or `1 − value(opponent to move)` when it has no move (a pass). Luck =
+  `v(rolled) − E[v]` (mover's perspective; weighted sum over all 36 rolls is exactly 0). Same
+  per-roll rule as `HandicapDice.rollValues` (tested equal). The distribution is always the **fair**
+  one, even in a weighted-dice handicap game (the tilt shows up as luck); rules/head start come from
+  the config `applying(record.handicap)`, as in the review.
+- **`GameReview.analyzeLuck(record:agent:config:onLuck:progress:)`** — a **separate pass** run
+  after the review (no extra predictions in the review passes), synchronous (call it off the main
+  actor), streams each `PlyLuck` in play order, covers **every ply incl. passes, both sides**, stops
+  early on task cancellation. Cost: Σ over plies of 21 × legal moves — measured on the fixture net
+  (Mac, CPU-only): a 113-ply game = 41,293 predictions in ~3.7 s (~90 µs each).
+  `GameReview.cachedLuck(record:analysis:config:)` rebuilds it model-free from saved entries, or
+  returns `nil` unless **every** ply has stored luck (⇒ run the pass). `[AnalysisEntry].withLuck(_:record:)`
+  attaches it (moved plies gain `luck`; passes become luck-only entries).
+- **`GameReviewSummary`** (`result.summary(for: color, luck:)`): `accuracy` = mean over `color`'s
+  plies **with a choice** of Lichess's per-move `103.1668·exp(−0.04354·loss_pp) − 3.1669`, clamped
+  0…100 (`nil` with no choice plies); `inaccuracies`/`mistakes`/`blunders` + `count(_:)`;
+  `decisionLoss` (pp total over choice plies); `luck` / `opponentLuck` (pp totals, `nil` until the
+  luck pass has run).
+- **App wiring (minimal).** `GameReviewModel` publishes `luck: [PlyLuck]?`: from `cachedLuck`
+  when complete, else — after the main analysis and its write-back — one `analyzeLuck` run in the
+  same detached task, then `attachLuck` (so it is computed once per game). No UI shows it yet (#233).
+- **Not changed:** the 3-ply refinement band (`shouldRefine`, relative 5–15% + ≥ 0.5 pp) still
+  targets the old relative threshold.
 
 The app side (`GameReviewView` + its `@MainActor GameReviewModel`) first reads any saved analysis
 (`GameLogStore.analysis(forGameId:)` — the in-play 2-ply, #146, or a prior review, #104), **seeds**

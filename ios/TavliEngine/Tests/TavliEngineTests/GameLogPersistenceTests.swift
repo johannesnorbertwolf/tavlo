@@ -271,7 +271,7 @@ final class GameReviewCachedResultTests: XCTestCase {
         ]
         let e = GameReview.cachedResult(record: record, analysis: analysis).evaluations[0]
         XCTAssertTrue(e.hadChoice)
-        XCTAssertTrue(e.isBlunder(threshold: 0.10))
+        XCTAssertTrue(e.isBlunder)   // 30 pp loss
     }
 
     /// Analysis entries whose ply can't be located (a stale/cleared log) are dropped,

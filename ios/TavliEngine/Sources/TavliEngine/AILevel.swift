@@ -79,6 +79,15 @@ public enum AILevel {
         return best
     }
 
+    /// Whether a computer at `level` can make mistakes worth flagging in a review
+    /// (#231): below full strength it plays 1-ply and/or with selection noise, so it
+    /// can; at full strength (8) — or an unknown level (`nil`, e.g. a pre-#231 log) —
+    /// it plays the analysis's own 2-ply choice, so it can't.
+    public static func canErr(level: Int?) -> Bool {
+        guard let level else { return false }
+        return clamped(level) < max
+    }
+
     /// The stored level (default full strength), clamped.
     public static func load(from defaults: UserDefaults = .standard) -> Int {
         guard defaults.object(forKey: storageKey) != nil else { return max }
