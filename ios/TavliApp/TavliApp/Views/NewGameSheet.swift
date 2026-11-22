@@ -28,7 +28,7 @@ struct NewGameSetup {
         let parts = isFullTavli
             ? [AILevelCopy.name(level), length.label]
             : [AILevelCopy.name(level), variant.setupLabel, length.label]
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: ChromeDigits.listSeparator)
     }
 
     /// "The computer is still learning …" (the no-model explanation, start screen + sheet).

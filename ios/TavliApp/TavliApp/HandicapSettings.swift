@@ -209,7 +209,7 @@ struct HandicapPreferences: Codable, Equatable {
             parts.append(String(localized: "Checkers \(checkersA)–\(checkersB)"))
         }
         if homeSize != HandicapSetup.normalHomeSize { parts.append(String(localized: "Home \(homeSize) points")) }
-        return parts.joined(separator: " · ")
+        return parts.joined(separator: ChromeDigits.listSeparator)
     }
 }
 

@@ -527,9 +527,7 @@ struct GameReviewView: View {
 
     /// " · " between summary items; Persian uses its comma, since a "·" next to a
     /// Persian digit reads like a zero (#185).
-    private var separator: String {
-        layoutDirection == .rightToLeft ? "، " : " · "
-    }
+    private var separator: String { ChromeDigits.listSeparator }
 
     private func accuracyText(_ accuracy: Double, _ s: GameReviewSummary) -> Text {
         let pct = ChromeDigits.localized("\(Int(accuracy.rounded()))%")

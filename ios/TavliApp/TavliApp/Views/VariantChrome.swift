@@ -92,10 +92,18 @@ struct EvalScale {
         return ChromeDigits.localized(sign + magnitude)
     }
 
+    /// The gap as a loss, "−12%" / "−0.48", with the sign inside the locale-digit isolate
+    /// (#229), so a right-to-left line never puts the minus after its number.
+    func lossGap(_ d: Double) -> String {
+        let magnitude = isEquity ? String(format: "%.2f", d * 2 * Double(variant.maxPoints))
+                                 : "\(Int((d * 100).rounded()))%"
+        return ChromeDigits.localized("\u{2212}" + magnitude)
+    }
+
     /// "−12% win chance" / "−0.48 equity" — the cost of a move vs the best.
     func lossLabel(_ d: Double) -> String {
-        isEquity ? String(localized: "−\(gap(d)) equity")
-                 : String(localized: "−\(gap(d)) win chance")
+        isEquity ? String(localized: "\(lossGap(d)) equity")
+                 : String(localized: "\(lossGap(d)) win chance")
     }
 }
 

@@ -1303,6 +1303,16 @@ front; byte-identical for en/de/nl). **Board-bound numbers stay Western:** move 
 counts drawn on the board stacks / trays, and the chart. The Persian zero (۰) looks like a dot, so
 Persian copy avoids "·" between two numbers (dice are "تاس ۴ و ۵").
 
+**#229 polish.** Every pre-formatted signed/decimal number goes through `ChromeDigits.localized` (digits +
+the locale's decimal separator "٫" + one LTR isolate around the whole token, built by the pure
+`BidiText.localizedNumber`; en/de/nl byte-identical, so de/nl equity keeps "." as before). The loss lines
+use `EvalScale.lossGap` (the "−" is inside the isolate) with keys "%@ win chance" / "%@ equity" (+ "vs your
+move/try"), no literal minus in the template. Summary lists (new-game subtitle, handicap summary, review)
+join with `ChromeDigits.listSeparator` (" · " / Arabic comma). The Continue card's "date · moves" is the
+template key "%@ · %@" (fa: "%1$@، %2$@"). The "%@-ply" key is a stale leftover (no user-facing ply text
+remains since #233). `ChromeType.localizedWordmark` is 68 pt (not 96) where the display serif lacks the UI
+script (Persian), so "بازی آنلاین" no longer spans the screen.
+
 **Fonts.** Chrome uses the system font, which has Arabic-script glyphs, so Persian renders in SF
 Arabic. The display face Cormorant Garamond has no Arabic glyphs; `ChromeType.statsTitle` /
 `localizedWordmark` detect that (the Greek #225 probe) and switch to the system serif design, which

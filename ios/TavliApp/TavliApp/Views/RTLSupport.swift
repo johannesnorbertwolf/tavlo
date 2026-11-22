@@ -43,12 +43,27 @@ enum ChromeDigits {
         return f.string(from: 0)?.first(where: \.isNumber) ?? "0"
     }()
 
-    /// `text` with its ASCII digits in the locale's digits; for a non-Western locale also
-    /// LTR-isolated, so a signed value ("+۰.۵۲") keeps its sign in front. Unchanged
-    /// (byte-identical) for Western-digit locales.
+    /// The locale's decimal separator ("." for en/de/nl, so their equity output stays as it
+    /// was; "٫" for fa). Only consulted for non-Western digit locales.
+    static let decimalSeparator: Character = {
+        let f = NumberFormatter()
+        f.locale = .current
+        return f.decimalSeparator?.first ?? "."
+    }()
+
+    /// True when the locale itself is right-to-left (independent of a view's layout direction).
+    static let isRightToLeft = Locale.current.language.characterDirection == .rightToLeft
+
+    /// " · " between summary items; the Arabic comma for Persian (a "·" next to ۰ reads as
+    /// a zero). One source for every list, so lists never mix separators.
+    static var listSeparator: String { BidiText.listSeparator(rightToLeft: isRightToLeft) }
+
+    /// `text` with its ASCII digits in the locale's digits and its decimal point as the
+    /// locale's separator ("+0.52" -> "+۰٫۵۲"); for a non-Western locale also LTR-isolated,
+    /// so a signed value keeps its sign (and the number stays in one piece) in front.
+    /// Unchanged (byte-identical) for Western-digit locales.
     static func localized(_ text: String) -> String {
-        guard zero != "0" else { return text }
-        return BidiText.isolatedLeftToRight(BidiText.replacingASCIIDigits(in: text, zero: zero))
+        BidiText.localizedNumber(text, zero: zero, decimalSeparator: decimalSeparator)
     }
 }
 

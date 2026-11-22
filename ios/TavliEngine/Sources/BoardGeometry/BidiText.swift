@@ -53,4 +53,41 @@ public enum BidiText {
         }
         return String(out)
     }
+
+    /// `text` with the "." between two digits replaced by `separator` (Persian "٫"), for
+    /// values pre-formatted with `String(format:)` ("+0.52"). Returns `text` unchanged when
+    /// `separator` is ".". A "." that is not between digits ("v1.") is left alone.
+    public static func replacingDecimalPoint(in text: String, with separator: Character) -> String {
+        guard separator != "." else { return text }
+        let chars = Array(text)
+        var out = ""
+        for (i, c) in chars.enumerated() {
+            if c == ".", i > 0, i + 1 < chars.count,
+               chars[i - 1].isASCII, chars[i - 1].isNumber,
+               chars[i + 1].isASCII, chars[i + 1].isNumber {
+                out.append(separator)
+            } else {
+                out.append(c)
+            }
+        }
+        return out
+    }
+
+    /// A pre-formatted Western number string (sign "-" / "+" / "\u{2212}", digits, ".", "%") in
+    /// the locale's digits and decimal separator, wrapped in an LTR isolate so the sign stays
+    /// in front of its number (inside the isolate) in right-to-left text. Unchanged
+    /// (byte-identical) when `zero` is "0", i.e. for Western-digit locales.
+    public static func localizedNumber(_ text: String, zero: Character,
+                                       decimalSeparator: Character) -> String {
+        guard zero != "0" else { return text }
+        // Decimal point first: it is recognised between ASCII digits.
+        let decimal = replacingDecimalPoint(in: text, with: decimalSeparator)
+        return isolatedLeftToRight(replacingASCIIDigits(in: decimal, zero: zero))
+    }
+
+    /// The separator between summary items ("Level 6 \u{00B7} Plakoto"): " \u{00B7} " normally, the
+    /// Arabic comma in right-to-left text, where a "\u{00B7}" beside a Persian digit reads like a zero.
+    public static func listSeparator(rightToLeft: Bool) -> String {
+        rightToLeft ? "\u{060C} " : " \u{00B7} "
+    }
 }
