@@ -202,7 +202,8 @@ struct HandicapTagButton: View {
             .onChange(of: state.setup) { _, setup in refresh(setup) }
             .sheet(isPresented: $showInfo) {
                 HandicapInfoSheet(session: session, favoured: favoured(state.setup))
-                    .presentationDetents([.medium, .large])
+                    // A half-height card on a phone (#236); the iPad keeps its large sheet.
+                    .presentationDetents(ChromeType.isCompact ? [.medium, .large] : [.large])
                     .presentationDragIndicator(.visible)
             }
         }

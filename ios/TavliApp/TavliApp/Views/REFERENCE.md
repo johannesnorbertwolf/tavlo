@@ -1086,7 +1086,7 @@ only when a handicap is active / exists.
   "Handicap, even"): `HandicapEstimator.favouredSide` — a one-sided setup needs no net; a two-sided
   one runs its own `HandicapEstimateModel` (start position, `.fixed(session.startingPlayer)`) and
   shows the table-only favourite meanwhile. It opens `HandicapInfoSheet` as a **card**
-  (`.presentationDetents([.medium, .large])`): header "Handicap" + "● Favours You" / "Evenly
+  (`.presentationDetents([.medium, .large])` on a phone; the iPad keeps its `.large` sheet): header "Handicap" + "● Favours You" / "Evenly
   balanced" + Done; one card per side (You first vs the computer, White first for two players) with
   the weighted-dice slider (Off → Very strong, `HandicapDiceStrength`), a "Rerolls left" stepper
   (0…4) and, for a human side only, a "Hints left" stepper (0…5) — each change calls
