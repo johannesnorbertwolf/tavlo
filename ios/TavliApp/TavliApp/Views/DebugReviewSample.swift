@@ -16,6 +16,19 @@ enum DebugReviewSample {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
 
+    /// The side you review as (#233): `-debugReviewAs red` reviews as Red (the
+    /// computer plays White); White otherwise.
+    static var humanColor: TavliEngine.Color {
+        UserDefaults.standard.string(forKey: "debugReviewAs") == "red" ? .black : .white
+    }
+
+    /// The computer's level (#233): `-debugReviewLevel 5` marks a computer that can
+    /// err, so its mistakes show on the chart; unset = unknown (treated as full strength).
+    static var aiLevel: Int? {
+        let level = UserDefaults.standard.integer(forKey: "debugReviewLevel")
+        return level == 0 ? nil : level
+    }
+
     /// The same game on every launch (fixed seed), so screenshots are reproducible.
     static func record(plies count: Int = 24, seed: UInt64 = 232) -> GameRecord {
         var rng = SplitMix(state: seed)
@@ -24,7 +37,8 @@ enum DebugReviewSample {
         let board = GameBoard(config: config)
         variant.setUpInitialPosition(on: board)
         let dice = Dice(numberOfSides: config.dieSides)
-        var record = GameRecord(startingPlayer: .white, aiColor: .black, variantID: variant.id)
+        var record = GameRecord(startingPlayer: .white, aiColor: humanColor.opponent,
+                                variantID: variant.id, aiLevel: aiLevel)
         var mover = TavliEngine.Color.white
         for _ in 0..<count {
             let d1 = Int(rng.next() % 6) + 1, d2 = Int(rng.next() % 6) + 1
@@ -40,7 +54,7 @@ enum DebugReviewSample {
             if variant.isOver(on: board) { break }
             mover = mover.opponent
         }
-        record.outcome = .black
+        record.outcome = humanColor.opponent
         return record
     }
 
@@ -63,7 +77,8 @@ private struct DebugReviewSampleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.fullScreenCover(isPresented: $showing) {
-            GameReviewView(record: record, agent: GameSession.makeAgent(), humanColor: .white)
+            GameReviewView(record: record, agent: GameSession.makeAgent(),
+                           humanColor: DebugReviewSample.humanColor)
         }
     }
 }
