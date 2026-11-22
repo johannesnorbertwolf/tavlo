@@ -74,13 +74,43 @@ public final class GameLogStore {
     /// Patch the analysis of a logged game in place (#104), bumping it to schema v2.
     /// No-op-safe: if no entry exists for `gameId` (e.g. the log was cleared), nothing
     /// is written. Returns whether a matching entry was found and updated.
+    ///
+    /// Carries already-stored dice luck (#231) across: a new entry without `luck`
+    /// inherits the stored entry's for the same ply and played move, and stored
+    /// luck-only pass entries are kept — so re-attaching a fresh review (whose entries
+    /// never carry luck) never throws the luck pass's work away.
     @discardableResult
     public func attachAnalysis(_ analysis: [AnalysisEntry], forGameId gameId: UUID) throws -> Bool {
         let url = directory.appendingPathComponent(Self.filename(for: gameId))
         guard var save = try? read(url) else { return false }
-        save.analysis = analysis
+        save.analysis = Self.merge(analysis, keepingLuckFrom: save.analysis ?? [])
         try write(save, gameId: gameId)
         return true
+    }
+
+    /// Attach the dice-luck pass's result (#231) to a logged game's analysis
+    /// (`[AnalysisEntry].withLuck`: moved plies gain `luck`, passes become luck-only
+    /// entries). Same no-op-safe contract as `attachAnalysis`.
+    @discardableResult
+    public func attachLuck(_ luck: [PlyLuck], forGameId gameId: UUID) throws -> Bool {
+        let url = directory.appendingPathComponent(Self.filename(for: gameId))
+        guard var save = try? read(url) else { return false }
+        save.analysis = (save.analysis ?? []).withLuck(luck, record: save.record)
+        try write(save, gameId: gameId)
+        return true
+    }
+
+    /// `fresh` with luck carried over from `stored` (see `attachAnalysis`).
+    static func merge(_ fresh: [AnalysisEntry], keepingLuckFrom stored: [AnalysisEntry]) -> [AnalysisEntry] {
+        let old = Dictionary(stored.map { ($0.plyNumber, $0) }, uniquingKeysWith: { a, _ in a })
+        var out = fresh.map { e -> AnalysisEntry in
+            guard e.luck == nil, let o = old[e.plyNumber], o.playedMove == e.playedMove,
+                  let luck = o.luck else { return e }
+            return e.withLuck(luck)
+        }
+        let present = Set(out.map(\.plyNumber))
+        out += stored.filter { $0.isPass && $0.luck != nil && !present.contains($0.plyNumber) }
+        return out.sorted { $0.plyNumber < $1.plyNumber }
     }
 
     // ── Reading ────────────────────────────────────────────────────────────────

@@ -555,7 +555,8 @@ struct RootView: View {
             autoRoll: AppSettings.autoRoll,
             inPlayAnalysis: vsAI && AppSettings.inPlayAnalysisEnabled,
             handicap: handicap,
-            handicapAgent: handicapAgent
+            handicapAgent: handicapAgent,
+            aiLevel: vsAI ? AppSettings.aiLevel : nil   // the opponent's strength (#231)
         )
         session.start()
         return session
