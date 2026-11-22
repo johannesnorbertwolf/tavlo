@@ -693,11 +693,14 @@ Per screen (compact only):
   portrait (`regularPortraitMode`) = `topBar`, the board (side = full width minus
   24 pt gutters, shrunk only to keep ~250 pt of detail visible — 340 pt below 700 pt
   width), Prev/Next, then the detail in a `ScrollView`, as two columns ≥ 700 pt wide
-  (chart + pickers | move + played/best). Close is laid out in `topBar` on every
+  (move + filter | chart + summary). Close is laid out in `topBar` on every
   review layout — it floats only on the analysing/message screens — so it can never
-  cover the chart or board. `panelInfo` = `overviewSection` (summary card + chart) +
-  `moveSection` (turn, mover, dice + level badge, played/best) + `filterPicker`; the
-  two-column iPad portrait puts summary + chart + filter left, the move right (#233).
+  cover the chart or board. **Detail order (#233): what changes as you page comes
+  first** — `panelInfo` = `moveSection` (turn, mover, dice + level badge, played/best
+  rows, loss line) + `filterPicker` + `overviewSection` (chart, then the summary card),
+  in every rail and the one-column portraits; the two-column iPad portrait puts move +
+  filter in the leading column and chart + summary in the other. On a 13 mini in
+  portrait the played/best rows and the loss line sit above the fold.
 - **DrillView** — portrait: board edge-to-edge between the prompt and the feedback/
   actions; landscape: the header moves into the card's rail (`railHeader`).
 
@@ -770,19 +773,24 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   best ✓", else `EvalScale.lossLabel` (ink from a mistake up, secondary ink below), or
   "Only move available" for a forced ply. No green, no red: amber and blue mean only your
   move / the best move.
-- **Summary card** (`summaryCard`, a `.chromeCard(padding: 14)` at the top of the detail),
-  from `model.result.summary(for: humanColor, luck: model.luck)`: "**Accuracy 91%** · 2
-  mistakes · 1 blunder · 3 inaccuracies" (one `Text` concatenation; counts only when > 0,
-  plural variations in the catalog, inaccuracies in secondary ink); "No mistakes — nicely
-  played!" under it once the analysis is finished with no ? / ??. Then one line, once the
-  luck pass is in: "Dice: +8% for you · Your mistakes: −14%" — net luck (yours − the
-  opponent's) and your total decision loss, via `EvalScale.points(_:signed:)` (win-chance
-  pp as "8%", or equity = pp / 50 as "0.16" for a 2-point variant; locale digits). Wording:
-  "Dice: even" when it rounds to zero, "Dice: x for %@" when it favoured the other side,
-  "Mistakes by %@: x" in a two-player game. While the luck pass runs (only when there is an
-  agent): a mini spinner + "Measuring dice luck…". The separator is " · ", or the Persian
-  comma "، " under RTL (a "·" next to a Persian digit reads like a zero). The card is
-  omitted when there is neither accuracy (no choice plies) nor luck.
+- **Summary card** (`summaryCard`, a `.chromeCard(padding: 14)` at the end of the detail,
+  under the chart), from `model.result.summary(for: humanColor, luck: model.luck)`:
+  "**Accuracy 91%** · 2 mistakes · 1 blunder · 3 inaccuracies" (one `Text`
+  concatenation; counts only when > 0, plural variations in the catalog with a
+  non-breaking space after the number, inaccuracies in secondary ink); "No mistakes —
+  nicely played!" under it once the analysis is finished with no ? / ??. Then one line,
+  once the luck pass is in, as **per-move averages** (sums grow with game length and
+  can pass 100 %): "Dice: +0.5% per roll for you · Your moves: −2.1% per move". Dice =
+  your mean `PlyLuck.luckPoints` over your rolls (passes included) minus the opponent's
+  mean over theirs; moves = `decisionLoss / choicePlies` (your mean loss over plies with
+  a choice). Both via `EvalScale.points(_:signed:decimals: 1)`: win-chance pp to one
+  decimal ("2.1%"), or equity = pp / 50 with three decimals ("0.042") for a 2-point
+  variant; locale digits. Wording: "Dice: even" when |net| < 0.05 pp, "Dice: x per roll
+  for %@" when it favoured the other side, "Moves by %@: x per move" in a two-player game.
+  While the luck pass runs (only when there is an agent): a mini spinner + "Measuring dice
+  luck…". The separator is " · ", or the Persian comma "، " under RTL (a "·" next to a
+  Persian digit reads like a zero). The card is omitted when there is neither accuracy (no
+  choice plies) nor luck.
 - **Chart** (`WinProbabilityChart`): every ply, `topColor` = `localColor ?? .white` up
   (your side up; White in a two-player game), labelled with the names (You / Computer).
   Band, trace and labels take the checker colour of the side they belong to. Markers by
@@ -791,7 +799,7 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   near the top edge); the opponent's ? / ?? = a small faint ring, only when it can err.
   Inaccuracies are not marked. Selected-move dot as before. Scrub → the filter's nearest
   move.
-- **Filter** (`filterPicker`, segmented, below the move): **My moves** (default; your plies
+- **Filter** (`filterPicker`, segmented, right under the move): **My moves** (default; your plies
   with a choice, forced skipped) · **Mistakes** (your ? and ??; the segment shows only while
   you have one, and the filter falls back to My moves if they vanish) · **All moves**. The
   card is tracked by `selectedPly` (a `plyNumber`, so streamed-in plies don't shift it;

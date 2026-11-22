@@ -292,8 +292,8 @@ struct GameReviewView: View {
     private static let portraitTwoColumnWidth: CGFloat = 700
 
     /// Close/Drill bar, the board as large as fits, Prev/Next pinned under it, then
-    /// the detail (summary, chart + filter beside the move on a wide screen) in a
-    /// scroll view. Same pieces and order as the iPhone portrait review.
+    /// the detail in a scroll view — on a wide screen the move + filter column first,
+    /// chart + summary beside it. Same pieces and order as the iPhone portrait review.
     private func regularPortraitMode(_ size: CGSize, eval: PlyEvaluation, i: Int,
                                      plies: [PlyEvaluation], finished: Bool,
                                      onScrub: @escaping (Int) -> Void) -> some View {
@@ -312,10 +312,10 @@ struct GameReviewView: View {
                     if twoColumn {
                         HStack(alignment: .top, spacing: 28) {
                             VStack(alignment: .leading, spacing: 18) {
-                                overviewSection(eval: eval, finished: finished, onScrub: onScrub)
+                                moveSection(eval: eval, finished: finished)
                                 filterPicker
                             }
-                            moveSection(eval: eval, finished: finished)
+                            overviewSection(eval: eval, finished: finished, onScrub: onScrub)
                         }
                     } else {
                         panelInfo(eval: eval, finished: finished, onScrub: onScrub)
@@ -430,23 +430,22 @@ struct GameReviewView: View {
         }
     }
 
-    /// The detail: summary card, chart, the move, then the step filter.
+    /// The detail, what changes as you page first: the move, the step filter, then the
+    /// whole-game chart and the summary card.
     private func panelInfo(eval: PlyEvaluation, finished: Bool,
                            onScrub: @escaping (Int) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            overviewSection(eval: eval, finished: finished, onScrub: onScrub)
             moveSection(eval: eval, finished: finished)
             filterPicker
+            overviewSection(eval: eval, finished: finished, onScrub: onScrub)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Summary card + the whole-game chart.
+    /// The whole-game chart, then the summary card.
     private func overviewSection(eval: PlyEvaluation, finished: Bool,
                                  onScrub: @escaping (Int) -> Void) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            summaryCard(finished: finished)
-
             // Win-probability trajectory across the whole game, your side up (#233),
             // mistakes marked (#105). Shown once the 1-ply base pass is in (#103) — the
             // deeper passes refine it in place (needs ≥2 points to trace a line).
@@ -463,6 +462,8 @@ struct GameReviewView: View {
                                         onScrub: onScrub)
                 }
             }
+
+            summaryCard(finished: finished)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -484,7 +485,8 @@ struct GameReviewView: View {
     // ── Summary card (#233) ────────────────────────────────────────────────────
 
     /// "Accuracy 91% · 2 mistakes · 1 blunder" (counts only when > 0, inaccuracies
-    /// quieter), then one dice-vs-decisions line once the luck pass is in.
+    /// quieter), then one dice-vs-decisions line (per-roll / per-move averages) once
+    /// the luck pass is in.
     @ViewBuilder
     private func summaryCard(finished: Bool) -> some View {
         let s = model.result.summary(for: humanColor, luck: model.luck)
@@ -545,27 +547,35 @@ struct GameReviewView: View {
         return text
     }
 
-    /// "Dice: +8% for you · Your mistakes: −14%" — net dice luck (yours minus the
-    /// opponent's) against your total decision loss, in win chance (equity for a
-    /// 2-point variant). `nil` until the luck pass has run.
+    /// "Dice: +0.5% per roll for you · Your moves: −2.1% per move" — averages, so a
+    /// long or wild game never reads past 100 %: the dice term is your mean luck per
+    /// roll minus the opponent's (`PlyLuck.luckPoints`, passes included), the moves
+    /// term your mean decision loss over your plies with a choice. Win chance, or
+    /// equity for a 2-point variant, to one decimal (`EvalScale.points`). `nil` until
+    /// the luck pass has run.
     private func luckText(_ s: GameReviewSummary) -> String? {
-        guard let mine = s.luck, let theirs = s.opponentLuck else { return nil }
-        let net = mine - theirs
+        guard let luck = model.luck else { return nil }
+        func meanLuck(_ c: TavliEngine.Color) -> Double {
+            let rolls = luck.filter { $0.mover == c }
+            return rolls.isEmpty ? 0 : rolls.reduce(0.0) { $0 + $1.luckPoints } / Double(rolls.count)
+        }
+        let net = meanLuck(humanColor) - meanLuck(humanColor.opponent)
         let dice: String
-        if scale.points(net) == scale.points(0) {
+        if abs(net) < 0.05 {
             dice = String(localized: "Dice: even")
         } else {
             let favoured = net > 0 ? humanColor : humanColor.opponent
-            let amount = scale.points(abs(net), signed: true)
+            let amount = scale.points(abs(net), signed: true, decimals: 1)
             dice = favoured == localColor
-                ? String(localized: "Dice: \(amount) for you")
-                : String(localized: "Dice: \(amount) for \(naming.name(favoured))")
+                ? String(localized: "Dice: \(amount) per roll for you")
+                : String(localized: "Dice: \(amount) per roll for \(naming.name(favoured))")
         }
-        let loss = scale.points(-s.decisionLoss, signed: true)
-        let decisions = localColor != nil
-            ? String(localized: "Your mistakes: \(loss)")
-            : String(localized: "Mistakes by \(naming.name(humanColor)): \(loss)")
-        return dice + separator + decisions
+        let perMove = s.choicePlies > 0 ? s.decisionLoss / Double(s.choicePlies) : 0
+        let loss = scale.points(-perMove, signed: true, decimals: 1)
+        let moves = localColor != nil
+            ? String(localized: "Your moves: \(loss) per move")
+            : String(localized: "Moves by \(naming.name(humanColor)): \(loss) per move")
+        return dice + separator + moves
     }
 
     // ── The move ───────────────────────────────────────────────────────────────

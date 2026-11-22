@@ -9916,62 +9916,6 @@
         }
       }
     },
-    "Dice: %@ for you" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Würfel: %@ für dich"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ζάρια: %@ υπέρ σου"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تاس‌ها: %@ به نفع تو"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dobbelstenen: %@ voor jou"
-          }
-        }
-      }
-    },
-    "Dice: %@ for %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Würfel: %1$@ für %2$@"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ζάρια: %1$@ (%2$@)"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تاس‌ها: %1$@ به نفع %2$@"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dobbelstenen: %1$@ voor %2$@"
-          }
-        }
-      }
-    },
     "Dice: even" : {
       "localizations" : {
         "de" : {
@@ -9996,62 +9940,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dobbelstenen: gelijk"
-          }
-        }
-      }
-    },
-    "Your mistakes: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deine Fehler: %@"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Τα λάθη σου: %@"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اشتباه‌های تو: %@"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jouw fouten: %@"
-          }
-        }
-      }
-    },
-    "Mistakes by %@: %@" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fehler von %1$@: %2$@"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Λάθη (%1$@): %2$@"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "اشتباه‌های %1$@: %2$@"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fouten van %1$@: %2$@"
           }
         }
       }
@@ -10390,6 +10278,118 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Dice: %@ per roll for you" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Würfel: %@ pro Wurf für dich"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ζάρια: %@ ανά ζαριά υπέρ σου"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌ها: %@ در هر پرتاب به نفع تو"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dobbelstenen: %@ per worp voor jou"
+          }
+        }
+      }
+    },
+    "Dice: %@ per roll for %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Würfel: %1$@ pro Wurf für %2$@"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ζάρια: %1$@ ανά ζαριά (%2$@)"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌ها: %1$@ در هر پرتاب به نفع %2$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dobbelstenen: %1$@ per worp voor %2$@"
+          }
+        }
+      }
+    },
+    "Your moves: %@ per move" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Züge: %@ pro Zug"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Οι κινήσεις σου: %@ ανά κίνηση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت‌های تو: %@ در هر حرکت"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jouw zetten: %@ per zet"
+          }
+        }
+      }
+    },
+    "Moves by %@: %@ per move" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Züge von %1$@: %2$@ pro Zug"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κινήσεις (%1$@): %2$@ ανά κίνηση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "حرکت‌های %1$@: %2$@ در هر حرکت"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zetten van %1$@: %2$@ per zet"
           }
         }
       }
