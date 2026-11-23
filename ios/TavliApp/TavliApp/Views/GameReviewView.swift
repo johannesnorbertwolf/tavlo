@@ -804,7 +804,7 @@ final class GameReviewModel: ObservableObject {
     private let gameLog = GameLogStore.default()
 
     func run(record: GameRecord, agent: Agent?, humanColor: TavliEngine.Color) async {
-        guard !started else { return }   // `.task` can re-fire; analyze once
+        guard !started else { return }   // `.task` can re-fire; analyze once (unless cancelled)
         started = true
         self.humanColor = humanColor
 
@@ -813,7 +813,6 @@ final class GameReviewModel: ObservableObject {
         // pager and drill instantly — no model inference for these plies and no visible
         // 2-ply "Analyzing…" pass (the phase is already `.reviewing`, so `report` stays
         // quiet). With a complete 2-ply seed only the 3-ply borderline refinement remains.
-        let cached = gameLog.analysis(forGameId: record.gameId) ?? []
         #if DEBUG
         // App Store screenshot fixture (#184): its analysis (+ luck) is complete — show it
         // as is, with no deepening pass and so no spinner.
@@ -823,7 +822,13 @@ final class GameReviewModel: ObservableObject {
             return
         }
         #endif
-        luck = GameReview.cachedLuck(record: record, analysis: cached)   // nil ⇒ computed below
+        // A re-run after a cancelled one (the view went away mid-analysis and came back)
+        // continues from everything that run had scored.
+        let logged = gameLog.analysis(forGameId: record.gameId) ?? []
+        let cached = allEvaluations.isEmpty ? logged : [AnalysisEntry](reviewResult: result)
+        if luck == nil {
+            luck = GameReview.cachedLuck(record: record, analysis: logged)   // nil ⇒ computed below
+        }
         if !cached.isEmpty {
             for eval in GameReview.cachedResult(record: record, analysis: cached).evaluations {
                 ingest(eval)
@@ -840,7 +845,10 @@ final class GameReviewModel: ObservableObject {
         // Deepen on top of the seed: a full 2-ply seed makes the 1-/2-ply passes no-ops
         // and only the human's borderline plies refine to 3-ply; an empty seed runs the
         // original full 1→2→3-ply analysis (pre-#146 logs / analysis-off games).
-        let reviewed = await Task.detached(priority: .userInitiated) { [weak self] in
+        // The detached work is cancelled with the review (`.task` cancels on dismiss): a
+        // closed review must not keep its 2-/3-ply passes and luck pass running, where
+        // they competed for the CPU with the next game's in-play analysis and review.
+        let analysis = Task.detached(priority: .userInitiated) { [weak self] in
             GameReview.analyzeProgressive(
                 record: record, agent: agent, humanColor: humanColor,
                 includeOpponent: true, seed: cached,
@@ -848,25 +856,45 @@ final class GameReviewModel: ObservableObject {
                 onPassComplete: { pass, _ in Task { @MainActor in self?.passComplete(pass) } },
                 progress: { done, total, _ in Task { @MainActor in self?.report(done: done, total: total) } }
             )
-        }.value
+        }
+        let reviewed = await withTaskCancellationHandler {
+            await analysis.value
+        } onCancel: {
+            analysis.cancel()
+        }
 
-        finish(with: reviewed)
-        // Write the (possibly deepened) analysis back so it never recomputes (#104), then
-        // run the dice-luck pass (#231) once if the log has none yet and attach it — both
-        // in one detached task so the two writes can't race. `attachAnalysis` keeps luck
-        // already stored. No-op if the game isn't logged (e.g. a preview/test record).
+        // Write the (possibly deepened) analysis back so it never recomputes (#104) — also
+        // when the review was closed mid-way, so reopening it starts from what was done.
         let gameId = record.gameId
         let entries = [AnalysisEntry](reviewResult: reviewed)
-        let needsLuck = luck == nil
         let log = gameLog
-        let computed = await Task.detached(priority: .utility) { () -> [PlyLuck]? in
+        if Task.isCancelled {
+            started = false   // a re-fired `.task` picks up from here
+            if !entries.isEmpty {
+                Task.detached(priority: .utility) { try? log.attachAnalysis(entries, forGameId: gameId) }
+            }
+            return
+        }
+        finish(with: reviewed)
+        // Then run the dice-luck pass (#231) once if the log has none yet and attach it —
+        // both in one detached task so the two writes can't race. `attachAnalysis` keeps
+        // luck already stored. No-op if the game isn't logged (e.g. a preview/test record).
+        let needsLuck = luck == nil
+        let luckPass = Task.detached(priority: .utility) { () -> [PlyLuck]? in
             if !entries.isEmpty { try? log.attachAnalysis(entries, forGameId: gameId) }
             guard needsLuck else { return nil }
             let luck = GameReview.analyzeLuck(record: record, agent: agent)
+            guard !Task.isCancelled else { return nil }   // closed: don't store a partial pass
             try? log.attachLuck(luck, forGameId: gameId)
             return luck
-        }.value
+        }
+        let computed = await withTaskCancellationHandler {
+            await luckPass.value
+        } onCancel: {
+            luckPass.cancel()
+        }
         if let computed { luck = computed }
+        if Task.isCancelled, luck == nil { started = false }   // luck pass cut short: redo on return
     }
 
     /// Per-ply dice luck for both sides (#231): from the saved analysis when complete,

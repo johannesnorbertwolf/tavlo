@@ -93,11 +93,15 @@ struct EvalScale {
     }
 
     /// The gap as a loss, "−12%" / "−0.48", with the sign inside the locale-digit isolate
-    /// (#229), so a right-to-left line never puts the minus after its number.
+    /// (#229), so a right-to-left line never puts the minus after its number. A gap that
+    /// rounds to zero at display precision reads "0%" / "0.00" — never a negative zero
+    /// ("−0.00 equity" for a move as good as the best); like `points`, no sign on a zero.
     func lossGap(_ d: Double) -> String {
+        let d = max(0, d)
         let magnitude = isEquity ? String(format: "%.2f", d * 2 * Double(variant.maxPoints))
                                  : "\(Int((d * 100).rounded()))%"
-        return ChromeDigits.localized("\u{2212}" + magnitude)
+        let isZero = !magnitude.contains { $0.isNumber && $0 != "0" }
+        return ChromeDigits.localized((isZero ? "" : "\u{2212}") + magnitude)
     }
 
     /// "−12% win chance" / "−0.48 equity" — the cost of a move vs the best.
