@@ -88,6 +88,17 @@ strict concurrency errors on `MLModel` + the non-`Sendable` engine classes). Dis
 Garamond + Inter) are committed TTFs registered via `Info.plist` `UIAppFonts`; the Core ML model is a
 generated, gitignored artifact.
 
+## Release (App Store / TestFlight)
+
+```bash
+bash ios/scripts/release_archive.sh            # archive + signed .ipa (checks all 4 models)
+bash ios/scripts/release_archive.sh --upload   # archive + upload to App Store Connect
+```
+
+Version = `MARKETING_VERSION` in `project.yml`; build number = commit count (set by the script).
+Needs the paid team in Xcode (`TAVLO_TEAM`) and the App Store Connect record. See `REFERENCE.md`
+("Releasing").
+
 ## Run the parity gate
 
 ```bash
