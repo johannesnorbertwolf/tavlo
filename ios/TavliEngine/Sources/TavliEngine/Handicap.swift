@@ -142,8 +142,10 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     /// Tier 2: home sizes, normal first.
     public static let homeSizes = [6, 5, 4, 3]
     public static let normalHomeSize = 6
-    /// The only variant handicaps apply to (house Plakoto).
-    public static let supportedVariantID = "plakoto"
+    /// The variant the head start and the tier-2 rule changes are defined for (house
+    /// Plakoto, #148): its start stacks and move generator. Every other item — weighted
+    /// dice, rerolls, hints, moves first — works in every variant (#246).
+    public static let positionAndRulesVariantID = "plakoto"
 
     public var version: Int
     public var white: HandicapItems
@@ -263,8 +265,41 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
         hasWeightedDice || hasRerolls || white.hints > 0 || black.hints > 0
     }
 
-    /// Handicaps only apply to house Plakoto.
-    public static func supports(variantID: String) -> Bool { variantID == supportedVariantID }
+    /// Whether a game of `variantID` can be a handicap game at all: every registered
+    /// variant (#246) — weighted dice, rerolls, hints and moves first need only the
+    /// variant's own value net and rules.
+    public static func supports(variantID: String) -> Bool { GameVariants.variant(forID: variantID) != nil }
+
+    /// Whether the head start and the tier-2 rule changes are defined for `variantID`
+    /// (house Plakoto only). Full Tavli never uses them, not even in its Plakoto leg
+    /// (`availability(_:variantID:fullTavli:)`).
+    public static func supportsHeadStartAndRules(variantID: String) -> Bool {
+        variantID == positionAndRulesVariantID
+    }
+
+    /// Whether `item` can be used in a game of `variantID` (#246); `fullTavli` = a leg of
+    /// a Full Tavli session. The builder shows an unavailable item disabled with the
+    /// reason; a game never applies it.
+    public static func availability(_ item: HandicapItemKind, variantID: String,
+                                    fullTavli: Bool = false) -> HandicapAvailability {
+        guard item.needsHouseRules else { return .available }
+        if fullTavli { return .notInFullTavli }
+        return supportsHeadStartAndRules(variantID: variantID) ? .available : .houseRulesOnly
+    }
+
+    /// The setup a game of `variantID` is played under (#246): unchanged in house
+    /// Plakoto; elsewhere — and in every Full Tavli leg — the head start and the tier-2
+    /// rule changes are dropped (weighted dice, rerolls, hints and moves first stay).
+    /// May come out inactive (only dropped items were set): then it is a normal game.
+    public func restricted(toVariantID variantID: String, fullTavli: Bool = false) -> HandicapSetup {
+        guard fullTavli || !Self.supportsHeadStartAndRules(variantID: variantID) else { return self }
+        var s = self
+        for c in Color.allCases {
+            s[c] = s[c].tier1Only
+            s[c].headStart = 0
+        }
+        return s
+    }
 
     /// Lay out the handicapped starting position: each side's start stack holds its
     /// checker count (15, or its tier-2 count), then its head-start checkers move 6 pips
@@ -274,6 +309,9 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     /// be played under them. **Keep in sync with the Python** (pinned by `HandicapTests`).
     public func setUpInitialPosition(on board: GameBoard) {
         board.variant.setUpInitialPosition(on: board)
+        // Only house Plakoto has a head start / tier-2 checker count (#246): every other
+        // variant keeps its own start position (its stacks are not on points 1 / 24).
+        guard Self.supportsHeadStartAndRules(variantID: board.variant.id) else { return }
         let n = normalized
         let size = board.boardSize
         for color in Color.allCases {
@@ -310,6 +348,27 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
         if adjusted { try c.encode(true, forKey: .adjusted) }
         if alteredDiceEarlier { try c.encode(true, forKey: .alteredDiceEarlier) }
     }
+}
+
+/// The handicap items as the builder lists them (#246), for per-variant availability.
+public enum HandicapItemKind: String, CaseIterable, Sendable {
+    case headStart, movesFirst, weightedDice, rerolls, hints
+    /// Tier 2: overshoot bear-off, safe point, checkers, home size.
+    case ruleChanges
+
+    /// Defined only for house Plakoto's start position / move generator.
+    public var needsHouseRules: Bool { self == .headStart || self == .ruleChanges }
+}
+
+/// Whether a handicap item can be used in a kind of game (#246).
+public enum HandicapAvailability: Equatable, Sendable {
+    case available
+    /// Only in house Plakoto (another variant's start position / rules).
+    case houseRulesOnly
+    /// Not in Full Tavli (one setup runs through all three legs).
+    case notInFullTavli
+
+    public var isAvailable: Bool { self == .available }
 }
 
 /// A count per side (tokens left).

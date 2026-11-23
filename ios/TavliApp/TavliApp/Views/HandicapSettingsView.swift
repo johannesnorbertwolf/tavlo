@@ -8,6 +8,12 @@ private typealias EngineColor = TavliEngine.Color
 /// "Rule changes" cards (overshoot, safe point, checkers per side, home size; P3b) and the
 /// live win-chance estimate. Edits the persisted `HandicapPreferences` directly. Sides read
 /// "You / Computer" or "White / Red" depending on the mode picked at the top.
+///
+/// **Per variant (#246).** Weighted dice, rerolls, hints and moves first work in every
+/// variant and across Full Tavli; the head start and the rule changes only in a house-
+/// Plakoto single game or best-of-three. The next game's kind (the remembered variant +
+/// length) decides: items it can't use stay visible but disabled, with the reason, and
+/// the applicability note says what is left out.
 struct HandicapSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(HandicapPreferences.storageKey) private var raw = ""
@@ -49,23 +55,23 @@ struct HandicapSettingsView: View {
                         }
                         .pickerStyle(.segmented)
                         .tint(ChromeTheme.undoTint)
-                        Text(applicability)
-                            .font(ChromeType.caption)
-                            .foregroundStyle(appliesNow ? ChromeKit.inkSecondary : ChromeTheme.surrenderTint)
+                        applicabilityNote
                     }
                     .chromeCard(padding: 20)
 
                     Group {
                         itemCard(title: "Head start",
                                  caption: "Checkers that start 6 points ahead of the stack.",
-                                 side: binding(\.headStartSide)) {
+                                 side: binding(\.headStartSide),
+                                 unavailable: unavailableReason(.headStart)) {
                             stepSlider(value: binding(\.headStart), range: 0...HandicapSetup.maxHeadStart,
                                        label: prefs.headStart == 0 ? String(localized: "Off")
                                          : prefs.headStart == 1 ? String(localized: "1 checker")
                                          : String(localized: "\(prefs.headStart) checkers"))
                         }
                         itemCard(title: "Moves first",
-                                 caption: "Always starts the game; no opening roll.",
+                                 caption: isFullTavli ? "Starts every game of Full Tavli; no opening roll."
+                                                      : "Always starts the game; no opening roll.",
                                  side: binding(\.movesFirstSide)) {
                             Toggle(isOn: binding(\.movesFirst)) {
                                 Text(prefs.movesFirst ? String(localized: "On") : String(localized: "Off"))
@@ -100,11 +106,16 @@ struct HandicapSettingsView: View {
                     .opacity(prefs.enabled ? 1 : 0.5)
 
                     // Tier 2 (#148 P3b): rule changes, each describing a side's own rules.
-                    Text("Rule changes")
-                        .font(ChromeType.headline)
-                        .foregroundStyle(ChromeTheme.ink)
-                        .padding(.top, 4)
-                        .opacity(prefs.enabled ? 1 : 0.5)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rule changes")
+                            .font(ChromeType.headline)
+                            .foregroundStyle(ChromeTheme.ink)
+                        if let reason = unavailableReason(.ruleChanges) {
+                            unavailableLabel(reason)
+                        }
+                    }
+                    .padding(.top, 4)
+                    .opacity(prefs.enabled ? 1 : 0.5)
                     Group {
                         itemCard(title: "Overshoot bear-off",
                                  caption: "May bear off with a higher die than needed, from the farthest checker (as in standard Plakoto). A big advantage.",
@@ -144,8 +155,8 @@ struct HandicapSettingsView: View {
                             .accessibilityIdentifier("handicapHomeSize")
                         }
                     }
-                    .disabled(!prefs.enabled)
-                    .opacity(prefs.enabled ? 1 : 0.5)
+                    .disabled(!prefs.enabled || unavailableReason(.ruleChanges) != nil)
+                    .opacity(!prefs.enabled ? 0.5 : unavailableReason(.ruleChanges) != nil ? 0.45 : 1)
                 }
                 .compactPadding(28, compact: 16)
                 .frame(maxWidth: 560)
@@ -160,6 +171,8 @@ struct HandicapSettingsView: View {
         .onAppear(perform: refreshEstimate)
         .onChange(of: raw) { _, _ in refreshEstimate() }
         .onChange(of: vsComputer) { _, _ in refreshEstimate() }
+        .onChange(of: variantID) { _, _ in refreshEstimate() }
+        .onChange(of: matchLength) { _, _ in refreshEstimate() }
     }
 
     // MARK: - Estimate
@@ -169,6 +182,7 @@ struct HandicapSettingsView: View {
         HandicapEstimateView(estimate: model.estimate,
                              computing: model.computing,
                              unavailable: model.unavailable,
+                             notMeasured: model.notMeasured,
                              aName: HandicapRole.a.label(vsComputer: vsComputer),
                              bName: HandicapRole.b.label(vsComputer: vsComputer),
                              aColor: .white)
@@ -197,25 +211,67 @@ struct HandicapSettingsView: View {
             case .ai:          rule = .fixed(.black)
             }
         }
-        model.update(setup: setup, rule: rule)
+        // Only house Plakoto has measured numbers (#246); Full Tavli and the other
+        // variants show "not measured yet".
+        model.update(setup: setup, rule: rule, variant: isFullTavli ? nil : variant)
     }
 
-    // MARK: - Applicability (concept §7)
+    // MARK: - Applicability (concept §7, per variant since #246)
 
     private var variant: GameVariantSetting { GameVariantSetting(variantID: variantID) }
+    private var isFullTavli: Bool { matchLength == .fullTavli }
 
-    private var appliesNow: Bool {
-        !prefs.isActive || HandicapPreferences.applies(variant: variant, length: matchLength,
-                                                       vsComputer: vsComputer)
+    /// The next game's name for the notes: the variant, or Full Tavli.
+    private var nextGameName: String { isFullTavli ? String(localized: "Full Tavli") : variant.name }
+
+    /// Why `item` is off for the next game, or `nil` when it applies.
+    private func unavailableReason(_ item: HandicapItemKind) -> String? {
+        switch HandicapSetup.availability(item, variantID: variant.rawValue, fullTavli: isFullTavli) {
+        case .available:      return nil
+        case .notInFullTavli: return String(localized: "Off in Full Tavli: only in Plakoto (house rules), single game or Best of 3.")
+        case .houseRulesOnly: return String(localized: "Off in \(variant.name): only in Plakoto (house rules).")
+        }
     }
 
-    private var applicability: String {
-        let base = String(localized: "Applies to offline games of Plakoto (house rules), single or Best of 3. Not online or Full Tavli.")
-        guard prefs.isActive, !appliesNow else { return base }
-        if variant != .plakoto {
-            return String(localized: "Your next game is \(variant.name), so it will be played without a handicap.")
+    /// Where the handicaps apply (per variant), plus a warning when the next game leaves
+    /// out items that are set.
+    private var applicabilityNote: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Group {
+                Text("Plakoto (house rules), single or Best of 3: every item.")
+                Text("Standard Plakoto, Fevga, Portes and Full Tavli: weighted dice, rerolls, hints and moves first.")
+                Text("Offline games only.")
+            }
+            .foregroundStyle(ChromeKit.inkSecondary)
+            if let warning = leftOutWarning {
+                Text(warning)
+                    .foregroundStyle(ChromeTheme.surrenderTint)
+                    .padding(.top, 2)
+                    .accessibilityIdentifier("handicapLeftOut")
+            }
         }
-        return String(localized: "Your next game is Full Tavli, so it will be played without a handicap.")
+        .font(ChromeType.caption)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var leftOutWarning: String? {
+        guard prefs.isActive else { return nil }
+        let left = prefs.leftOut(variant: variant, fullTavli: isFullTavli)
+        guard !left.isEmpty else { return nil }
+        let name = nextGameName
+        if HandicapItemKind.allCases.allSatisfy({ !prefs.isSet($0) || left.contains($0) }) {
+            return isFullTavli
+                ? String(localized: "Your next game is Full Tavli, so it will be played without a handicap.")
+                : String(localized: "Your next game is \(name), so it will be played without a handicap.")
+        }
+        return String(localized: "Your next game is \(name): the head start and rule changes are left out.")
+    }
+
+    private func unavailableLabel(_ reason: String) -> some View {
+        Label(reason, systemImage: "lock")
+            .font(ChromeType.caption)
+            .foregroundStyle(ChromeKit.inkSecondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Chrome
@@ -232,27 +288,35 @@ struct HandicapSettingsView: View {
     }
 
     /// One item: title, favoured-side picker (or a fixed side), the control, a caption.
+    /// `unavailable` (#246): the next game can't use this item — the card stays visible,
+    /// its controls disabled and dimmed, with the reason under the caption.
     private func itemCard<Control: View>(title: LocalizedStringKey, caption: LocalizedStringKey,
                                          side: Binding<HandicapRole>?, fixedSide: String? = nil,
+                                         unavailable: String? = nil,
                                          @ViewBuilder control: () -> Control) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if ChromeType.isCompact, let side {
-                // Phone: a long side label (Greek "Υπολογιστής", #225) would truncate in
-                // the shared row, so the picker drops to its own full-width row then.
-                ViewThatFits(in: .horizontal) {
-                    itemHeader(title: title, side: side, fixedSide: fixedSide)
-                    VStack(alignment: .leading, spacing: 10) {
-                        itemTitle(title)
-                        sidePicker(side)
+            VStack(alignment: .leading, spacing: 10) {
+                if ChromeType.isCompact, let side {
+                    // Phone: a long side label (Greek "Υπολογιστής", #225) would truncate in
+                    // the shared row, so the picker drops to its own full-width row then.
+                    ViewThatFits(in: .horizontal) {
+                        itemHeader(title: title, side: side, fixedSide: fixedSide)
+                        VStack(alignment: .leading, spacing: 10) {
+                            itemTitle(title)
+                            sidePicker(side)
+                        }
                     }
+                } else {
+                    itemHeader(title: title, side: side, fixedSide: fixedSide)
                 }
-            } else {
-                itemHeader(title: title, side: side, fixedSide: fixedSide)
+                control()
+                Text(caption)
+                    .font(ChromeType.caption)
+                    .foregroundStyle(ChromeKit.inkSecondary)
             }
-            control()
-            Text(caption)
-                .font(ChromeType.caption)
-                .foregroundStyle(ChromeKit.inkSecondary)
+            .disabled(unavailable != nil)
+            .opacity(unavailable != nil ? 0.45 : 1)
+            if let unavailable { unavailableLabel(unavailable) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .chromeCard(padding: 16)

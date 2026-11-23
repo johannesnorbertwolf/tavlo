@@ -20,6 +20,16 @@ import Foundation
 /// the two after a relaunch: it decides whether the save is mid-leg or between legs and
 /// records a finished leg the session had not yet counted. Colours are stored as raw
 /// "W"/"B" strings, like `MatchState` (`Color` itself is not `Codable`).
+///
+/// **Handicap (#246).** One `handicap` setup runs through all three legs: weighted
+/// dice, rerolls, hints and moves first only (the head start and the tier-2 rule
+/// changes are off in Full Tavli, `HandicapSetup.restricted(toVariantID:fullTavli:)`).
+/// Each leg starts with fresh tokens (`setupForCurrentLeg`), "moves first" makes the
+/// favoured side start every leg (`startingPlayer(default:)`), and a leg's mid-game
+/// adjustments (#236) carry over to the next leg (`carryHandicap(from:)`), like the
+/// games of a best-of-three. Persisted with the session (`GameSave.fullTavli`), so it
+/// survives a relaunch between legs; mid-leg the leg's own `GameSave.handicap` holds
+/// its tokens left.
 public struct FullTavliSession: Codable, Equatable, Sendable {
     /// Number of legs in a session.
     public static let legCount = 3
@@ -31,19 +41,57 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
     public let aiColor: Color?
     /// Result of each finished leg, in play order (draws included).
     public private(set) var results: [MatchGameResult]
+    /// The handicap every remaining leg is played under (#246), or `nil` for none.
+    /// Always restricted to what Full Tavli supports; an inactive setup is stored as nil.
+    public private(set) var handicap: HandicapSetup?
 
     public init(plakotoVariantID: String = GameVariants.plakoto.id,
                 aiColor: Color? = nil,
-                results: [MatchGameResult] = []) {
+                results: [MatchGameResult] = [],
+                handicap: HandicapSetup? = nil) {
         self.plakotoVariantID = Self.plakotoLegVariantID(preferredID: plakotoVariantID)
         self.aiColor = aiColor
         self.results = Array(results.prefix(Self.legCount))
+        self.handicap = Self.sessionHandicap(handicap)
     }
 
     /// A fresh session whose Plakoto leg follows the player's variant preference.
-    public init(preferredVariantID: String?, aiColor: Color?) {
+    public init(preferredVariantID: String?, aiColor: Color?, handicap: HandicapSetup? = nil) {
         self.init(plakotoVariantID: Self.plakotoLegVariantID(preferredID: preferredVariantID),
-                  aiColor: aiColor)
+                  aiColor: aiColor, handicap: handicap)
+    }
+
+    /// `setup` as a Full Tavli session keeps it: normalized, without the head start and
+    /// the tier-2 rules, without the mid-game adjustment marks; `nil` when nothing is left.
+    static func sessionHandicap(_ setup: HandicapSetup?) -> HandicapSetup? {
+        guard let setup else { return nil }
+        let s = setup.normalized.restricted(toVariantID: GameVariants.portes.id, fullTavli: true).forNextGame
+        return s.isActive ? s : nil
+    }
+
+    // ── Handicap (#246) ──────────────────────────────────────────────────────
+
+    /// The setup the current leg starts with (fresh tokens, no adjustment marks), or
+    /// `nil` for a normal leg / a complete session.
+    public var setupForCurrentLeg: HandicapSetup? {
+        guard let variant = currentVariant, let handicap else { return nil }
+        let s = handicap.restricted(toVariantID: variant.id, fullTavli: true)
+        return s.isActive ? s : nil
+    }
+
+    /// The starter of the current leg: the "moves first" side in every leg, else
+    /// `defaultStarter` (the opening roll, the First-move setting, or the variant's rule).
+    public func startingPlayer(default defaultStarter: Color) -> Color {
+        HandicapSetup.startingPlayer(for: handicap, default: defaultStarter)
+    }
+
+    /// Carry a finished leg's handicap into the next legs: its final values if it was
+    /// adjusted during the leg (#236), so a change counts for the rest of the session like
+    /// in a best-of-three; a setup adjusted down to nothing makes the next legs normal.
+    /// A leg played without a handicap leaves the session's setup alone.
+    public mutating func carryHandicap(from record: GameRecord) {
+        guard let played = record.handicap else { return }
+        handicap = Self.sessionHandicap(played)
     }
 
     /// The Plakoto leg's rules for a saved variant preference: standard Plakoto only
@@ -160,6 +208,7 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
         let finished = record.isDraw || record.outcome != nil
         if finished, let leg = legIndex(ofVariantID: record.variantID), leg == results.count,
            let result = record.result {
+            carryHandicap(from: record)   // #246, as the live game-over hook does
             self.record(result)
         }
         if isComplete { return .complete }
@@ -169,7 +218,10 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
 
     // ── Codable (raw "W"/"B" colours) ────────────────────────────────────────
 
-    private enum CodingKeys: String, CodingKey { case plakotoVariantID, aiColor, results }
+    // `handicap` (#246) is optional and written only when set: a session without one
+    // encodes exactly as before, and an older build ignores the key (then plays the
+    // remaining legs without the handicap). A malformed one decodes as none.
+    private enum CodingKeys: String, CodingKey { case plakotoVariantID, aiColor, results, handicap }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -177,7 +229,8 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
             plakotoVariantID: try c.decodeIfPresent(String.self, forKey: .plakotoVariantID)
                 ?? GameVariants.plakoto.id,
             aiColor: try c.decodeIfPresent(String.self, forKey: .aiColor).flatMap(Color.init(rawValue:)),
-            results: try c.decodeIfPresent([MatchGameResult].self, forKey: .results) ?? [])
+            results: try c.decodeIfPresent([MatchGameResult].self, forKey: .results) ?? [],
+            handicap: (try? c.decodeIfPresent(HandicapSetup.self, forKey: .handicap)) ?? nil)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -185,5 +238,6 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
         try c.encode(plakotoVariantID, forKey: .plakotoVariantID)
         try c.encodeIfPresent(aiColor?.rawValue, forKey: .aiColor)
         try c.encode(results, forKey: .results)
+        try c.encodeIfPresent(handicap, forKey: .handicap)
     }
 }

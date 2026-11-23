@@ -7472,34 +7472,6 @@
         }
       }
     },
-    "Applies to offline games of Plakoto (house rules), single or Best of 3. Not online or Full Tavli." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gilt für Offline-Spiele Plakoto (Hausregeln), einzeln oder Best of 3. Nicht online und nicht für Full Tavli."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ισχύει για παιχνίδια Πλακωτό (κανόνες σπιτιού) εκτός σύνδεσης, μονά ή 2 στα 3. Όχι online ή στο Πλήρες Τάβλι."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "برای بازی‌های آفلاین پلاکوتو (قوانین خانگی)، تک‌بازی یا بهترین از ۳. نه آنلاین و نه تاولی کامل."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Geldt voor offline potjes Plakoto (huisregels), los of Best of 3. Niet online of bij Full Tavli."
-          }
-        }
-      }
-    },
     "Bear off only from the last points of the home board. A smaller home is a disadvantage." : {
       "localizations" : {
         "de" : {
@@ -9292,34 +9264,6 @@
         }
       }
     },
-    "Changes count from the next roll and carry over to the next games of a Best of 3." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Änderungen gelten ab dem nächsten Wurf und für die weiteren Spiele eines Best of 3."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Οι αλλαγές ισχύουν από την επόμενη ζαριά και για τα επόμενα παιχνίδια ενός 2 στα 3."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تغییرات از تاس بعدی اعمال می‌شوند و در بازی‌های بعدی «بهترین از ۳» هم می‌مانند."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wijzigingen gelden vanaf de volgende worp en voor de volgende potjes van een Best of 3."
-          }
-        }
-      }
-    },
     "Set at the start" : {
       "localizations" : {
         "de" : {
@@ -10444,6 +10388,286 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ wint deze partij."
+          }
+        }
+      }
+    },
+    "Not measured yet for %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für %@ noch nicht gemessen."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δεν έχει μετρηθεί ακόμα για %@."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز برای %@ اندازه‌گیری نشده."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog niet gemeten voor %@."
+          }
+        }
+      }
+    },
+    "Not measured yet for Full Tavli." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für Full Tavli noch nicht gemessen."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δεν έχει μετρηθεί ακόμα για το Πλήρες Τάβλι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هنوز برای تاولی کامل اندازه‌گیری نشده."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nog niet gemeten voor Full Tavli."
+          }
+        }
+      }
+    },
+    "Starts every game of Full Tavli; no opening roll." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beginnt jedes Spiel von Full Tavli; kein Eröffnungswurf."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ξεκινά κάθε παιχνίδι του Πλήρους Τάβλι, χωρίς ζαριά έναρξης."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هر بازیِ تاولی کامل را شروع می‌کند؛ بدون تاس شروع."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Begint elk spel van Full Tavli; geen openingsworp."
+          }
+        }
+      }
+    },
+    "Plakoto (house rules), single or Best of 3: every item." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto (Hausregeln), einzeln oder Best of 3: alles."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Πλακωτό (κανόνες σπιτιού), μονό ή 2 στα 3: όλα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو (قوانین خانگی)، تک‌بازی یا بهترین از ۳: همه موارد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto (huisregels), los of Best of 3: alles."
+          }
+        }
+      }
+    },
+    "Standard Plakoto, Fevga, Portes and Full Tavli: weighted dice, rerolls, hints and moves first." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard-Plakoto, Fevga, Portes und Full Tavli: gewichtete Würfel, Neuwürfe, Tipps und „Beginnt“."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Στάνταρ Πλακωτό, Φεύγα, Πόρτες και Πλήρες Τάβλι: ευνοϊκά ζάρια, νέες ζαριές, βοήθειες και «Ξεκινά»."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتوی استاندارد، فوگا، پورتس و تاولی کامل: تاس‌های وزن‌دار، تاس دوباره، راهنمایی‌ها و «اول حرکت می‌کند»."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standaard Plakoto, Fevga, Portes en Full Tavli: gewogen dobbelstenen, opnieuw gooien, hints en ‘Begint’."
+          }
+        }
+      }
+    },
+    "Offline games only." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur Offline-Spiele."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μόνο παιχνίδια εκτός σύνδεσης."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فقط بازی‌های آفلاین."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alleen offline potjes."
+          }
+        }
+      }
+    },
+    "Off in Full Tavli: only in Plakoto (house rules), single game or Best of 3." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus in Full Tavli: nur in Plakoto (Hausregeln), Einzelspiel oder Best of 3."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ανενεργό στο Πλήρες Τάβλι: μόνο στο Πλακωτό (κανόνες σπιτιού), ένα παιχνίδι ή 2 στα 3."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در تاولی کامل خاموش است: فقط در پلاکوتو (قوانین خانگی)، تک‌بازی یا بهترین از ۳."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uit in Full Tavli: alleen in Plakoto (huisregels), enkel spel of Best of 3."
+          }
+        }
+      }
+    },
+    "Off in %@: only in Plakoto (house rules)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus in %@: nur in Plakoto (Hausregeln)."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ανενεργό (%@): μόνο στο Πλακωτό (κανόνες σπιτιού)."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در %@ خاموش است: فقط در پلاکوتو (قوانین خانگی)."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uit in %@: alleen in Plakoto (huisregels)."
+          }
+        }
+      }
+    },
+    "Your next game is %@: the head start and rule changes are left out." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein nächstes Spiel ist %@: Vorsprung und Regeländerungen entfallen."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το επόμενο παιχνίδι σου είναι %@: το προβάδισμα και οι αλλαγές κανόνων παραλείπονται."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی بعدی‌ات %@ است: شروع جلوتر و تغییر قوانین حذف می‌شوند."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je volgende spel is %@: voorsprong en regelwijzigingen vervallen."
+          }
+        }
+      }
+    },
+    "Changes count from the next roll and carry over to the next games of a Best of 3 or Full Tavli." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Änderungen gelten ab dem nächsten Wurf und für die weiteren Spiele eines Best of 3 oder von Full Tavli."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Οι αλλαγές ισχύουν από την επόμενη ζαριά και για τα επόμενα παιχνίδια ενός 2 στα 3 ή του Πλήρους Τάβλι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تغییرات از تاس بعدی اعمال می‌شوند و در بازی‌های بعدی «بهترین از ۳» یا تاولی کامل هم می‌مانند."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wijzigingen gelden vanaf de volgende worp en voor de volgende potjes van een Best of 3 of Full Tavli."
           }
         }
       }

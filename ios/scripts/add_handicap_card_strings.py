@@ -32,12 +32,6 @@ STRINGS = {
         "el": "Ισορροπημένο",
         "fa": "متعادل",
     },
-    "Changes count from the next roll and carry over to the next games of a Best of 3.": {
-        "de": "Änderungen gelten ab dem nächsten Wurf und für die weiteren Spiele eines Best of 3.",
-        "nl": "Wijzigingen gelden vanaf de volgende worp en voor de volgende potjes van een Best of 3.",
-        "el": "Οι αλλαγές ισχύουν από την επόμενη ζαριά και για τα επόμενα παιχνίδια ενός 2 στα 3.",
-        "fa": "تغییرات از تاس بعدی اعمال می‌شوند و در بازی‌های بعدی «بهترین از ۳» هم می‌مانند.",
-    },
     "Set at the start": {
         "de": "Zu Beginn festgelegt",
         "nl": "Bij de start vastgelegd",

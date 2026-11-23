@@ -176,22 +176,48 @@ struct HandicapPreferences: Codable, Equatable {
         return n.isActive ? n : nil
     }
 
-    /// Whether a new game of this kind is handicapped (concept §7): house Plakoto only,
-    /// offline only, a single game or every game of a best-of-three — never Full Tavli
-    /// (online never reaches this). Same rule vs the computer and for two players.
-    static func applies(variant: GameVariantSetting, length: MatchLengthSetting, vsComputer: Bool) -> Bool {
-        guard HandicapSetup.supports(variantID: variant.rawValue) else { return false }
-        return length != .fullTavli
+    /// Whether `item` is set (independent of the master toggle).
+    func isSet(_ item: HandicapItemKind) -> Bool {
+        switch item {
+        case .headStart:    return headStart > 0
+        case .movesFirst:   return movesFirst
+        case .weightedDice: return dice > 0
+        case .rerolls:      return rerolls > 0
+        case .hints:        return hints > 0
+        case .ruleChanges:  return hasTier2
+        }
     }
 
-    /// The setup for a new offline game, or `nil` when handicaps are off or don't apply
-    /// to this kind of game (then it is simply a normal game).
+    /// The set items a game of `variant` (a Full Tavli leg when `fullTavli`) leaves out
+    /// (#246): the head start and the rule changes outside a house-Plakoto single game
+    /// or best-of-three. Empty when everything set applies.
+    func leftOut(variant: GameVariantSetting, fullTavli: Bool) -> [HandicapItemKind] {
+        HandicapItemKind.allCases.filter {
+            isSet($0) && !HandicapSetup.availability($0, variantID: variant.rawValue,
+                                                     fullTavli: fullTavli).isAvailable
+        }
+    }
+
+    /// The setup for a new offline single game or best-of-three game of `variant` (#246:
+    /// every variant; outside house Plakoto without the head start and the rule changes),
+    /// or `nil` when handicaps are off or nothing set applies (then it is a normal game).
+    /// Same rule vs the computer and for two players; online never reaches this.
     static func setupForNewGame(humanColor: TavliEngine.Color?, variant: GameVariantSetting) -> HandicapSetup? {
         let prefs = load()
-        guard prefs.isActive,
-              applies(variant: variant, length: AppSettings.matchLength, vsComputer: humanColor != nil)
-        else { return nil }
-        return prefs.setup(humanColor: humanColor)
+        guard prefs.isActive, let setup = prefs.setup(humanColor: humanColor) else { return nil }
+        let s = setup.restricted(toVariantID: variant.rawValue)
+        return s.isActive ? s : nil
+    }
+
+    /// The setup a new Full Tavli session runs through all three legs (#246): weighted
+    /// dice, rerolls, hints and moves first (the head start and the rule changes are off
+    /// in Full Tavli). `nil` when off or nothing set applies. The session stores it
+    /// (`FullTavliSession.handicap`), so a resumed session keeps its own setup.
+    static func setupForFullTavli(humanColor: TavliEngine.Color?) -> HandicapSetup? {
+        let prefs = load()
+        guard prefs.isActive, let setup = prefs.setup(humanColor: humanColor) else { return nil }
+        let s = setup.restricted(toVariantID: GameVariantSetting.portes.rawValue, fullTavli: true)
+        return s.isActive ? s : nil
     }
 
     /// Short summary for the Settings row: "Off", or e.g. "Head start 2 · Rerolls 1".

@@ -11,23 +11,39 @@ fileprivate typealias EngineColor = TavliEngine.Color
 
 /// Computes the builder's / tag's win-chance estimate off the main actor: the net's
 /// position estimate (head start ± moves first) plus the measured dice-lever table.
+/// Only house Plakoto is measured (#246): for another variant or Full Tavli the model
+/// reports `notMeasured` instead of a number.
 @MainActor
 final class HandicapEstimateModel: ObservableObject {
     @Published private(set) var estimate: HandicapEstimate?
     @Published private(set) var computing = false
     /// The net is not bundled (no estimate possible).
     @Published private(set) var unavailable = false
+    /// The game kind has no measured estimate yet (#246): the line to show instead.
+    @Published private(set) var notMeasured: String?
 
     private var task: Task<Void, Never>?
     private var lastKey: String?
     private static var agent: Agent?
 
-    func update(setup: HandicapSetup, rule: HandicapStartRule) {
+    /// `variant` = the game's variant, `nil` for Full Tavli (three variants).
+    func update(setup: HandicapSetup, rule: HandicapStartRule,
+                variant: GameVariantSetting? = .plakoto) {
+        guard let variant, HandicapEstimator.isMeasured(variantID: variant.rawValue) else {
+            task?.cancel()
+            lastKey = nil
+            computing = false
+            estimate = nil
+            notMeasured = variant.map { String(localized: "Not measured yet for \($0.name).") }
+                ?? String(localized: "Not measured yet for Full Tavli.")
+            return
+        }
+        notMeasured = nil
         let key = "\(setup.hashValue)-\(rule)"
         guard key != lastKey else { return }
         lastKey = key
         task?.cancel()
-        let table = HandicapTableResource.table
+        let table = HandicapTableResource.table.forVariant(variant.rawValue)
         // The net sees only the position levers (tier-2 levers come from the table, §11),
         // so a tier-2-only change reuses the last position estimate: instant update.
         let positionKey = "\(setup.tier1Only.hashValue)-\(rule)"
@@ -72,6 +88,8 @@ struct HandicapEstimateView: View {
     let estimate: HandicapEstimate?
     var computing = false
     var unavailable = false
+    /// No estimate for this kind of game yet (#246): this line instead of a number.
+    var notMeasured: String? = nil
     /// Name and colour of side A ("You"/"White") and B ("Computer"/"Red").
     let aName: String
     let bName: String
@@ -80,7 +98,16 @@ struct HandicapEstimateView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if unavailable {
+            if let notMeasured {
+                Text("Estimated win chance")
+                    .font(ChromeType.subheadline.weight(.semibold))
+                    .foregroundStyle(ChromeTheme.ink)
+                Text(notMeasured)
+                    .font(ChromeType.callout)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("handicapEstimateNotMeasured")
+            } else if unavailable {
                 Text("Estimate needs the computer's model, which isn't available.")
                     .font(ChromeType.caption)
                     .foregroundStyle(ChromeKit.inkSecondary)
@@ -214,12 +241,13 @@ struct HandicapTagButton: View {
     private func favoured(_ setup: HandicapSetup) -> EngineColor? {
         HandicapEstimator.favouredSide(setup: setup,
                                        estimate: setup.beneficiaries.count == 2 ? model.estimate : nil,
-                                       table: HandicapTableResource.table)
+                                       table: HandicapTableResource.table.forVariant(session.game.variant.id))
     }
 
     private func refresh(_ setup: HandicapSetup) {
         guard setup.beneficiaries.count == 2 else { return }
-        model.update(setup: setup, rule: .fixed(session.startingPlayer))
+        model.update(setup: setup, rule: .fixed(session.startingPlayer),
+                     variant: GameVariantSetting(variant: session.game.variant))
     }
 
     private func accessibilityLabel(_ setup: HandicapSetup) -> String {
@@ -262,7 +290,7 @@ struct HandicapInfoSheet: View {
                     header
                     if let state = session.handicap {
                         ForEach(sides, id: \.self) { c in sideCard(c, state: state) }
-                        Text("Changes count from the next roll and carry over to the next games of a Best of 3.")
+                        Text("Changes count from the next roll and carry over to the next games of a Best of 3 or Full Tavli.")
                             .font(ChromeType.caption)
                             .foregroundStyle(ChromeKit.inkSecondary)
                         let fixed = HandicapCopy.lines(state.setup, aiColor: session.aiColor, adjustable: false)
@@ -287,6 +315,7 @@ struct HandicapInfoSheet: View {
                         if session.record.plies.isEmpty {
                             HandicapEstimateView(estimate: model.estimate, computing: model.computing,
                                                  unavailable: model.unavailable,
+                                                 notMeasured: model.notMeasured,
                                                  aName: HandicapCopy.name(sideA, aiColor: session.aiColor),
                                                  bName: HandicapCopy.name(sideA.opponent, aiColor: session.aiColor),
                                                  aColor: sideA)
@@ -408,7 +437,8 @@ struct HandicapInfoSheet: View {
     }
 
     private func refreshEstimate(_ setup: HandicapSetup) {
-        model.update(setup: setup, rule: .fixed(session.startingPlayer))
+        model.update(setup: setup, rule: .fixed(session.startingPlayer),
+                     variant: GameVariantSetting(variant: session.game.variant))
     }
 }
 
