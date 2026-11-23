@@ -1047,10 +1047,13 @@ the player to find a better move **on the real board**. It reuses #62's blunder 
 
 Grading reuses `Agent.scoreCandidate(boardStacks:move:mover:depth:)` (in `GameReview.swift`): it
 rebuilds an **isolated** board from the stacks, reconstructs the attempted move against it, and
-scores that single candidate at 2-ply via `evaluateMovesNply` — identical to that move's entry in a
-full ranking, so it's directly comparable to the `PlyEvaluation`'s `bestScore`, and safe to run off
-the main actor (the attempt's own `Move` references the live drill board the main actor keeps
-reading). `gap = bestScore − attemptScore`; the feedback tiers mirror `_drill_inner` (correct =
+scores that single candidate via `evaluateMovesNply` **at the card's own `PlyEvaluation.depth`** —
+identical to that move's entry in a full ranking at that depth, so it's directly comparable to the
+`bestScore`, and safe to run off the main actor (the attempt's own `Move` references the live drill
+board the main actor keeps reading). The review deepens close calls to 3-ply, so a fixed 2-ply
+attempt score once graded the best move itself as "51% vs 53% — close". On top of that, an attempt
+whose resulting board equals the best move's (or the game move's) — `Agent.sameOutcome`, compared by
+board, not pair order — takes that move's known score without re-scoring. `gap = bestScore − attemptScore`; the feedback tiers mirror `_drill_inner` (correct =
 `gap ≤ max(0.01, best·0.03)`, close = `gap ≤ max(0.04, best·0.10)`, else wrong).
 
 The app side (`DrillView` + `@MainActor DrillModel`) analyzes (or takes a precomputed

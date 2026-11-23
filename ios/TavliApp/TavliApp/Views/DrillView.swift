@@ -290,10 +290,25 @@ final class DrillModel: ObservableObject {
         let stacks = b.boardStacks
         let mover = b.mover
         let best = b.bestScore
+        let bestMove = b.bestMove
+        let played = b.playedMove
+        let playedScore = b.playedScore
+        // Score at the review's own depth: a deeper (3-ply) best score against a 2-ply
+        // attempt made the best move itself read "51% vs 53%" — "close, try again".
+        let depth = max(1, b.depth)
         let config = config
         Task.detached(priority: .userInitiated) { [weak self] in
-            let score = try? agent.scoreCandidate(boardStacks: stacks, move: pairs, mover: mover,
-                                                  config: config)
+            // An attempt that reaches the best move's (or the game move's) position takes
+            // that move's known score, so it can never grade as different from itself.
+            let score: Float?
+            if agent.sameOutcome(boardStacks: stacks, pairs, bestMove, mover: mover, config: config) {
+                score = best
+            } else if agent.sameOutcome(boardStacks: stacks, pairs, played, mover: mover, config: config) {
+                score = playedScore
+            } else {
+                score = try? agent.scoreCandidate(boardStacks: stacks, move: pairs, mover: mover,
+                                                  depth: depth, config: config)
+            }
             await MainActor.run { self?.applyFeedback(attempt: pairs, score: score, best: best) }
         }
     }
@@ -304,7 +319,7 @@ final class DrillModel: ObservableObject {
         lastAttemptScore = score
         guard let score else {
             awaitingRetry = true
-            feedback = .wrong(String(localized: "Couldn’t evaluate — try again."))
+            feedback = .wrong(String(localized: "Couldn't evaluate — try again."))
             return
         }
         let gap = Double(best - score)
@@ -315,13 +330,13 @@ final class DrillModel: ObservableObject {
             // itself (#232) — no Next button for a solved card.
             awaitingRetry = false
             if !solvedThisCard { solvedThisCard = true; solvedCount += 1 }
-            let message = gap < 0.001 ? String(localized: "Excellent — that’s the best move!")
+            let message = gap < 0.001 ? String(localized: "Excellent — that's the best move!")
                                       : String(localized: "Great — very close to optimal.")
             feedback = .correct(message)
             celebrateThenAdvance(announcing: message)
         } else if gap <= closeThreshold {
             awaitingRetry = true
-            feedback = .close(String(localized: "Close — there’s a better move. Try again."))
+            feedback = .close(String(localized: "Close — there's a better move. Try again."))
         } else {
             awaitingRetry = true
             feedback = .wrong(String(localized: "Not quite — think a little harder."))
