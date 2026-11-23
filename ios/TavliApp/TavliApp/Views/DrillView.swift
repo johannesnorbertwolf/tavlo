@@ -264,6 +264,12 @@ final class DrillModel: ObservableObject {
         guard !blunders.isEmpty else { phase = .empty; return }
         loadCard(0)
         phase = .drilling
+        #if DEBUG
+        // App Store drill scene (#184): the last card (not the review scene's position),
+        // optionally on its solution.
+        if ScreenshotScenes.isDrill { loadCard(blunders.count - 1) }
+        if ScreenshotScenes.drillSolution { revealSolution() }
+        #endif
     }
 
     private func loadCard(_ i: Int) {
