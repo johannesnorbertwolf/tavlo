@@ -224,7 +224,10 @@ struct RootView: View {
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background { persistAutosave() }
+            if newPhase == .background {
+                persistAutosave()
+                AnalysisService.app.flush()   // landed analysis not yet written (#243)
+            }
         }
         #if DEBUG
         .debugReviewSample()   // `-debugReviewSample`: straight into a sample review (#232)
@@ -245,6 +248,10 @@ struct RootView: View {
         // UI-test game so test runs never write stats. Runs synchronously (no await)
         // well before any game can end, so the hook is always armed in time.
         .task(id: session.map(ObjectIdentifier.init)) {
+            // Background analysis (#243): every offline game is analysed as it is played
+            // (both sides, on the service's own boards, paused while the computer
+            // thinks), and keeps going after it ends; the review just reads it.
+            session?.analysisService = .app
             guard let session,
                   !ProcessInfo.processInfo.arguments.contains("-uiTestGame"),
                   !Self.isDebugSeededGame else { return }
@@ -259,8 +266,9 @@ struct RootView: View {
                 // Persist EVERY finished game to the append-only log (#104), regardless
                 // of outcome or whether it was ever manually saved. `record.outcome` is
                 // already set by the time this hook fires. Synchronous, like the autosave.
-                // Carry the in-play 2-ply analysis (#146) so the review opens instantly;
-                // empty (analysis off / no model) keeps the file at schema v1.
+                // Carry the background analysis so far (#146, #243) so the review opens on
+                // it; later results are merged in by the service as they land. Empty (no
+                // model) keeps the file at schema v1.
                 let name = autosaveName.isEmpty ? Self.newAutosaveName() : autosaveName
                 let entries = session.inPlayAnalysis
                 let save = GameSave(record: session.record, name: name,
@@ -501,7 +509,6 @@ struct RootView: View {
                                    searchConfig: AppSettings.searchConfig,
                                    animationTimings: AppSettings.animationTimings,
                                    autoRoll: AppSettings.autoRoll,
-                                   inPlayAnalysis: AppSettings.inPlayAnalysisEnabled,
                                    handicapAgent: handicapAgent)
         return Resumed(session: s, humanColor: human, name: save.name,
                        fullTavli: fullTavli, screen: nil)
@@ -510,8 +517,13 @@ struct RootView: View {
     /// Load a saved game (from the picker list) and switch into it, carrying its
     /// name forward so the auto-save keeps the same identity.
     private func resume(_ meta: SaveMetadata) {
-        guard let save = try? store.load(filename: meta.filename),
-              let resumed = Self.prepareResume(save) else { return }
+        guard var save = try? store.load(filename: meta.filename) else { return }
+        // A manual save is a fork point that can be loaded and finished more than once:
+        // give each load its own game id, so a second ending gets its own game-log entry
+        // instead of overwriting the first (#104). The autosave is the same game resumed,
+        // and keeps its id so its background analysis follows it (#243).
+        if !meta.isAutosave { save.gameId = UUID() }
+        guard let resumed = Self.prepareResume(save) else { return }
         humanColor = resumed.humanColor
         autosaveName = resumed.name
         match = nil   // a resumed single game is standalone (#145); Full Tavli resumes (#144)
@@ -622,7 +634,6 @@ struct RootView: View {
             searchConfig: AppSettings.searchConfig,
             animationTimings: AppSettings.animationTimings,
             autoRoll: AppSettings.autoRoll,
-            inPlayAnalysis: vsAI && AppSettings.inPlayAnalysisEnabled,
             handicap: handicap,
             handicapAgent: handicapAgent,
             aiLevel: vsAI ? AppSettings.aiLevel : nil   // the opponent's strength (#231)

@@ -753,6 +753,18 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
 (iPhone portrait/landscape, iPad landscape rail / portrait one or two columns) are in
 "Compact (iPhone) layout" above; this section is the content.
 
+- **Data (#243).** `GameReviewModel.run` (the view's `.task`) takes
+  `AnalysisService.app.job(for: record, agent:)` — the game's background job (attached in
+  `RootView` during play), or a new one seeded from the game log / autosave — sets
+  `job.focused = true` while open (its units go first) and mirrors the job on every
+  `revision` (`for await _ in job.$revision.values`): `chartEvaluations` = `job.result`,
+  `luck` = `job.luck`, `firstPassComplete` = every moved ply has an evaluation; phase:
+  no evaluations → `.analyzing(done,total)` (or `.unavailable` with no model,
+  `.nothingToReview` when complete), else `.reviewing(finished: job.isComplete)`. Nothing
+  is cancelled on close: the job keeps going and saves as it lands, so a reopened review or a
+  relaunch shows the progress so far and continues. The drill gets `model.result` at launch.
+  The DEBUG screenshot fixture bypasses the service.
+
 - **Who's who.** `GameReviewView(record:agent:humanColor:opponentName:)`. `opponentName`
   (default `nil`) is the online opponent's name; offline it is "Computer" when the record
   has an `aiColor`. `localColor` = `humanColor` vs the computer or online, `nil` in a
@@ -977,15 +989,14 @@ too), and `match.recordGame(winner:points:)`.
     **generated** realistic house-Plakoto game (you = White vs the level-8 computer; you play 1-ply with
     some selection noise) with its complete review analysis + dice luck embedded as Swift literals —
     regenerate it with the env-gated `ScreenshotFixtureGenerator` test (command in its header). Scenes also
-    force, in the volatile argument domain (never persisted), the win-probability bar on, in-play analysis
-    off and level 8.
+    force, in the volatile argument domain (never persisted), the win-probability bar on and level 8.
     - `-screenshotGame`: the fixture's mid-game game (`playPlies`) replayed to just before one of your
       turns with both sides pinning and the game still open (`gamePly`, `darkGamePly` in dark appearance,
       or `-screenshotGamePly N`), that ply's dice already rolled (via `pendingRoll`). Never autosaved,
       logged or counted (`isDebugSeededGame`).
     - `-screenshotReview`: `GameReviewView` on the fixture's review game, opening on your worst move (or
-      `-screenshotReviewPly N`); `GameReviewModel` shows the fixture's analysis + luck as is (no game-log
-      read, no deepening pass, so no spinner). On the phone the detail scroll view opens scrolled to the
+      `-screenshotReviewPly N`); `GameReviewModel` shows the fixture's analysis + luck as is (no
+      background job, so no spinner). On the phone the detail scroll view opens scrolled to the
       chart (extra bottom padding lets it reach the top), so the chart + summary sit under the board.
     - `-screenshotDrill` (+ `-screenshotDrillSolution`): `DrillView` on the fixture's mistakes, opened on
       its last card (so not the review scene's position); with the second flag on its solution (your move
@@ -1121,7 +1132,9 @@ a `ScrollView` capped at 560 pt. Every control binds to `@AppStorage`; each defa
 - **Game** — *Play as* (`PreferredColorSetting` White / Random / Red, default **White**; also in
   the new-game sheet), *Auto-roll* (default **on**).
 - **Advanced** — *First move* (`StartingPlayerSetting`: opening roll / I start / Computer
-  starts), *Analyze during play* (#146, default off).
+  starts). (*Analyze during play*, #146, was removed in #243: the background analysis pauses
+  while the computer thinks, so it no longer slows it and always runs; the key
+  `settings.inPlayAnalysis` is deleted once at launch.)
 - **Display** — *Appearance* (#191, `AppearanceSetting` System / Light / Dark, key
   `settings.appearance`, default **System**), *Animate computer moves* (default on),
   *Win-probability bar* (default off).

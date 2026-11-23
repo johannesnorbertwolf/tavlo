@@ -140,22 +140,36 @@ final class GameSessionResignTests: XCTestCase {
     /// taken back (board = start of the computer's turn), the animation stops, no ply is
     /// recorded, nothing lands afterwards and the record replays to the board shown.
     func testResignWhileAnimatingRollsBackTheComputersTurn() async throws {
-        let s = GameSession(startingPlayer: .white, agent: nil, aiColor: .black,
-                            animationTimings: AnimationTimings(aiDiceRollDuration: 0.01,
-                                                               aiMoveAnimationDuration: 0.08))
-        var over: [Color] = []
-        s.onGameOver = { over.append($0) }
-        s.setDice(3, 1)
-        playHumanTurn(s)                                       // human ply recorded, AI animating
-        XCTAssertEqual(s.phase, .animating)
-        XCTAssertEqual(s.history.count, 1)
-        let beforeAI = stacks(s)
+        // With no model the computer plays a random legal move; when that is a single
+        // hop its turn ends as the hop lands, leaving no moment with a hop landed and
+        // the turn still running. Retry with a fresh game until the move has two hops
+        // (each try fails about one time in three, so ten tries all failing is ~1e-5).
+        var found: (s: GameSession, beforeAI: [[Color]], over: () -> [Color])?
+        for _ in 0..<10 where found == nil {
+            let s = GameSession(startingPlayer: .white, agent: nil, aiColor: .black,
+                                animationTimings: AnimationTimings(aiDiceRollDuration: 0.01,
+                                                                   aiMoveAnimationDuration: 0.08))
+            var over: [Color] = []
+            s.onGameOver = { over.append($0) }
+            s.setDice(3, 1)
+            playHumanTurn(s)                                   // human ply recorded, AI animating
+            XCTAssertEqual(s.phase, .animating)
+            XCTAssertEqual(s.history.count, 1)
+            let beforeAI = stacks(s)
 
-        // Wait until at least one hop has landed and the next is in flight.
-        let deadline = Date().addingTimeInterval(5)
-        while s.moveBuilder.built.isEmpty, s.phase == .animating, Date() < deadline {
-            try await Task.sleep(nanoseconds: 2_000_000)
+            // Wait until at least one hop has landed and the next is in flight.
+            let deadline = Date().addingTimeInterval(5)
+            while s.moveBuilder.built.isEmpty, s.phase == .animating, Date() < deadline {
+                try await Task.sleep(nanoseconds: 2_000_000)
+            }
+            if s.phase == .animating, !s.moveBuilder.built.isEmpty {
+                found = (s, beforeAI, { over })
+            }
         }
+        guard let (s, beforeAI, overList) = found else {
+            return XCTFail("the computer never played a two-hop move in ten tries")
+        }
+        var over: [Color] { overList() }
         XCTAssertEqual(s.phase, .animating)
         XCTAssertFalse(s.moveBuilder.built.isEmpty, "a hop landed before the resign")
         XCTAssertNotEqual(stacks(s), beforeAI)
@@ -202,14 +216,16 @@ final class GameSessionResignTests: XCTestCase {
     func testResignWhileComputerThinkingDiscardsTheSearch() async throws {
         let agent = try loadAgent()
         let s = GameSession(startingPlayer: .black, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
-                            inPlayAnalysis: true)
+                            searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off)
+        let service = AnalysisService()
+        s.analysisService = service
         s.start()
         XCTAssertEqual(s.phase, .aiThinking)
+        XCTAssertTrue(service.gate.isHeld, "background analysis paused while the computer thinks")
         XCTAssertTrue(s.canSurrender)
         s.surrender()
         XCTAssertEqual(s.phase, .gameOver(winner: .black))
-        XCTAssertFalse(s.inPlayAnalysisTaskActiveForTesting, "in-play analysis cancelled")
+        XCTAssertFalse(service.gate.isHeld, "resigning releases the analysis gate")
 
         try await Task.sleep(nanoseconds: 1_500_000_000)       // the 1-ply search is long done
         XCTAssertEqual(s.phase, .gameOver(winner: .black))

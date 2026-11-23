@@ -83,11 +83,10 @@ final class ReviewCoverageTests: XCTestCase {
     }
 
     /// You (White) vs the computer (Black, 1-ply, animations off), with seeded dice for
-    /// your turns. You commit **at once** — never waiting for the in-play ranking — and
-    /// the computer commits as soon as its 1-ply search returns, so most rankings are
-    /// still running at commit time.
+    /// your turns. You commit **at once** and the computer as soon as its 1-ply search
+    /// returns, so the background analysis is usually behind the game.
     private func driveVsAI(_ s: GameSession, rng: inout LCG, maxPlies: Int,
-                           awaitRanking: Bool = false, timeout: TimeInterval = 300) async {
+                           timeout: TimeInterval = 300) async {
         s.start()
         let deadline = Date().addingTimeInterval(timeout)
         while s.record.plies.count < maxPlies {
@@ -98,7 +97,6 @@ final class ReviewCoverageTests: XCTestCase {
                 if s.currentPlayer == s.aiColor { try? await Task.sleep(nanoseconds: 2_000_000) }
                 else { roll(s, rng: &rng) }
             case .picking, .moving:
-                if awaitRanking { await s.awaitInPlayAnalysisForTesting() }
                 playTurn(s, rng: &rng)
             case .aiThinking, .animating:
                 try? await Task.sleep(nanoseconds: 2_000_000)
@@ -106,11 +104,20 @@ final class ReviewCoverageTests: XCTestCase {
         }
     }
 
-    /// Let the background rankings of the plies just played finish (they run detached
-    /// at utility priority), so their captures land.
-    private func settle(_ s: GameSession) async {
-        await s.awaitInPlayAnalysisForTesting()
-        await s.awaitPendingCapturesForTesting()
+    /// Let the background analysis (#243) of the plies played so far finish.
+    private func settle(_ service: AnalysisService) async {
+        let deadline = Date().addingTimeInterval(300)
+        while service.hasPendingWork, Date() < deadline {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertFalse(service.hasPendingWork, "background analysis did not finish")
+    }
+
+    /// A memory-only analysis service to 2-ply (quick), with the fixture models.
+    private func makeService() -> AnalysisService {
+        let service = AnalysisService { [weak self] config in try? self?.agent(config.variant) }
+        service.maxDepth = 2
+        return service
     }
 
     private func movedPlies(_ record: GameRecord) -> [Int] {
@@ -191,23 +198,23 @@ final class ReviewCoverageTests: XCTestCase {
         }
     }
 
-    // MARK: - In-play analysis covers every ply (#146)
+    // MARK: - Background analysis covers every ply (#146, #243)
 
-    /// Committing before the in-play ranking finished used to drop that ply from the
-    /// in-play analysis — the review then opened without it ("left out the last few
-    /// moves"). Every ply, both sides, must be captured, and each capture must equal a
-    /// from-scratch 2-ply review of that ply.
+    /// Every ply of both sides played with the analysis attached must be covered —
+    /// however quickly it was committed ("left out the last few moves") — and each
+    /// result must equal a from-scratch 2-ply review of that ply.
     func testInPlayAnalysisCapturesPliesCommittedBeforeTheirRanking() async throws {
         for variant in [GameVariants.plakoto, StandardPlakotoVariant()] as [any GameVariant] {
             let agent = try agent(variant)
             var rng = LCG(UInt64(variant.id.count) &* 13)
             let s = GameSession(startingPlayer: .white, config: GameConfig(variant: variant),
                                 agent: agent, aiColor: .black,
-                                searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
-                                inPlayAnalysis: true)
+                                searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off)
+            let service = makeService()
+            s.analysisService = service
             await driveVsAI(s, rng: &rng, maxPlies: 600)
             XCTAssertTrue(s.isTerminal, "\(variant.id) game did not finish")
-            await settle(s)
+            await settle(service)
 
             let record = s.record
             let cached = GameReview.cachedResult(record: record, analysis: s.inPlayAnalysis)
@@ -241,12 +248,11 @@ final class ReviewCoverageTests: XCTestCase {
             var rng = LCG(UInt64(variant.id.count) &* 7)
             let config = GameConfig(variant: variant)
             let s = GameSession(startingPlayer: .white, config: config, agent: agent, aiColor: .black,
-                                searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
-                                inPlayAnalysis: true)
-            // Wait for your rankings, so the analysis before the save is not empty for
-            // the other reason (quick commits, covered above).
-            await driveVsAI(s, rng: &rng, maxPlies: 20, awaitRanking: true)
-            await settle(s)
+                                searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off)
+            let service = makeService()
+            s.analysisService = service
+            await driveVsAI(s, rng: &rng, maxPlies: 20)
+            await settle(service)
             let beforeResume = s.inPlayAnalysis
             XCTAssertFalse(beforeResume.isEmpty)
 
@@ -254,12 +260,15 @@ final class ReviewCoverageTests: XCTestCase {
             let data = try JSONEncoder().encode(s.snapshot(name: "auto"))
             let save = try JSONDecoder().decode(GameSave.self, from: data)
             let r = GameSession.resume(from: save, agent: agent, searchConfig: SearchConfig(maxDepth: 1),
-                                       animationTimings: .off, inPlayAnalysis: true)
+                                       animationTimings: .off)
+            XCTAssertEqual(r.inPlayAnalysis, beforeResume, "\(variant.id): analysis lost on resume")
+            let relaunched = makeService()
+            r.analysisService = relaunched
             XCTAssertEqual(r.inPlayAnalysis, beforeResume, "\(variant.id): analysis lost on resume")
             XCTAssertEqual(save.analysis ?? [], beforeResume, "\(variant.id): the save carries the analysis")
 
             await driveVsAI(r, rng: &rng, maxPlies: 50)   // the game's end is covered above
-            await settle(r)
+            await settle(relaunched)
             assertCovers(GameReview.cachedResult(record: r.record, analysis: r.inPlayAnalysis),
                          r.record, "\(variant.id) resumed in-play analysis")
         }

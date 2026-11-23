@@ -303,6 +303,8 @@ final class DrillModel: ObservableObject {
         // attempt made the best move itself read "51% vs 53%" — "close, try again".
         let depth = max(1, b.depth)
         let config = config
+        // The player waits on this grade: pause the background analysis (#243) meanwhile.
+        AnalysisService.app.gate.setHeld(true, by: self)
         Task.detached(priority: .userInitiated) { [weak self] in
             // An attempt that reaches the best move's (or the game move's) position takes
             // that move's known score, so it can never grade as different from itself.
@@ -320,6 +322,7 @@ final class DrillModel: ObservableObject {
     }
 
     private func applyFeedback(attempt: [[Int]], score: Float?, best: Float) {
+        AnalysisService.app.gate.setHeld(false, by: self)
         // Attempt + score land together, so the "You tried" row swaps in one step.
         lastAttempt = attempt
         lastAttemptScore = score

@@ -100,6 +100,19 @@ public final class GameLogStore {
         return true
     }
 
+    /// Merge the background analysis (#243) into a logged game: per ply the deeper entry
+    /// wins and luck is kept from either side (`AnalysisEntry.merge`), so a write can
+    /// never lose depth or luck already stored. Same no-op-safe contract as
+    /// `attachAnalysis` (returns `false` when the game isn't logged).
+    @discardableResult
+    public func mergeAnalysis(_ analysis: [AnalysisEntry], forGameId gameId: UUID) throws -> Bool {
+        let url = directory.appendingPathComponent(Self.filename(for: gameId))
+        guard var save = try? read(url) else { return false }
+        save.analysis = AnalysisEntry.merge(save.analysis ?? [], analysis)
+        try write(save, gameId: gameId)
+        return true
+    }
+
     /// `fresh` with luck carried over from `stored` (see `attachAnalysis`).
     static func merge(_ fresh: [AnalysisEntry], keepingLuckFrom stored: [AnalysisEntry]) -> [AnalysisEntry] {
         let old = Dictionary(stored.map { ($0.plyNumber, $0) }, uniquingKeysWith: { a, _ in a })

@@ -749,12 +749,14 @@ struct GameReviewView: View {
     }
 }
 
-// ── Controller (streaming) ────────────────────────────────────────────────────
+// ── Controller (subscribes to the background analysis) ─────────────────────────
 
-/// Drives `GameReview.analyze` off the main actor and **streams** its evaluations
-/// back: the all-moves review opens as soon as the first move is scored and fills in
-/// as the rest analyze in the background. `@MainActor` so its published state mutates
-/// safely; the background task hops back here per event.
+/// Shows the game's background analysis (#243): the review owns no analysis of its own.
+/// It takes the game's job from `AnalysisService.app` — the one that ran during play, or
+/// a new one seeded from the game log — and mirrors it: instant from whatever is
+/// already done, live as more lands. While open it marks the job focused (its work goes
+/// first); closing it changes nothing else — the job keeps going and saves as it goes,
+/// so a reopened review (or a relaunch) continues where it was, never from zero.
 @MainActor
 final class GameReviewModel: ObservableObject {
     enum Phase {
@@ -765,18 +767,17 @@ final class GameReviewModel: ObservableObject {
     }
 
     @Published var phase: Phase = .analyzing(done: 0, total: 0)
-    /// True once the 1-ply base pass has scored every ply (#103) — the win-probability
-    /// graph and the drill are complete from here, while 2-/3-ply refine in place.
+    /// True once every move has at least its 1-ply evaluation (#103) — the
+    /// win-probability graph and the drill are complete from here, while 2-/3-ply refine
+    /// in place.
     @Published private(set) var firstPassComplete = false
 
     /// The human under review — only this side's plies count as blunders (#132).
     private var humanColor: TavliEngine.Color = .white
-    private var blunders: [PlyEvaluation] = []
-    /// Every evaluated human ply, in play order — the win-probability chart's data
-    /// source (#105). A superset of `blunders` (this same list filtered to `.blunder`).
+    /// Every evaluated ply, both sides, in play order — the chart's data source (#105).
     private var allEvaluations: [PlyEvaluation] = []
-    private var started = false
-    private var finished = false
+    /// A preview / screenshot fixture: shown as is, never subscribed.
+    private var fixed = false
 
     /// The evaluated plies found so far, as a result the drill can consume directly
     /// (it re-filters to its own blunders).
@@ -785,155 +786,64 @@ final class GameReviewModel: ObservableObject {
     /// The full win-probability trajectory for the chart (#105): every evaluated ply.
     var chartEvaluations: [PlyEvaluation] { allEvaluations }
 
+    /// Per-ply dice luck for both sides (#231): `nil` until every ply has it. Feeds
+    /// `result.summary(for:luck:)`.
+    @Published private(set) var luck: [PlyLuck]?
 
     init() {}
 
     /// Preview-only: start in a terminal phase so analysis never runs. `trajectory`
-    /// seeds the full chart data set; blunders are derived from it.
+    /// seeds the full chart data set.
     fileprivate init(preview phase: Phase, trajectory: [PlyEvaluation] = []) {
         self.phase = phase
-        self.started = true
-        self.finished = true
+        self.fixed = true
         self.allEvaluations = trajectory
-        self.blunders = trajectory.filter { $0.isBlunder }
         self.firstPassComplete = true
     }
 
-    /// The append-only game log (#104). Holds the saved analysis: read it back to skip
-    /// re-analysis, and write the freshly computed analysis back into the same entry.
-    private let gameLog = GameLogStore.default()
-
+    /// Follow the game's analysis while the review is open (`.task`; returns when it
+    /// is dismissed).
     func run(record: GameRecord, agent: Agent?, humanColor: TavliEngine.Color) async {
-        guard !started else { return }   // `.task` can re-fire; analyze once (unless cancelled)
-        started = true
+        guard !fixed else { return }
         self.humanColor = humanColor
-
-        // Seed from any saved analysis (#104, #146): the in-play 2-ply analysis written
-        // during the game, or a full prior review. Restoring it up front opens the graph,
-        // pager and drill instantly — no model inference for these plies and no visible
-        // 2-ply "Analyzing…" pass (the phase is already `.reviewing`, so `report` stays
-        // quiet). With a complete 2-ply seed only the 3-ply borderline refinement remains.
         #if DEBUG
         // App Store screenshot fixture (#184): its analysis (+ luck) is complete — show it
-        // as is, with no deepening pass and so no spinner.
+        // as is, with no background job and so no spinner.
         if let fixture = ScreenshotScenes.analysis(for: record.gameId) {
+            fixed = true
             luck = GameReview.cachedLuck(record: record, analysis: fixture)
-            finish(with: GameReview.cachedResult(record: record, analysis: fixture))
+            allEvaluations = GameReview.cachedResult(record: record, analysis: fixture).evaluations
+            firstPassComplete = true
+            phase = allEvaluations.isEmpty ? .nothingToReview : .reviewing(finished: true)
             return
         }
         #endif
-        // A re-run after a cancelled one (the view went away mid-analysis and came back)
-        // continues from everything that run had scored.
-        let logged = gameLog.analysis(forGameId: record.gameId) ?? []
-        let cached = allEvaluations.isEmpty ? logged : [AnalysisEntry](reviewResult: result)
-        if luck == nil {
-            luck = GameReview.cachedLuck(record: record, analysis: logged)   // nil ⇒ computed below
+        let job = AnalysisService.app.job(for: record, agent: agent)
+        job.focused = true
+        defer { job.focused = false }
+        sync(job)
+        for await _ in job.$revision.values {
+            sync(job)
         }
-        if !cached.isEmpty {
-            for eval in GameReview.cachedResult(record: record, analysis: cached).evaluations {
-                ingest(eval)
-            }
-            firstPassComplete = true
-        }
-
-        guard let agent else {
-            // No model: keep whatever we restored from cache; nothing more we can do.
-            if cached.isEmpty { phase = .unavailable } else { finish(with: result) }
-            return
-        }
-
-        // Deepen on top of the seed: a full 2-ply seed makes the 1-/2-ply passes no-ops
-        // and only the human's borderline plies refine to 3-ply; an empty seed runs the
-        // original full 1→2→3-ply analysis (pre-#146 logs / analysis-off games).
-        // The detached work is cancelled with the review (`.task` cancels on dismiss): a
-        // closed review must not keep its 2-/3-ply passes and luck pass running, where
-        // they competed for the CPU with the next game's in-play analysis and review.
-        let analysis = Task.detached(priority: .userInitiated) { [weak self] in
-            GameReview.analyzeProgressive(
-                record: record, agent: agent, humanColor: humanColor,
-                includeOpponent: true, seed: cached,
-                onEvaluation: { eval in Task { @MainActor in self?.ingest(eval) } },
-                onPassComplete: { pass, _ in Task { @MainActor in self?.passComplete(pass) } },
-                progress: { done, total, _ in Task { @MainActor in self?.report(done: done, total: total) } }
-            )
-        }
-        let reviewed = await withTaskCancellationHandler {
-            await analysis.value
-        } onCancel: {
-            analysis.cancel()
-        }
-
-        // Write the (possibly deepened) analysis back so it never recomputes (#104) — also
-        // when the review was closed mid-way, so reopening it starts from what was done.
-        let gameId = record.gameId
-        let entries = [AnalysisEntry](reviewResult: reviewed)
-        let log = gameLog
-        if Task.isCancelled {
-            started = false   // a re-fired `.task` picks up from here
-            if !entries.isEmpty {
-                Task.detached(priority: .utility) { try? log.attachAnalysis(entries, forGameId: gameId) }
-            }
-            return
-        }
-        finish(with: reviewed)
-        // Then run the dice-luck pass (#231) once if the log has none yet and attach it —
-        // both in one detached task so the two writes can't race. `attachAnalysis` keeps
-        // luck already stored. No-op if the game isn't logged (e.g. a preview/test record).
-        let needsLuck = luck == nil
-        let luckPass = Task.detached(priority: .utility) { () -> [PlyLuck]? in
-            if !entries.isEmpty { try? log.attachAnalysis(entries, forGameId: gameId) }
-            guard needsLuck else { return nil }
-            let luck = GameReview.analyzeLuck(record: record, agent: agent)
-            guard !Task.isCancelled else { return nil }   // closed: don't store a partial pass
-            try? log.attachLuck(luck, forGameId: gameId)
-            return luck
-        }
-        let computed = await withTaskCancellationHandler {
-            await luckPass.value
-        } onCancel: {
-            luckPass.cancel()
-        }
-        if let computed { luck = computed }
-        if Task.isCancelled, luck == nil { started = false }   // luck pass cut short: redo on return
     }
 
-    /// Per-ply dice luck for both sides (#231): from the saved analysis when complete,
-    /// else computed after the main analysis. `nil` until known. Feeds
-    /// `result.summary(for:luck:)`.
-    @Published private(set) var luck: [PlyLuck]?
-
-    /// A streamed evaluation: upsert it by ply number (a deeper pass replaces the
-    /// shallower result, #103) and open the pager as soon as the first move is scored.
-    /// Blunders are recomputed from the current set so they track the latest depth.
-    private func ingest(_ eval: PlyEvaluation) {
-        guard !finished else { return }
-        if let idx = allEvaluations.firstIndex(where: { $0.plyNumber == eval.plyNumber }) {
-            allEvaluations[idx] = eval
+    /// Mirror the job's current state.
+    private func sync(_ job: GameAnalysisJob) {
+        allEvaluations = job.result.evaluations
+        luck = job.luck
+        firstPassComplete = job.firstPassComplete
+        if allEvaluations.isEmpty {
+            if !job.hasModel {
+                phase = .unavailable
+            } else if job.isComplete {
+                phase = .nothingToReview
+            } else {
+                let p = job.progress
+                phase = .analyzing(done: p.done, total: p.total)
+            }
         } else {
-            allEvaluations.append(eval)
-            allEvaluations.sort { $0.plyNumber < $1.plyNumber }
+            phase = .reviewing(finished: job.isComplete)
         }
-        blunders = allEvaluations.filter { $0.mover == humanColor && $0.isBlunder }
-        phase = .reviewing(finished: false)
-    }
-
-    /// The 1-ply base pass (pass 0) is done: the graph + drill are now complete (#103).
-    private func passComplete(_ pass: Int) {
-        if pass == 0 { firstPassComplete = true }
-    }
-
-    private func report(done: Int, total: Int) {
-        if case .analyzing = phase { phase = .analyzing(done: done, total: total) }
-    }
-
-    /// Analysis complete: settle on the authoritative full set (streamed events may
-    /// still be in flight, so take everything straight from the returned result).
-    private func finish(with result: GameReviewResult) {
-        finished = true
-        firstPassComplete = true
-        allEvaluations = result.evaluations
-        blunders = result.evaluations.filter { $0.mover == humanColor && $0.isBlunder }
-        phase = allEvaluations.isEmpty ? .nothingToReview : .reviewing(finished: true)
     }
 }
 

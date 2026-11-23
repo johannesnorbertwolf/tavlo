@@ -366,7 +366,7 @@ public extension Array where Element == AnalysisEntry {
 public extension GameSession {
     /// Capture the current game as a `GameSave` for persistence.
     /// Includes the roll of the turn in progress (`pendingRoll`, #171) when one exists,
-    /// and the in-play analysis so far (#146) as the save's `analysis`, so a resumed game
+    /// and the background analysis so far (#146, #243) as the save's `analysis`, so a resumed game
     /// keeps it (and its review covers the plies before the resume).
     func snapshot(name: String, savedAt: Date = Date()) -> GameSave {
         var save = GameSave(record: record, name: name, savedAt: savedAt,

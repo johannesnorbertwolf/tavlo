@@ -5652,62 +5652,6 @@
         }
       }
     },
-    "Analyze during play" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Während des Spiels analysieren"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ανάλυση την ώρα που παίζεις"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تحلیل در حین بازی"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analyseren tijdens het spel"
-          }
-        }
-      }
-    },
-    "Work out each move's best play as you go, so the post-game review opens instantly. Off by default — it shares the computer's processing power, so the computer can be slower to move. Uses a little more battery." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Berechnet bei jedem Zug schon während des Spiels den besten Zug, damit die Analyse nach der Partie sofort öffnet. Standardmäßig aus – es teilt sich die Rechenleistung mit dem Computer, sodass der Computer langsamer ziehen kann. Braucht etwas mehr Akku."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Υπολογίζει την καλύτερη κίνηση σε κάθε γύρο ενώ παίζεις, ώστε η ανάλυση μετά την παρτίδα να ανοίγει αμέσως. Ανενεργό από προεπιλογή — μοιράζεται την υπολογιστική ισχύ με τον αντίπαλο υπολογιστή, οπότε αυτός μπορεί να παίζει πιο αργά. Καταναλώνει λίγη παραπάνω μπαταρία."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "بهترین حرکت هر نوبت را همان موقع محاسبه می‌کند تا بررسی پس از بازی فوراً باز شود. به‌طور پیش‌فرض خاموش است — از توان پردازشی کامپیوتر سهم می‌برد، پس ممکن است کامپیوتر کندتر حرکت کند. کمی باتری بیشتری مصرف می‌کند."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Berekent tijdens het spel bij elke zet de beste zet, zodat de nabespreking direct opent. Standaard uit — het deelt de rekenkracht met de computer, waardoor de computer trager kan zetten. Kost iets meer batterij."
-          }
-        }
-      }
-    },
     "No move" : {
       "localizations" : {
         "de" : {

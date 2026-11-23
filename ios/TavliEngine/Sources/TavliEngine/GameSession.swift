@@ -96,7 +96,9 @@ public final class GameSession: ObservableObject {
     /// plies from the initial position reproduces the exact board, with no stored
     /// board state (see `GameSave`). Published so the app can auto-save after every
     /// move (#61) and so history-consuming features observe it.
-    @Published public private(set) var record: GameRecord
+    @Published public private(set) var record: GameRecord {
+        didSet { syncAnalysisJob() }
+    }
 
     /// Which side the AI plays, if any. `nil` means a human-vs-human session.
     public var aiColor: Color? { record.aiColor }
@@ -105,15 +107,31 @@ public final class GameSession: ObservableObject {
     /// One entry per finished turn, in play order (empty `halfMoves` = a forced pass).
     public var history: [PlyRecord] { record.plies }
 
-    /// The 2-ply analysis accumulated during play (#146), in play order. Empty when
-    /// in-play analysis is off, when there is no model, or before any analyzable ply
-    /// has completed. Written into the finished game's log entry so the review reuses it,
-    /// and into every save (`snapshot`), so a resumed game keeps it. Covers every ply
-    /// played with analysis on — a ply committed before its background ranking finished
-    /// is added when the ranking completes.
+    /// The background analysis of this game so far (#146, #243), in play order: every
+    /// ply both sides played, at the depth reached (1 → 2 → 3-ply), with its dice luck.
+    /// Comes from `analysisJob` once a service is attached; before that, what a resumed
+    /// save carried. Written into every save (`snapshot`) and the finished game's log
+    /// entry, so a resumed game, a reopened review or a relaunch continues from it.
     public var inPlayAnalysis: [AnalysisEntry] {
-        analysisByPly.values.sorted { $0.plyNumber < $1.plyNumber }
+        analysisJob?.entries ?? restoredAnalysis
     }
+
+    /// The analysis owner (#243). Attaching one analyses the game **as it is played**:
+    /// every ply both sides record is handed to the service's job for this `gameId`
+    /// (a new game gets a new job; the old one finishes on its own), and the session
+    /// holds the service's `gate` while the player waits for something — the
+    /// computer's search, a hint, weighted dice — so the analysis never slows those
+    /// down. `nil` (the default) analyses nothing. No effect in attempt mode (the drill).
+    public var analysisService: AnalysisService? {
+        didSet {
+            if oldValue !== analysisService { oldValue?.gate.setHeld(false, by: self) }
+            syncAnalysisJob()
+            updateAnalysisGate()
+        }
+    }
+
+    /// This game's job in `analysisService` (#243), or `nil` without one.
+    public private(set) var analysisJob: GameAnalysisJob?
 
     /// Knobs for the AI's search. Mutable so the settings screen can retune the
     /// AI-strength dial (`maxDepth` + `selectionNoise`, #108) mid-game; the view keeps it
@@ -129,17 +147,9 @@ public final class GameSession: ObservableObject {
     /// the settings toggle.
     public var autoRoll: Bool
 
-    /// In-play analysis mode (#146): when true the session computes each ply's 2-ply
-    /// analysis *while the game is played* — captured for free from the AI's own move
-    /// search on its turns, and ranked in the background during the human's thinking
-    /// time on theirs — and accumulates it in `inPlayAnalysis`. Persisting that with
-    /// the finished game (see the game log) lets the post-game review open instantly,
-    /// leaving only the 3-ply borderline refinement. Mutable so the settings toggle can
-    /// flip it mid-game; the view keeps it in sync. Spends CPU/battery while playing, so
-    /// it is gated. No effect in attempt mode (the drill) or without a model.
-    public var inPlayAnalysisEnabled: Bool
-
-    @Published public private(set) var phase: TurnPhase = .awaitingRoll
+    @Published public private(set) var phase: TurnPhase = .awaitingRoll {
+        didSet { if phase != oldValue { updateAnalysisGate() } }
+    }
     @Published public private(set) var legalMoves: [Move] = []
 
     /// The roll of the turn in progress (#171): set the moment dice exist for the
@@ -187,46 +197,10 @@ public final class GameSession: ObservableObject {
     /// mutating the fresh game.
     private var aiTurnEpoch = 0
 
-    // ── In-play analysis (#146) ────────────────────────────────────────────────
-    /// Accumulated per-ply 2-ply analysis, keyed by 1-based ply number, in
-    /// `record.plies` index space. Filled as each ply completes (the AI's from its
-    /// search, the human's from the background ranking). Persisted with the finished
-    /// game so the review opens without re-computing the 2-ply pass.
-    private var analysisByPly: [Int: AnalysisEntry] = [:]
-    /// The background 2-ply ranking of the human's legal moves for the current turn,
-    /// kept so transitions that change the position can cancel it.
-    private var humanAnalysisTask: Task<Void, Never>? = nil
-    /// The completed background ranking, one score per entry of `legalMoves` (same
-    /// order, since move generation is deterministic), or `nil` until it finishes.
-    /// Read on move commit to record the played/best scores; cleared each turn.
-    private var humanAnalysisScores: [Float]? = nil
-    /// Bumped on every transition that invalidates the human ranking (a new turn, a
-    /// step-back, surrender, a new game) so a still-running ranking detects it and
-    /// discards its stale result instead of recording it against the wrong position.
-    private var analysisEpoch = 0
-    /// The pre-move position the ranking in flight was started for, so a ply committed
-    /// **before** its ranking finished can still be captured once it does.
-    private struct RankingContext {
-        let epoch: Int
-        let stacks: [[Color]]
-        let die1: Int
-        let die2: Int
-        let color: Color
-        let config: GameConfig
-    }
-    private var currentRanking: RankingContext? = nil
-    /// A ply committed before its ranking finished: captured when the ranking completes
-    /// (keyed by that ranking's epoch). Without this a quick move — typical for forced
-    /// bear-offs and the AI with animations off — was never captured, so the saved
-    /// analysis had holes and the review opened on the captured plies only.
-    private struct PendingCapture {
-        let ranking: RankingContext
-        let plyNumber: Int
-        let played: [[Int]]
-        let gameId: UUID
-    }
-    private var pendingCaptures: [Int: PendingCapture] = [:]
-    private var pendingCaptureTasks: [Int: Task<Void, Never>] = [:]
+    // ── Background analysis (#243) ────────────────────────────────────────────
+    /// The analysis a resumed save carried (only entries that still describe the
+    /// replayed plies), handed to the job when a service is attached.
+    private var restoredAnalysis: [AnalysisEntry] = []
 
     /// Latest win probability for WHITE (∈ [0, 1]), updated after each AI move.
     @Published public private(set) var winProbability: Double = 0.5
@@ -259,12 +233,16 @@ public final class GameSession: ObservableObject {
     public let handicapAgent: Agent?
     /// True while a weighted roll is being prepared (the 21 rolls rated off the main
     /// actor). Rolling, undo and the handicap buttons wait for it.
-    @Published public private(set) var preparingDice = false
+    @Published public private(set) var preparingDice = false {
+        didSet { if preparingDice != oldValue { updateAnalysisGate() } }
+    }
     /// The best move for the turn in progress, shown after a hint was used (`[from,
     /// to]` pairs, the generator's form), or `nil`. Cleared as soon as a checker moves.
     @Published public private(set) var hint: [[Int]]? = nil
     /// A hint is being computed (2-ply, off the main actor).
-    @Published public private(set) var hintPending = false
+    @Published public private(set) var hintPending = false {
+        didSet { if hintPending != oldValue { updateAnalysisGate() } }
+    }
     /// The side whose computer player last used a reroll (shown as a note until its
     /// next turn), or `nil`.
     @Published public private(set) var lastComputerReroll: Color? = nil
@@ -329,7 +307,6 @@ public final class GameSession: ObservableObject {
                 searchConfig: SearchConfig = .standard,
                 animationTimings: AnimationTimings = .standard,
                 autoRoll: Bool = false,
-                inPlayAnalysis: Bool = false,
                 handicap: HandicapSetup? = nil,
                 handicapAgent: Agent? = nil,
                 aiLevel: Int? = nil) {
@@ -356,7 +333,6 @@ public final class GameSession: ObservableObject {
         self.searchConfig = searchConfig
         self.animationTimings = animationTimings
         self.autoRoll = autoRoll
-        self.inPlayAnalysisEnabled = inPlayAnalysis
         self.moveBuilder = MoveBuilder(legalMoves: [], board: game.board)
     }
 
@@ -593,7 +569,6 @@ public final class GameSession: ObservableObject {
             }
         } else {
             recordTurn(mover: game.currentPlayer, move: move)
-            captureMoveAnalysis(playedMove: move)
             finishTurn()
         }
     }
@@ -616,8 +591,8 @@ public final class GameSession: ObservableObject {
     /// turn is stopped first, so nothing lands on the board afterwards: the computer's
     /// search (its result is discarded by the epoch bump), its dice tumble and hop
     /// animation, an auto-roll / forced-pass timer, a weighted roll or reroll being
-    /// prepared, a hint and the in-play ranking. Every half-move of the unfinished turn
-    /// is taken back — the human's half-built move as well as hops of the computer's move
+    /// prepared and a hint (the background-analysis gate is released with the phase).
+    /// Every half-move of the unfinished turn is taken back — the human's half-built move as well as hops of the computer's move
     /// that already landed — so the board shows the position at the start of that turn,
     /// exactly what `record.plies` (which never holds a partial ply) replays to.
     ///
@@ -632,7 +607,6 @@ public final class GameSession: ObservableObject {
         stopTurnInFlight()
         discardPendingHandicapRoll()
         restoreRollOnStart = false
-        cancelHumanAnalysis()
         clearHint()
         for hm in moveBuilder.built.reversed() { game.variant.undoHalfMove(hm, on: game.board) }
         moveBuilder = MoveBuilder(legalMoves: [], board: game.board)
@@ -670,9 +644,6 @@ public final class GameSession: ObservableObject {
         stopTurnInFlight()
         pendingRoll = nil
         restoreRollOnStart = false
-        cancelHumanAnalysis()
-        dropPendingCaptures()
-        analysisByPly = [:]
         // Same handicap (its final values if it was adjusted, #236), fresh tokens (#148).
         let next = record.handicap?.forNextGame
         let setup = next?.isActive == true ? next : nil
@@ -734,7 +705,6 @@ public final class GameSession: ObservableObject {
                                   die1: game.dice.die1.value, die2: game.dice.die2.value)
         clearSelection()
         refreshSources()
-        startMoveAnalysis()
     }
 
     private func refreshSources() {
@@ -862,7 +832,6 @@ public final class GameSession: ObservableObject {
         }
         // Keep record.plies in sync with undoHistory (both track one entry per turn).
         record.plies = Array(record.plies.prefix(target))
-        pruneStaleAnalysis()   // drop in-play analysis (#146) of the rewound plies
 
         game.setPlayer(restoredColor)
         game.dice.set(d1, d2)
@@ -957,11 +926,6 @@ public final class GameSession: ObservableObject {
         moveBuilder = MoveBuilder(legalMoves: legalMoves, board: game.board,
                                   die1: game.dice.die1.value, die2: game.dice.die2.value)
 
-        // Rank this position at full-strength 2-ply in the background — the same pass and
-        // grading as a human turn (#108) — so the AI's ply is captured played-vs-best even
-        // when its *play* search was weakened (1-ply + noise). No-op without a model/analysis.
-        startMoveAnalysis()
-
         guard let agent else {
             // No model available — fall back to a random legal move.
             let move = legalMoves.randomElement()!
@@ -1037,7 +1001,6 @@ public final class GameSession: ObservableObject {
         let mover = game.currentPlayer
         game.variant.apply(move, on: game.board)
         recordTurn(mover: mover, move: move)
-        captureMoveAnalysis(playedMove: move)
         if let score {
             // `score` is the win probability for the side that just moved.
             winProbability = (mover == .white) ? Double(score) : 1 - Double(score)
@@ -1115,7 +1078,6 @@ public final class GameSession: ObservableObject {
                 s.winProbability = (mover == .white) ? Double(score) : 1 - Double(score)
             }
             s.recordTurn(mover: mover, move: move)
-            s.captureMoveAnalysis(playedMove: move)
             s.finishTurn()
         }
     }
@@ -1221,7 +1183,6 @@ public final class GameSession: ObservableObject {
         guard canReroll else { return }
         takeBackBuiltMove()
         clearHint()
-        cancelHumanAnalysis()
         selectableSources = []
         legalMoves = []
         handicap?.rerollsLeft[currentPlayer] -= 1
@@ -1596,193 +1557,37 @@ public final class GameSession: ObservableObject {
         ))
     }
 
-    // ── In-play analysis (#146) ────────────────────────────────────────────────
+    // ── Background analysis (#243) ────────────────────────────────────────────
 
-    /// Kick off a background 2-ply ranking of the legal moves for the turn just begun, so
-    /// the played move can be scored the instant it is committed. Runs for **both** the
-    /// human's and the AI's turns (#108): the AI's *play* search may be weakened (1-ply +
-    /// selection noise), but its ply must be graded by the same full-strength yardstick as
-    /// the human's, so it gets the same 2-ply ranking here. Runs only when analysis is
-    /// enabled, a model is present, and it is a real (non-drill) turn with moves to rank — a
-    /// forced single move included, which the review scores too. The ranking is the *same*
-    /// `evaluateMovesNply(depth: 2)` over the *same* `legalMoves` the post-game review uses,
-    /// so the captured scores match a from-scratch review exactly. It scores an isolated
-    /// board copy off the main actor (exactly as the AI search does) and stores its result
-    /// only if the turn hasn't moved on (the epoch still matches).
-    private func startMoveAnalysis() {
-        cancelHumanAnalysis()
-        guard inPlayAnalysisEnabled, onMoveAttempt == nil,
-              let agent, !legalMoves.isEmpty else { return }
-
-        let epoch = analysisEpoch
-        let color = game.currentPlayer
-        let search = searchConfig
-        let config = game.board.config
-        let stacks = game.board.captureStacks()
-        let d1 = game.dice.die1.value
-        let d2 = game.dice.die2.value
-        currentRanking = RankingContext(epoch: epoch, stacks: stacks, die1: d1, die2: d2,
-                                        color: color, config: config)
-        humanAnalysisTask = Task.detached(priority: .utility) { [weak self] in
-            let board = GameBoard(config: config)
-            board.restoreStacks(stacks)
-            let dice = Dice(numberOfSides: config.dieSides)
-            dice.set(d1, d2)
-            // Move generation is deterministic, so this copy's moves match the live
-            // `legalMoves` index-for-index — the score at index i grades `legalMoves[i]`.
-            let copyMoves = config.variant.legalMoves(on: board, color: color, dice: dice)
-            let scores = try? agent.evaluateMovesNply(
-                board, copyMoves, color: color, depth: 2,
-                beamThreshold: search.beamThreshold, relativeCutoff: search.relativeCutoff,
-                maxBranch: search.maxBranch, deadline: nil)
-            await MainActor.run { [weak self] in
-                guard let self else { return }
-                // The ply was committed before this ranking finished: capture it now.
-                if let pending = self.pendingCaptures.removeValue(forKey: epoch) {
-                    self.pendingCaptureTasks[epoch] = nil
-                    if let scores { self.completeDeferredCapture(pending, scores: scores) }
-                    return
-                }
-                guard !Task.isCancelled, self.analysisEpoch == epoch,
-                      let scores, scores.count == self.legalMoves.count else { return }
-                self.humanAnalysisScores = scores
-            }
-        }
-    }
-
-    /// Record the just-committed ply's 2-ply analysis from the background ranking, if it
-    /// finished in time. Used for **both** sides (#108): the played move (the human's, or
-    /// the AI's possibly-weakened pick) is keyed to its score by net board delta and the
-    /// best to the argmax — the exact selection `GameReview` uses — so the stored entry is
-    /// identical to a from-scratch depth-2 review of this ply. If the ranking isn't ready
-    /// (the mover committed faster than it computed), the ranking is left running and the
-    /// ply is captured when it finishes (`completeDeferredCapture`), so every ply played
-    /// with analysis on ends up in `inPlayAnalysis`. Call right after `recordTurn`, so
-    /// `record.plies.count` is this ply's 1-based number.
-    private func captureMoveAnalysis(playedMove move: Move) {
-        guard inPlayAnalysisEnabled else { return }
-        guard let scores = humanAnalysisScores else {
-            // Not ranked yet: hand the in-flight ranking over to a deferred capture, out
-            // of reach of `cancelHumanAnalysis` (the next turn would cancel it).
-            if let ranking = currentRanking, ranking.epoch == analysisEpoch,
-               let task = humanAnalysisTask {
-                pendingCaptures[ranking.epoch] = PendingCapture(
-                    ranking: ranking, plyNumber: record.plies.count,
-                    played: pairs(of: move), gameId: record.gameId)
-                pendingCaptureTasks[ranking.epoch] = task
-                humanAnalysisTask = nil
-                currentRanking = nil
-            }
+    /// Keep `analysisJob` on this game: a new `gameId` (a new game) takes a new job,
+    /// every other record change (a ply, a step-back, the outcome) is passed on.
+    private func syncAnalysisJob() {
+        guard let service = analysisService, onMoveAttempt == nil else {
+            analysisJob = nil
             return
         }
-        guard scores.count == legalMoves.count,
-              let bestIdx = GameReview.argmax(scores),
-              var playedIdx = GameReview.matchRecorded(pairs(of: move), legalMoves) else { return }
-        if GameReview.deltaMatchCount(pairs(of: move), legalMoves) > 1, let mover = move.halfMoves.first?.color {
-            // Ambiguous by net delta (Portes hits): match by resulting position on the
-            // pre-move board, then put the played move back.
-            game.variant.undo(move, on: game.board)
-            playedIdx = GameReview.matchRecorded(pairs(of: move), legalMoves, on: game.board, mover: mover) ?? playedIdx
-            game.variant.apply(move, on: game.board)
+        if let job = analysisJob, job.gameId == record.gameId {
+            job.update(record: record)
+        } else {
+            analysisJob = service.job(for: record, agent: agent ?? handicapAgent, seed: restoredAnalysis)
         }
-        let plyNumber = record.plies.count
-        analysisByPly[plyNumber] = AnalysisEntry(
-            plyNumber: plyNumber,
-            playedMove: pairs(of: move),
-            playedScore: Double(scores[playedIdx]),
-            bestMove: pairs(of: legalMoves[bestIdx]),
-            bestScore: Double(scores[bestIdx]),
-            depth: 2)
     }
 
-    /// Cancel any in-flight human ranking and drop its (now stale) result, bumping the
-    /// epoch so a late completion discards itself. Called whenever the position the
-    /// ranking was computed for is left (a new turn, step-back, surrender, or new game).
-    private func cancelHumanAnalysis() {
-        humanAnalysisTask?.cancel()
-        humanAnalysisTask = nil
-        humanAnalysisScores = nil
-        currentRanking = nil
-        analysisEpoch += 1
+    /// Hold the analysis gate while the player waits on the session: the computer's
+    /// search, a hint, a weighted roll / reroll decision being prepared (#243).
+    private func updateAnalysisGate() {
+        guard let gate = analysisService?.gate else { return }
+        gate.setHeld(phase == .aiThinking || hintPending || preparingDice, by: self)
     }
 
-    /// Store a ply committed before its ranking finished, now that it has. Rebuilds the
-    /// ranked position (move generation is deterministic, so `scores[i]` grades the
-    /// rebuilt `moves[i]`) and keys the played move and the best exactly as an on-time
-    /// capture does. Skipped when the ply is no longer in this game's history (a new
-    /// game, or a step-back that replaced it).
-    private func completeDeferredCapture(_ p: PendingCapture, scores: [Float]) {
-        guard inPlayAnalysisEnabled, record.gameId == p.gameId,
-              p.plyNumber >= 1, p.plyNumber <= record.plies.count,
-              record.plies[p.plyNumber - 1].halfMoves == p.played else { return }
-        let r = p.ranking
-        let board = GameBoard(config: r.config)
-        board.restoreStacks(r.stacks)
-        let dice = Dice(numberOfSides: r.config.dieSides)
-        dice.set(r.die1, r.die2)
-        let moves = r.config.variant.legalMoves(on: board, color: r.color, dice: dice)
-        guard scores.count == moves.count, let bestIdx = GameReview.argmax(scores),
-              let playedIdx = GameReview.matchRecorded(p.played, moves, on: board, mover: r.color)
-        else { return }
-        analysisByPly[p.plyNumber] = AnalysisEntry(
-            plyNumber: p.plyNumber,
-            playedMove: p.played,
-            playedScore: Double(scores[playedIdx]),
-            bestMove: pairs(of: moves[bestIdx]),
-            bestScore: Double(scores[bestIdx]),
-            depth: 2)
-    }
-
-    /// Take back the in-play analysis a save carried (#146), so a resumed game keeps what
-    /// was captured before the save. Only entries that still describe the replayed ply
-    /// (same number, same recorded move) are kept; luck-only pass entries are not
-    /// in-play analysis and are skipped.
+    /// Take back the analysis a save carried (#146), so a resumed game keeps what was
+    /// computed before the save. Only entries that still describe the replayed ply
+    /// (same number, same recorded move; passes: an empty move) are kept.
     private func restoreAnalysis(_ entries: [AnalysisEntry]) {
-        for e in entries where !e.isPass {
-            guard e.plyNumber >= 1, e.plyNumber <= record.plies.count,
-                  record.plies[e.plyNumber - 1].halfMoves == e.playedMove else { continue }
-            analysisByPly[e.plyNumber] = e
+        restoredAnalysis = entries.filter { e in
+            e.plyNumber >= 1 && e.plyNumber <= record.plies.count
+                && record.plies[e.plyNumber - 1].halfMoves == e.playedMove
         }
-    }
-
-    /// Drop every deferred capture (a new game).
-    private func dropPendingCaptures() {
-        for task in pendingCaptureTasks.values { task.cancel() }
-        pendingCaptures = [:]
-        pendingCaptureTasks = [:]
-    }
-
-    /// Drop in-play analysis (#146) for plies past the current history length after a
-    /// step-back rewinds part of the game. `analysisByPly` is keyed by ply number, so an
-    /// entry from an undone line would otherwise survive and be mis-keyed onto the
-    /// *re-played* ply's position in the post-game review/drill — surfacing a move that no
-    /// longer fits the board (an "impossible" position). Re-played plies re-capture their
-    /// own analysis, so anything within the new length is left untouched. Call right after
-    /// truncating `record.plies`.
-    private func pruneStaleAnalysis() {
-        analysisByPly = analysisByPly.filter { $0.key <= record.plies.count }
-    }
-
-    /// The `[from, to]` half-move pairs of a move, in stored order — the same shape
-    /// `recordTurn` and `AnalysisEntry` use.
-    private func pairs(of move: Move) -> [[Int]] {
-        move.halfMoves.map { [$0.from.position, $0.to.position] }
-    }
-
-    // ── In-play analysis: testing seams (#146) ────────────────────────────────
-    // `internal`, so they reach `@testable` tests but never the app (a separate module
-    // that imports only the public surface). They let a test commit a human move only
-    // once its background ranking is ready, and observe cancellation.
-
-    /// Whether the human ranking has finished and its scores are staged for capture.
-    var inPlayAnalysisReadyForTesting: Bool { humanAnalysisScores != nil }
-    /// Whether a human ranking task is currently retained (cleared on cancel).
-    var inPlayAnalysisTaskActiveForTesting: Bool { humanAnalysisTask != nil }
-    /// Await the in-flight human ranking so a test can act once its scores are ready.
-    func awaitInPlayAnalysisForTesting() async { await humanAnalysisTask?.value }
-    /// Await every deferred capture (plies committed before their ranking finished).
-    func awaitPendingCapturesForTesting() async {
-        while let task = pendingCaptureTasks.values.first { await task.value }
     }
 
     // ── Drill seeding (#63) ───────────────────────────────────────────────────
@@ -1824,7 +1629,6 @@ public final class GameSession: ObservableObject {
                               searchConfig: SearchConfig = .standard,
                               animationTimings: AnimationTimings = .standard,
                               autoRoll: Bool = false,
-                              inPlayAnalysis: Bool = false,
                               handicapAgent: Agent? = nil) -> GameSession {
         let starting = Color(rawValue: save.startingPlayer) ?? .black
         let aiColor = save.aiColor.flatMap { Color(rawValue: $0) }
@@ -1835,7 +1639,6 @@ public final class GameSession: ObservableObject {
                                   searchConfig: searchConfig,
                                   animationTimings: animationTimings,
                                   autoRoll: autoRoll,
-                                  inPlayAnalysis: inPlayAnalysis,
                                   handicap: save.handicap?.setup,
                                   handicapAgent: handicapAgent,
                                   aiLevel: save.aiLevel)
@@ -1845,6 +1648,11 @@ public final class GameSession: ObservableObject {
                                                  rerollsLeft: saved.rerollsLeft,
                                                  hintsLeft: saved.hintsLeft)
         }
+        // The same game keeps its identity (#104, #243): its background analysis job, the
+        // autosave patches and the game-log entry all follow `gameId`. (Before, every
+        // resume minted a new id, so the analysis landing after a relaunch could not find
+        // the autosave it belonged to.) Pre-#104 saves have none and keep the fresh one.
+        if let id = save.gameId { session.record.gameId = id }
         session.replay(save.history)
         session.restoreAnalysis(save.analysis ?? [])
         // Restore the roll of the turn in progress (#171); `start()` re-enters that

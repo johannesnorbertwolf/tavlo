@@ -250,7 +250,9 @@ enum SettingsKey {
     static let autoRoll           = "settings.autoRoll"
     static let aiAnimation        = "settings.aiAnimationEnabled"
     static let showWinProbability = "settings.showWinProbability"
-    static let inPlayAnalysis      = "settings.inPlayAnalysis"
+    /// The retired "Analyze during play" switch (#146): analysis always runs in the
+    /// background now (#243). Kept only so the launch migration can remove it.
+    static let retiredInPlayAnalysis = "settings.inPlayAnalysis"
     /// The AI level 1...8 (#189; replaced the #108 `settings.aiStrength` slider).
     static let aiLevel             = AILevel.storageKey
     static let matchLength         = "settings.matchLength"
@@ -295,17 +297,6 @@ enum AppSettings {
         UserDefaults.standard.object(forKey: SettingsKey.showWinProbability) as? Bool ?? false
     }
 
-    /// Whether to compute each ply's 2-ply analysis during play (#146), so the
-    /// post-game review opens instantly. Default **off** — the background ranking is
-    /// an unpruned 2-ply sweep over every legal move that competes with the AI's own
-    /// (pruned) move search for the CPU/Core ML, which can make the AI's turn slow on
-    /// busy positions. With it off, gameplay stays snappy and the review computes its
-    /// analysis progressively (1→2→3-ply) when opened. The user can opt in to spend
-    /// the in-play CPU/battery for an instant-opening review.
-    static var inPlayAnalysisEnabled: Bool {
-        UserDefaults.standard.object(forKey: SettingsKey.inPlayAnalysis) as? Bool ?? false
-    }
-
     /// The AI level (#189), 1...8, default **8 = full strength**. See `AILevel`.
     static var aiLevel: Int { AILevel.load() }
 
@@ -319,6 +310,9 @@ enum AppSettings {
     static func migrateLegacySettings() {
         AILevel.migrate()
         PlayAsPreference.migrate()
+        // #243: background analysis is always on (it pauses while the computer thinks,
+        // so it no longer slows it down); the old switch has no meaning any more.
+        UserDefaults.standard.removeObject(forKey: SettingsKey.retiredInPlayAnalysis)
     }
 
     /// How many games an offline (vs-AI) session plays (#145). Default `.bestOfThree`.
@@ -374,4 +368,12 @@ enum DeveloperTools {
         return setting
         #endif
     }
+}
+
+extension AnalysisService {
+    /// The app's one analysis owner (#243): every offline game is analysed in the
+    /// background as it is played (`RootView` attaches each session), the review and the
+    /// drill read its jobs, and landed results go into the game log (finished games) or
+    /// the autosave (the game in progress).
+    @MainActor static let app = AnalysisService(gameLog: .default(), saveStore: .default())
 }

@@ -159,7 +159,6 @@ struct GameView: View {
     @AppStorage(SettingsKey.autoRoll) private var autoRoll = true
     @AppStorage(SettingsKey.showWinProbability) private var showWinProbability = false
     @AppStorage(SettingsKey.aiAnimation) private var aiAnimation = true
-    @AppStorage(SettingsKey.inPlayAnalysis) private var inPlayAnalysis = false
     @AppStorage(SettingsKey.aiLevel) private var aiLevel = AILevel.max
 
     /// Above this human win probability, the resign confirmation also says how
@@ -373,10 +372,11 @@ struct GameView: View {
             // than as a parallel top-level choice.
             .fullScreenCover(isPresented: $showReview) {
                 // A two-player game has no agent of its own; review it with the
-                // variant's model when bundled (#143).
+                // variant's model when bundled (#143) — the one the background analysis
+                // already loaded (#243), not a fresh compile.
                 GameReviewView(record: session.record,
                                agent: session.agent
-                                   ?? GameSession.makeAgent(config: session.game.board.config),
+                                   ?? AnalysisService.app.agent(for: session.game.board.config),
                                humanColor: humanColor)
             }
             .alert("Save game", isPresented: $showingSaveDialog) {
@@ -447,13 +447,6 @@ struct GameView: View {
                 guard online == nil else { return }
                 session.autoRoll = on
                 if on { session.start() }
-            }
-            // In-play analysis (#146): keep the session's flag in sync so toggling it
-            // mid-game takes effect from the next turn (the next human ranking / AI
-            // capture). No restart needed.
-            .onAppear { session.inPlayAnalysisEnabled = inPlayAnalysis }
-            .onChange(of: inPlayAnalysis) { _, on in
-                session.inPlayAnalysisEnabled = on
             }
             // AI level (#108, #189): retune the search on entry and whenever the level
             // moves, so the change lands on the AI's next move without restarting.
