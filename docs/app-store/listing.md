@@ -144,12 +144,12 @@ SPIELEN
 
 LERNEN
 • Drill: Übe die Stellungen, in denen du danebenlagst, bis du den besseren Zug findest
-• Eine Gewinnchancen-Kurve jeder Partie
+• Ein Gewinnchancen-Graph jeder Partie
 • Dein Zug neben dem besten Zug
 • Ungenauigkeiten, Fehler und grobe Patzer, dazu eine Genauigkeit in Prozent
 • Wie viel die Würfel entschieden haben und wie viel du
 
-Dunkelmodus. Auf Englisch, Griechisch, Deutsch und Niederländisch.
+Dark Mode. Auf Englisch, Griechisch, Deutsch und Niederländisch.
 ```
 
 ---
