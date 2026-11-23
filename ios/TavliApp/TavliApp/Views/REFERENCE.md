@@ -985,7 +985,8 @@ too), and `match.recordGame(winner:points:)`.
     `-settings.appearance` / `-AppleLanguages` overrides work).
   - **App Store screenshot scenes** (#184, `#if DEBUG` only, `ScreenshotScenes.swift`), driven by
     `ios/scripts/appstore_screenshots.sh` (builds once, then per locale × device launches each scene and
-    saves `<outdir>/<locale>/<device>/NN-name.png`). Every scene runs on `ScreenshotFixture.swift`, a
+    saves `<outdir>/<locale>/<device>/NN-name.png`, plus `iphone-medium/`: each iPhone shot scaled
+    1320×2868 → 1206×2622, App Store Connect's required "iPhone with Dynamic Island (medium display)" size). Every scene runs on `ScreenshotFixture.swift`, a
     **generated** realistic house-Plakoto game (you = White vs the level-8 computer; you play 1-ply with
     some selection noise) with its complete review analysis + dice luck embedded as Swift literals —
     regenerate it with the env-gated `ScreenshotFixtureGenerator` test (command in its header). Scenes also
