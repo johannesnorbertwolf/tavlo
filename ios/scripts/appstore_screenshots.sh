@@ -13,11 +13,15 @@
 #   -d DEVICES   space-separated subset of: iphone ipad (default: both)
 #   --no-build   reuse the last build in $DERIVED_DATA
 #
-# Output: OUTDIR/<locale>/<device>/NN-name.png, e.g. OUTDIR/en/iphone/01-play.png.
+# Output: OUTDIR/<locale>/<device>/NN-name.png, e.g. OUTDIR/en/iphone/01-play.png, plus
+# OUTDIR/<locale>/iphone-medium/ for every iPhone shot.
 #
-# Devices (the two App Store sizes; override the UDIDs with IPHONE_UDID / IPAD_UDID):
-#   iphone = iPhone 17 Pro Max simulator, 6.9"  -> 1320 x 2868 portrait
-#   ipad   = iPad Pro 13-inch (M5) simulator, 13" -> 2064 x 2752 portrait
+# Devices (override the UDIDs with IPHONE_UDID / IPAD_UDID):
+#   iphone        = iPhone 17 Pro Max simulator -> 1320 x 2868 portrait, App Store Connect's
+#                   "iPhone with Dynamic Island (large display)"
+#   iphone-medium = the iphone shots scaled to 1206 x 2622 (same aspect within 0.1%), the
+#                   **required** "iPhone with Dynamic Island (medium display)" size (2026)
+#   ipad          = iPad Pro 13-inch (M5) simulator -> 2064 x 2752 portrait, "13-inch display"
 #
 # Per locale each simulator gets that language + region as its system setting (so the
 # status bar and the iPad's date read natively) and is rebooted; the iPad is switched to
@@ -53,7 +57,7 @@ while [ $# -gt 0 ]; do
     -l) LOCALES="$2"; shift 2 ;;
     -d) DEVICES="$2"; shift 2 ;;
     --no-build) BUILD=0; shift ;;
-    -h|--help) sed -n '2,37p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,40p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -188,6 +192,13 @@ for device in $DEVICES; do
       squeeze "$dir/$name.png"
       size="$(sips -g pixelWidth -g pixelHeight "$dir/$name.png" | awk '/pixel/{print $2}' | xargs | tr ' ' 'x')"
       echo "   $name.png  $size"
+      if [ "$device" = iphone ]; then
+        # App Store Connect requires the medium-display size: scale the large shot down.
+        mkdir -p "$OUTDIR/$locale/iphone-medium"
+        sips -z 2622 1206 "$dir/$name.png" --out "$OUTDIR/$locale/iphone-medium/$name.png" >/dev/null
+        squeeze "$OUTDIR/$locale/iphone-medium/$name.png"
+        echo "   iphone-medium/$name.png  1206x2622"
+      fi
     done
   done
 done
