@@ -1723,9 +1723,12 @@ public final class GameSession: ObservableObject {
     /// Apply each recorded half-move directly to the board, alternating the mover
     /// every ply (a pass still passes the turn). Uses the variant's `applyHalfMove`
     /// without re-deriving legal moves, so the
-    /// reconstruction is exact and independent of the bundled model. `undoHistory`
-    /// is left empty after replay — Move objects cannot be reconstructed from saved
-    /// indices, so decision-point undo is unavailable until the first new move.
+    /// reconstruction is exact and independent of the bundled model. Each replayed
+    /// ply is also pushed onto `undoHistory` — its `Move` rebuilt from the very
+    /// half-moves just applied (on the live board's points), with the ply's dice — so
+    /// decision-point undo reaches back past the resume exactly as in a game played
+    /// in one sitting (a resumed Full Tavli leg included). A ply with no half-moves is
+    /// a pass (`move == nil`).
     private func replay(_ plies: [PlyRecord]) {
         let board = game.board
         let upper = board.boardSize + 1
@@ -1737,14 +1740,18 @@ public final class GameSession: ObservableObject {
         restoreRollOnStart = false
 
         for ply in plies {
+            var applied: [HalfMove] = []
             for pair in ply.halfMoves where pair.count == 2 {
                 let from = pair[0], to = pair[1]
                 guard (0...upper).contains(from), (0...upper).contains(to) else { continue }
-                game.variant.applyHalfMove(
-                    HalfMove(from: board.points[from], to: board.points[to], color: mover),
-                    on: board)
+                let hm = HalfMove(from: board.points[from], to: board.points[to], color: mover)
+                game.variant.applyHalfMove(hm, on: board)
+                applied.append(hm)
             }
             record.plies.append(ply)
+            undoHistory.append(UndoRecord(mover: mover,
+                                          move: applied.isEmpty ? nil : Move(applied),
+                                          dice: (ply.die1, ply.die2)))
             if game.isOver() { break }
             mover = mover.opponent
             game.setPlayer(mover)
