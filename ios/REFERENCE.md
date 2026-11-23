@@ -1196,3 +1196,26 @@ ios/
     └── convert_to_coreml.py        gold_v9.pth → PlakotoValue.mlpackage, written to BOTH the
                                      test Fixtures dir and TavliApp/Resources (+ self parity check)
 ```
+
+## Releasing
+
+`ios/scripts/release_archive.sh` is the one way to build a store build:
+
+1. **Models:** refuses to run unless all four `*Value.mlpackage` (Plakoto, PlakotoStandard, Fevga,
+   Portes) are in `TavliApp/TavliApp/Resources`, and checks the archive holds four `.mlmodelc`. A
+   missing model would ship that variant without a computer player.
+2. **Version and build number:** `Info.plist` reads `CFBundleShortVersionString` from
+   `MARKETING_VERSION` and `CFBundleVersion` from `CURRENT_PROJECT_VERSION` (both in `project.yml`).
+   The script overrides the build number with `git rev-list --count HEAD`, so every build from a
+   later commit on main is higher (App Store Connect rejects repeated or lower numbers). It refuses
+   uncommitted changes under `ios/` unless `--allow-dirty` (test archives only). Bump
+   `MARKETING_VERSION` for each App Store version (1.0 → 1.0.1 …).
+3. **Export compliance:** `ITSAppUsesNonExemptEncryption = NO` in `Info.plist` (only Apple's
+   standard HTTPS/Game Center encryption), so App Store Connect doesn't ask at every upload.
+4. **Signing:** automatic, `-allowProvisioningUpdates`, team from `TAVLO_TEAM`. Needs the Apple
+   Developer Program team signed in to Xcode; a free Personal Team can archive but fails the export
+   ("does not have permission to create iOS App Store provisioning profiles").
+5. **Export vs upload:** without flags it writes a signed `.ipa` (`ios/build/release/`, gitignored);
+   `--upload` sends it to App Store Connect, where it appears in TestFlight after processing.
+   Needs the app record (bundle ID `com.plakoto.TavliApp`, Game Center enabled).
+

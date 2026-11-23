@@ -19,3 +19,4 @@ TavliEngine/Tests/TavliEngineTests/Fixtures/*Value.mlpackage
 # Generated app model copy — recreate via ios/scripts/convert_to_coreml.py
 TavliApp/TavliApp/Resources/PlakotoValue.mlpackage
 TavliApp/TavliApp/Resources/*Value.mlpackage
+build/

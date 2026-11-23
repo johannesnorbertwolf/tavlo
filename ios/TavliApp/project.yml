@@ -49,6 +49,10 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         PRODUCT_BUNDLE_IDENTIFIER: com.plakoto.TavliApp
         INFOPLIST_FILE: TavliApp/Info.plist
+        # The App Store version, and the build number. `ios/scripts/release_archive.sh`
+        # overrides the build number with the commit count on main (always increasing).
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
         # Game Center capability (#134). Signing the entitlement needs a real
         # DEVELOPMENT_TEAM and the app registered in App Store Connect with Game
         # Center enabled; compile-only builds pass CODE_SIGNING_ALLOWED=NO.
