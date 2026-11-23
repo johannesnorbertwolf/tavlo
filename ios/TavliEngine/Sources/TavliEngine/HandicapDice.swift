@@ -139,6 +139,16 @@ public struct HandicapTable: Codable, Equatable, Sendable {
     /// An empty table: every dice lever unmeasured.
     public static let unmeasured = HandicapTable()
 
+    /// The variants the table was measured in (#246): house Plakoto only (the E1/E3
+    /// sweeps on gold_v11). Other variants have no entries yet.
+    public static let measuredVariantIDs: Set<String> = [HandicapSetup.positionAndRulesVariantID]
+
+    /// This table for a game of `variantID`: itself where it was measured, else
+    /// `unmeasured` (every dice lever "not measured yet").
+    public func forVariant(_ variantID: String) -> HandicapTable {
+        Self.measuredVariantIDs.contains(variantID) ? self : .unmeasured
+    }
+
     public static func decode(_ data: Data) -> HandicapTable? {
         try? JSONDecoder().decode(HandicapTable.self, from: data)
     }
@@ -220,6 +230,14 @@ public struct HandicapEstimate: Equatable, Sendable {
 }
 
 public enum HandicapEstimator {
+    /// Whether the builder / card can show a win-chance estimate for `variantID` (#246):
+    /// house Plakoto only. Elsewhere the table has no entries yet, and the 2-point
+    /// variants' net values are normalized equity, not a win chance — the estimate then
+    /// says "not measured yet" instead of a number.
+    public static func isMeasured(variantID: String) -> Bool {
+        HandicapTable.measuredVariantIDs.contains(variantID)
+    }
+
     /// Per head-start checker, the relative boost to the same side's dice-lever shift
     /// (fitted on E1's head-start × dice combos: ≈ 1.4× at m = 4).
     public static let headStartDiceInteraction = 0.1

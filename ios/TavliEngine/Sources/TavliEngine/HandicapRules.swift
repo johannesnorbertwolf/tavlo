@@ -67,7 +67,7 @@ public extension GameConfig {
 
     /// This config with `setup`'s tier-2 rules — only for house Plakoto, else unchanged.
     func applying(_ setup: HandicapSetup?) -> GameConfig {
-        guard let setup, HandicapSetup.supports(variantID: variant.id) else { return self }
+        guard let setup, HandicapSetup.supportsHeadStartAndRules(variantID: variant.id) else { return self }
         return withHandicapRules(setup.rules)
     }
 }

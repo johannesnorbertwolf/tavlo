@@ -310,11 +310,12 @@ public final class GameSession: ObservableObject {
                 handicap: HandicapSetup? = nil,
                 handicapAgent: Agent? = nil,
                 aiLevel: Int? = nil) {
-        // A handicap applies only when active and only to house Plakoto (#148); any
-        // other combination is simply a normal game.
+        // A handicap applies when active, in every variant (#246): outside house Plakoto
+        // the head start and the tier-2 rules are dropped (`restricted`), so a setup of
+        // only those is simply a normal game there.
         // A resumed adjusted game whose items were all switched off mid-game stays a
         // handicap game (`isKept`, #236).
-        let setup = handicap.map(\.normalized).flatMap {
+        let setup = handicap.map { $0.normalized.restricted(toVariantID: config.variant.id) }.flatMap {
             $0.isKept && HandicapSetup.supports(variantID: config.variant.id) ? $0 : nil
         }
         let starter = setup?.forcedStarter ?? startingPlayer

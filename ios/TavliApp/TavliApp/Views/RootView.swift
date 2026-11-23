@@ -168,11 +168,10 @@ struct RootView: View {
                         autosaveName = Self.newAutosaveName()
                         match = Self.newMatch(baseStartingPlayer: startingPlayer)
                     }
-                    // A handicap (#148) for a single game or every game of a best-of-three,
-                    // never a Full Tavli leg.
-                    let handicap = fullTavli == nil
-                        ? HandicapPreferences.setupForNewGame(humanColor: pending, variant: pendingVariant)
-                        : nil
+                    // A handicap (#148) for a single game or every game of a best-of-three;
+                    // a Full Tavli leg plays the session's own setup (#246).
+                    let handicap = fullTavli.map { $0.setupForCurrentLeg }
+                        ?? HandicapPreferences.setupForNewGame(humanColor: pending, variant: pendingVariant)
                     session = Self.makeSession(humanColor: pending, startingPlayer: startingPlayer,
                                                variant: pendingVariant, handicap: handicap)
                 } onBack: {
@@ -282,6 +281,8 @@ struct RootView: View {
                 // state right away (finished leg + updated score), so quitting on the
                 // leg overlay or the transition screen resumes exactly there.
                 if var ft = self.fullTavli {
+                    // The leg's handicap, as adjusted during it (#236), runs on (#246).
+                    ft.carryHandicap(from: session.record)
                     ft.recordGame(winner: winner, points: points)
                     self.fullTavli = ft
                     Self.persist(session: session, fullTavli: ft, name: name, store: store)
@@ -322,7 +323,9 @@ struct RootView: View {
     /// Its Plakoto leg follows the variant preference. vs-AI needs every leg's model
     /// (the start screen shows "Computer not available yet" otherwise).
     private func beginFullTavli(humanColor color: EngineColor?) {
-        let ft = AppSettings.newFullTavli(aiColor: color?.opponent)
+        // One handicap for all three legs (#246): dice, rerolls, hints, moves first.
+        let ft = AppSettings.newFullTavli(aiColor: color?.opponent,
+                                          handicap: HandicapPreferences.setupForFullTavli(humanColor: color))
         if color != nil && !ft.isAIAvailable() { return }
         match = nil
         fullTavli = ft
@@ -339,16 +342,20 @@ struct RootView: View {
     /// Start `ft`'s current leg with that leg's variant (and its own model vs the AI).
     /// The starter follows the same rules as a single game: vs the AI the
     /// starting-player setting (fixed starter or the opening-roll ceremony); two
-    /// players `variant.startingPlayer(default: .white)`.
+    /// players `variant.startingPlayer(default: .white)`. A handicap's "moves first"
+    /// side starts every leg (#246), with no opening roll.
     private func startFullTavliLeg(_ ft: FullTavliSession) {
         guard let variant = ft.currentVariant else { return }
         let setting = GameVariantSetting(variant: variant)
         let human = ft.aiColor?.opponent ?? .white
+        let handicap = ft.setupForCurrentLeg
         humanColor = human
         if ft.aiColor != nil {
-            if let starter = AppSettings.startingPlayer.startingPlayer(humanColor: human) {
+            if let starter = handicap?.forcedStarter
+                ?? AppSettings.startingPlayer.startingPlayer(humanColor: human) {
                 fullTavliScreen = nil
-                session = Self.makeSession(humanColor: human, startingPlayer: starter, variant: setting)
+                session = Self.makeSession(humanColor: human, startingPlayer: starter, variant: setting,
+                                           handicap: handicap)
             } else {
                 pendingVariant = setting
                 pendingHumanColor = human   // the opening-roll ceremony, as for a single game
@@ -356,8 +363,8 @@ struct RootView: View {
         } else {
             fullTavliScreen = nil
             session = Self.makeSession(humanColor: .white,
-                                       startingPlayer: variant.startingPlayer(default: .white),
-                                       variant: setting, vsAI: false)
+                                       startingPlayer: ft.startingPlayer(default: variant.startingPlayer(default: .white)),
+                                       variant: setting, vsAI: false, handicap: handicap)
         }
     }
 
@@ -377,8 +384,8 @@ struct RootView: View {
     private func beginGame(humanColor color: EngineColor, variant: GameVariantSetting) {
         guard AppSettings.aiAvailable(variant) else { return }
         leaveFullTavli()
-        // Handicap (#148): house Plakoto, single game or best-of-three; "moves first"
-        // skips the opening roll.
+        // Handicap (#148, every variant since #246): single game or best-of-three; "moves
+        // first" skips the opening roll.
         let handicap = HandicapPreferences.setupForNewGame(humanColor: color, variant: variant)
         if let starter = handicap?.forcedStarter
             ?? AppSettings.startingPlayer.startingPlayer(humanColor: color) {

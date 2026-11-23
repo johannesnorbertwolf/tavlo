@@ -320,8 +320,6 @@ FA = {
     "A lone checker of this side on this point can't be pinned. Points count from the side's own start. A small advantage.":
         "مهرهٔ تنهای این طرف روی این خانه حبس نمی\u200cشود. خانه\u200cها از نقطهٔ شروع همان طرف شمرده می\u200cشوند. یک برتری کوچک.",
     "Always starts the game; no opening roll.": "همیشه بازی را شروع می\u200cکند؛ بدون تاس شروع.",
-    "Applies to offline games of Plakoto (house rules), single or Best of 3. Not online or Full Tavli.":
-        "برای بازی\u200cهای آفلاین پلاکوتو (قوانین خانگی)، تک\u200cبازی یا بهترین از ۳. نه آنلاین و نه تاولی کامل.",
     "Bear off only from the last points of the home board. A smaller home is a disadvantage.":
         "مهره\u200cها فقط از آخرین خانه\u200cهای منطقهٔ خودی بیرون برده می\u200cشوند. منطقهٔ خودی کوچک\u200cتر یک ضعف است.",
     "Before each roll the dice lean towards rolls that are good for this side. The game says so in its Handicap tag.":

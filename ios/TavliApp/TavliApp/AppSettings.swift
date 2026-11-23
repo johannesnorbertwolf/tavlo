@@ -342,9 +342,10 @@ enum AppSettings {
         newFullTavli(aiColor: .black).isAIAvailable()
     }
 
-    /// A fresh Full Tavli session whose Plakoto leg follows the variant preference.
-    static func newFullTavli(aiColor: TavliEngine.Color?) -> FullTavliSession {
-        FullTavliSession(preferredVariantID: VariantPreference.load().id, aiColor: aiColor)
+    /// A fresh Full Tavli session whose Plakoto leg follows the variant preference, with
+    /// the handicap it runs through all three legs (#246; `nil` = none).
+    static func newFullTavli(aiColor: TavliEngine.Color?, handicap: HandicapSetup? = nil) -> FullTavliSession {
+        FullTavliSession(preferredVariantID: VariantPreference.load().id, aiColor: aiColor, handicap: handicap)
     }
 
     /// The animation timings a new or resumed session should use, honouring the

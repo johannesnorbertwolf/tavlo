@@ -97,14 +97,21 @@ final class HandicapTests: XCTestCase {
         XCTAssertNil(try d.decode(GameSave.self, from: Data(json.utf8)).handicap)
     }
 
-    func testOtherVariantIgnoresHandicap() {
+    /// Another variant (#246) plays the model-free items (here moves first) and drops the
+    /// house-Plakoto-only head start; a setup of only those is a normal game there.
+    func testOtherVariantDropsHouseOnlyItems() {
         let setup = HandicapSetup(white: HandicapItems(headStart: 2, movesFirst: true))
         let s = GameSession(startingPlayer: .black,
                             config: GameConfig(variant: GameVariants.portes),
                             animationTimings: .off, handicap: setup)
-        XCTAssertNil(s.handicap)
-        XCTAssertNil(s.record.handicap)
-        XCTAssertEqual(s.startingPlayer, .black)
+        XCTAssertEqual(s.record.handicap, HandicapSetup(white: HandicapItems(movesFirst: true)))
+        XCTAssertEqual(s.startingPlayer, .white)
+        let plain = GameSession(startingPlayer: .black,
+                                config: GameConfig(variant: GameVariants.portes), animationTimings: .off,
+                                handicap: HandicapSetup(white: HandicapItems(headStart: 2)))
+        XCTAssertNil(plain.handicap)
+        XCTAssertNil(plain.record.handicap)
+        XCTAssertEqual(plain.startingPlayer, .black)
     }
 
     // MARK: - Head start (parity with domain/handicap.py pip_headstart)

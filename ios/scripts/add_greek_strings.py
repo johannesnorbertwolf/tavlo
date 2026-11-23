@@ -315,8 +315,6 @@ EL = {
     "A lone checker of this side on this point can't be pinned. Points count from the side's own start. A small advantage.":
         "Ένα μοναχό πούλι αυτής της πλευράς δεν πλακώνεται σε αυτή τη θέση. Οι θέσεις μετράνε από την αφετηρία της πλευράς. Μικρό πλεονέκτημα.",
     "Always starts the game; no opening roll.": "Ξεκινά πάντα το παιχνίδι, χωρίς ζαριά έναρξης.",
-    "Applies to offline games of Plakoto (house rules), single or Best of 3. Not online or Full Tavli.":
-        "Ισχύει για παιχνίδια Πλακωτό (κανόνες σπιτιού) εκτός σύνδεσης, μονά ή 2 στα 3. Όχι online ή στο Πλήρες Τάβλι.",
     "Bear off only from the last points of the home board. A smaller home is a disadvantage.":
         "Μάζεμα μόνο από τις τελευταίες θέσεις του σπιτιού. Μικρότερο σπίτι είναι μειονέκτημα.",
     "Before each roll the dice lean towards rolls that are good for this side. The game says so in its Handicap tag.":

@@ -1079,6 +1079,17 @@ too), and `match.recordGame(winner:points:)`.
   session, later legs return to the transition screen), two players
   `variant.startingPlayer(default: .white)`. `onGameFinished` records the leg (game log + W/L as
   for any game) and immediately autosaves the finished leg with the updated session.
+- **Handicap (#246).** `beginFullTavli` resolves the builder once
+  (`HandicapPreferences.setupForFullTavli`: weighted dice, rerolls, hints, moves first) into
+  `FullTavliSession.handicap`; every leg (`startFullTavliLeg`, and the opening-roll completion)
+  plays `ft.setupForCurrentLeg` (fresh tokens). "Moves first" makes that side start **every leg**
+  with no opening roll (vs AI the forced starter skips the ceremony; two players
+  `ft.startingPlayer(default:)`). `onGameFinished` calls `ft.carryHandicap(from: session.record)`
+  before recording the leg, so a mid-leg change on the handicap card (#236) runs on to the next
+  legs. The session (with its handicap) is in every leg's autosave, so it survives a relaunch mid-leg
+  (the leg's tokens from `GameSave.handicap`) and between legs; changing the builder afterwards
+  doesn't touch a running session. Each leg shows the review note / lands in My Record's handicap
+  block like any handicap game.
 - **Screens.** During play `GameView.FullTavli` shows `FullTavliScoreboardView`; at game over
   `FullTavliLegOverlayView` on the shared `GameOverCard` (verdict + points, score, Continue /
   Review if the leg's model is bundled and the leg has moves / History / Back to menu). The
@@ -1179,22 +1190,39 @@ only when a handicap is active / exists.
   "You"/"White", `.b` = "Computer"/"Red"); weighted dice as a `HandicapDiceStrength` step mapped
   onto the engine's `HandicapSetup.diceTiltSteps`. `setup(humanColor:)` resolves roles into a
   per-colour `HandicapSetup` (vs the computer `.a` = the human, hints always the human's; two
-  players `.a` = White). `applies(variant:length:vsComputer:)`: house Plakoto, offline, a single
-  game or **every game of a best-of-three** (vs the computer or two players); Full Tavli plays
-  unhandicapped. `setupForNewGame` = load + applies + resolve. `HandicapTableResource`
+  players `.a` = White). **Per variant (#246):** offline, vs the computer or two players, in every
+  variant — `setupForNewGame(humanColor:variant:)` (a single game or every game of a
+  best-of-three) = load + resolve + `HandicapSetup.restricted(toVariantID:)` (outside house Plakoto
+  the head start and rule changes are dropped; nothing left → `nil`, a normal game);
+  `setupForFullTavli(humanColor:)` = the same restricted for Full Tavli (weighted dice, rerolls,
+  hints, moves first), stored in `FullTavliSession.handicap` when the session starts (so the
+  preference no longer matters for that session). `isSet(_:)` / `leftOut(variant:fullTavli:)`
+  feed the builder's warning. `HandicapTableResource`
   loads the bundled `HandicapTable.json`; `HandicapCopy` words the tag sheet ("You: 2 checkers start
   6 points ahead", "Dice favour Red moderately").
 - **Settings card.** `HandicapSettingsRow` is a standalone `.chromeCard` at the end of
   `SettingsView` ("Handicap" + "Off"/summary + chevron) presenting `HandicapSettingsView` as a sheet.
 - **Builder.** `HandicapSettingsView`: header + intro, a card with the master toggle, the label
-  switch (`@State vsComputer`, labels only) and the applicability caption ("Applies to offline
-  games of Plakoto (house rules), single or Best of 3. Not online or Full Tavli."; brick tint only
-  when the next game is another variant or Full Tavli), then one `itemCard` per item (title, segmented side picker ≤ 210 pt — on a phone only, a
+  switch (`@State vsComputer`, labels only) and the applicability note (#246, three caption lines:
+  "Plakoto (house rules), single or Best of 3: every item." / "Standard Plakoto, Fevga, Portes and
+  Full Tavli: weighted dice, rerolls, hints and moves first." / "Offline games only."; plus a brick
+  warning when the next game — the remembered variant + length — leaves set items out: "Your next
+  game is Fevga: the head start and rule changes are left out.", or "… so it will be played without
+  a handicap." when nothing set applies). Items the next game can't use stay **visible but
+  disabled** (dimmed controls) with a 🔒 reason from `HandicapSetup.availability` ("Off in Full
+  Tavli: only in Plakoto (house rules), single game or Best of 3." / "Off in Fevga: only in Plakoto
+  (house rules)."): the head start card (reason under its caption) and the whole "Rule changes"
+  group (reason under the heading). "Moves first" reads "Starts every game of Full Tavli; no opening
+  roll." for Full Tavli. Then one `itemCard` per item (title, segmented side picker ≤ 210 pt — on a phone only, a
   `ViewThatFits` drops the picker below the title when the row can't fit it, e.g. Greek "Υπολογιστής", #225 — an integer
   `Slider` with its value label or a toggle, a caption), dimmed/disabled while off, then the estimate
   card. The estimate evaluates side A as White (colour-symmetric) with the start rule the app would
   use: two players → White starts; vs the computer → Settings "First move" (opening roll = roll-off).
-- **Estimate.** `HandicapEstimateModel` (`@MainActor`) caches one Plakoto `Agent`, recomputes
+- **Estimate.** `HandicapEstimateModel.update(setup:rule:variant:)` (`variant` `nil` = Full Tavli):
+  only house Plakoto is measured (#246, `HandicapEstimator.isMeasured`); anything else publishes
+  `notMeasured` ("Not measured yet for Fevga." / "… for Full Tavli.") and `HandicapEstimateView`
+  shows that line under "Estimated win chance" instead of a number (builder, in-game card). The
+  model (`@MainActor`) caches one Plakoto `Agent`, recomputes
   `HandicapEstimator.positionWhiteWinChance` off the main actor when the setup/rule key changes, and
   combines with the table. `HandicapEstimateView` prints "Estimated win chance (approx.)" /
   "You 57% · Computer 43%", the unmeasured line ("Weighted dice and rerolls: not measured yet, so
@@ -1211,7 +1239,8 @@ only when a handicap is active / exists.
   (0…4) and, for a human side only, a "Hints left" stepper (0…5) — each change calls
   `session.adjustHandicap` (from the next roll; dice/hints disabled without a `handicapAgent`, all
   disabled once the game is over); the caption "Changes count from the next roll and carry over to
-  the next games of a Best of 3."; a read-only "Set at the start" card (`HandicapCopy.lines(...,
+  the next games of a Best of 3 or Full Tavli." (#246: a Full Tavli leg's final setup runs on to the
+  next legs, `FullTavliSession.carryHandicap`); a read-only "Set at the start" card (`HandicapCopy.lines(...,
   adjustable: false)`: head start, moves first, overshoot, safe point, checkers, home size — they
   can't change mid-game because replays and the review rebuild the game from them); the estimate
   only before the first move (`record.plies.isEmpty`; it is a start-position number); the fair-dice
