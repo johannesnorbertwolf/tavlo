@@ -315,16 +315,35 @@ so the game flow is validated without a simulator.
   game (a new session, or `newGame`) re-arms it. `replay` (loading a save) deliberately does
   **not** fire it, so resuming a finished game never double-counts.
 
-- **Surrender / resign (#74).** `surrender()` lets the human concede: it discards any half-move
-  built this turn (`board.undoHalfMove`), records the AI side as the winner, and enters `.gameOver`
-  — the same terminal state a played-out loss reaches, so `onGameOver(aiColor)` fires and the loss
-  is counted normally. Gated by `canSurrender` (true only on the human's own `awaitingRoll`/`picking`/
-  `moving` phase of a game with an AI side — never mid-AI-think/animation or once over), so a double
-  tap or a tap during the AI's turn is a no-op and the hook still fires once. It records nothing to
-  `record.plies` (no ply was played), so the app's per-move auto-save hook does **not** fire on
-  resign — the view clears the auto-save slot explicitly via `onAutosave` after confirming.
+- **Surrender / resign (#74).** `surrender(as:)` concedes the game at **any** moment it is still
+  running. Who resigns (`surrenderingColor`): vs the computer always the human (also while the
+  computer is moving; an `as:` naming the computer is ignored); in a two-player game the side on
+  move, or the `as:` colour the view captured when its confirmation opened (so the side named is
+  the side that resigns even if an auto-roll forced pass moved the turn meanwhile). The other side
+  wins **1 point** (`record.points = 1` in a 2-point variant), `record.outcome` is set and the
+  session enters `.gameOver(winner:)` — the same terminal state a played-out game reaches, so
+  `onGameOver` / `onGameFinished(winner, 1)` fire and stats, best-of-three and Full Tavli advance
+  as for any loss (a resigned Full Tavli leg is a lost leg). `canSurrender` is true whenever the
+  phase is not `.gameOver` and the session is not in attempt mode (the drill); a second resign is a
+  no-op, so the hooks fire once. Online matches never call it (their chrome offers "Leave
+  match"/forfeit instead, and `GameView.onSurrenderTapped` guards `online == nil`).
+  **Mid-turn cancellation.** Everything the current turn has in flight is stopped first
+  (`stopTurnInFlight`, shared with `newGame`): `aiTurnEpoch` is bumped (a search still running
+  off the main actor discards its result when it lands; the handicap AI roll checks it too), the
+  animation task is cancelled (`aiDiceRolling` / `aiHopInFlight` cleared), and a pending
+  auto-roll tumble / auto-roll forced pass is cancelled; a weighted roll or reroll being prepared
+  is dropped (`discardPendingHandicapRoll`), the hint cleared and the in-play ranking cancelled.
+  Then **every half-move of the unfinished turn is taken back** (`moveBuilder.built`, undone on
+  the board): the human's half-built move, and equally the computer's hops that had already
+  landed mid-animation. The board therefore shows the position at the start of the turn in which
+  the game was resigned — exactly what `record.plies` (which never holds a partial ply) replays
+  to; `pendingRoll` is cleared. It records nothing to `record.plies`, so the app's per-move
+  auto-save hook does **not** fire on resign — the view clears the auto-save slot explicitly via
+  `onAutosave` after confirming. Covered by `GameSessionSurrenderTests` and
+  `GameSessionResignTests` (two players, 2-point variant, mid-animation, mid-search, handicap
+  roll, auto-roll tumble, drill).
   `humanWinProbability` re-expresses WHITE's `winProbability` for the human side (or `nil` h-vs-h)
-  and drives the UI's double-confirm threshold; the engine owns the perspective flip, the view owns
+  and drives the UI's win-chance warning (vs the computer only); the engine owns the perspective flip, the view owns
   the 10% policy.
 
 ## Game variants (#136; ports #137 Portes, #138 Fevga, #139 standard Plakoto)

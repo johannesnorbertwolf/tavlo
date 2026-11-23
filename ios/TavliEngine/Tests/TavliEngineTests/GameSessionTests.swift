@@ -621,18 +621,18 @@ final class GameSessionSurrenderTests: XCTestCase {
         XCTAssertTrue(s.isTerminal)
     }
 
-    /// A human-vs-human session has no AI side to award the win to, so resign is a
-    /// no-op and `canSurrender` is false.
-    func testSurrenderIsNoOpWithoutAI() {
+    /// A human-vs-human session can resign too: the side on move gives up and the
+    /// other side wins (more in `GameSessionResignTests`).
+    func testSurrenderWithoutAIAwardsWinToTheOtherSide() {
         let s = GameSession(startingPlayer: .white)                 // human-vs-human
-        var hookCalls = 0
-        s.onGameOver = { _ in hookCalls += 1 }
+        var hookWinners: [Color] = []
+        s.onGameOver = { hookWinners.append($0) }
 
-        XCTAssertFalse(s.canSurrender)
+        XCTAssertTrue(s.canSurrender)
         s.surrender()
-        XCTAssertEqual(s.phase, .awaitingRoll)
-        XCTAssertFalse(s.isTerminal)
-        XCTAssertEqual(hookCalls, 0)
+        XCTAssertEqual(s.phase, .gameOver(winner: .black))
+        XCTAssertTrue(s.isTerminal)
+        XCTAssertEqual(hookWinners, [.black])
     }
 
     /// Once resigned, the game is over: `canSurrender` is false and a second resign
