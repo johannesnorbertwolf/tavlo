@@ -37,7 +37,9 @@ final class ResumedUndoTests: XCTestCase {
             let before = s.game.board.captureStacks()
             let (d1, d2) = dice.next()
             s.setDice(d1, d2)
-            guard let chosen = s.moveBuilder.activeMoves.first else { continue }   // forced pass
+            // A forced pass already handed the turn to the AI (which has replied).
+            guard s.phase == .picking, s.currentPlayer == .white,
+                  let chosen = s.moveBuilder.activeMoves.first else { continue }
             decisions.append(Decision(stacks: before, dice: (d1, d2)))
             while s.phase == .picking || s.phase == .moving {
                 guard s.moveBuilder.built.count < chosen.halfMoves.count,
