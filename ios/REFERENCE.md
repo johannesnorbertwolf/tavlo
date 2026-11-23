@@ -150,8 +150,14 @@ so the game flow is validated without a simulator.
     stay in sync. Mirrors the CLI's `undo_to_my_decision`: typically two plies (your move + the
     AI's reply), skipping passes, clamped at game start. The decide-side is `aiColor?.opponent`;
     a human-vs-human session steps back the single last move. `canUndoLastDecision` gates the
-    **"↩ Undo decision"** button in `DebugOverlay`. After `replay` (loading a save),
-    `undoHistory` is empty and `canUndoLastDecision` is false until the first new move.
+    **"↩ Undo decision"** button in `DebugOverlay`. `replay` (loading a save, incl. the
+    cold-launch autosave resume of a Full Tavli leg) rebuilds `undoHistory` too — each ply's
+    `Move` from the very half-moves it applies, with the ply's dice — so undo reaches back past
+    a resume exactly as in a game played in one sitting. (Before this fix `undoHistory` stayed
+    empty after `replay`, greying the button out until the human's first new move; it showed
+    up mostly in Full Tavli, the one multi-game mode that resumes on relaunch.) The button is
+    still correctly disabled when the human has not yet made a real move in this game (e.g. the
+    AI opened the leg), during the AI's turn/animation, and once the game is over.
 
 - **AI integration (T6 + multi-ply search, #58).** `GameSession` optionally drives one side with
   the Core ML `Agent`. Construct it with `agent:` + `aiColor:` (+ optional `searchConfig:`);
@@ -509,7 +515,8 @@ tests, no model/fixtures needed):
   to the board (`board.points[from].pop()` / `board.points[to].push(mover)`, mirroring
   `applyHalfMove`) **without re-deriving legal moves**, alternating the mover every ply and
   stopping early if `game.isOver()`. It lands the session at `.awaitingRoll` (or `.gameOver`)
-  with an empty `MoveBuilder` and a refreshed evaluation. Because turn order always alternates,
+  with an empty `MoveBuilder` and a refreshed evaluation; every replayed ply is also pushed onto
+  `undoHistory` (decision-point undo works across the resume). Because turn order always alternates,
   the mover for ply *i* is `startingPlayer` when *i* is even, else its opponent — no per-ply
   color needs storing. Replay logic lives in `GameSession.swift` (not the model file) so it can
   reach file-private state; Swift `private` is file-scoped. Call `start()` after `resume` (as
