@@ -517,8 +517,13 @@ struct RootView: View {
     /// Load a saved game (from the picker list) and switch into it, carrying its
     /// name forward so the auto-save keeps the same identity.
     private func resume(_ meta: SaveMetadata) {
-        guard let save = try? store.load(filename: meta.filename),
-              let resumed = Self.prepareResume(save) else { return }
+        guard var save = try? store.load(filename: meta.filename) else { return }
+        // A manual save is a fork point that can be loaded and finished more than once:
+        // give each load its own game id, so a second ending gets its own game-log entry
+        // instead of overwriting the first (#104). The autosave is the same game resumed,
+        // and keeps its id so its background analysis follows it (#243).
+        if !meta.isAutosave { save.gameId = UUID() }
+        guard let resumed = Self.prepareResume(save) else { return }
         humanColor = resumed.humanColor
         autosaveName = resumed.name
         match = nil   // a resumed single game is standalone (#145); Full Tavli resumes (#144)
