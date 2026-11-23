@@ -378,14 +378,23 @@ public final class GameSession: ObservableObject {
         return false
     }
 
-    /// Whether the human may resign right now (#74): only on the human's own move
-    /// of a game with an AI side — never mid-AI-think/animation or once it's over.
+    /// Whether resigning is possible right now (#74): at any moment of a game still in
+    /// progress — the human's turn, the computer's search or animation, a pending roll,
+    /// and in a two-player game too. False once the game is over and in attempt mode
+    /// (the drill, which has no game to resign). Online matches never offer it (the
+    /// view shows "Leave match" instead).
     public var canSurrender: Bool {
-        guard aiColor != nil else { return false }
-        switch phase {
-        case .awaitingRoll, .picking, .moving: return true
-        case .aiThinking, .animating, .gameOver: return false
-        }
+        guard onMoveAttempt == nil else { return false }
+        if case .gameOver = phase { return false }
+        return true
+    }
+
+    /// The side that resigns if `surrender()` is called now: vs the computer always the
+    /// human (also while the computer is moving); in a two-player game the side on
+    /// move. `nil` when `canSurrender` is false.
+    public var surrenderingColor: Color? {
+        guard canSurrender else { return nil }
+        return aiColor?.opponent ?? currentPlayer
     }
 
     /// WHITE's latest `winProbability` re-expressed for the human side (the AI's
@@ -598,32 +607,51 @@ public final class GameSession: ObservableObject {
         beginTurn()   // back to .picking at the same position/dice
     }
 
-    /// Resign on the human's behalf (#74): discard any half-move built this turn,
-    /// award the win to the AI, and enter `.gameOver` — the same terminal state a
-    /// played-out loss reaches, so `onGameOver` fires and the loss is recorded. No-op
-    /// once the game is over, while the AI is thinking/animating (`canSurrender`
-    /// guards both), or in a human-vs-human session (no AI side to award the win to).
-    public func surrender() {
-        guard canSurrender, let aiColor else { return }
+    /// Resign (#74): the resigning side gives up and the other side wins. Vs the computer
+    /// the human resigns; in a two-player game the side on move (or `loser`, which the
+    /// view passes so the side named in its confirmation is the one that resigns, even
+    /// if the turn passed while it was open; ignored vs the computer).
+    ///
+    /// Works at any point of a game in progress. Whatever is in flight for the current
+    /// turn is stopped first, so nothing lands on the board afterwards: the computer's
+    /// search (its result is discarded by the epoch bump), its dice tumble and hop
+    /// animation, an auto-roll / forced-pass timer, a weighted roll or reroll being
+    /// prepared, a hint and the in-play ranking. Every half-move of the unfinished turn
+    /// is taken back — the human's half-built move as well as hops of the computer's move
+    /// that already landed — so the board shows the position at the start of that turn,
+    /// exactly what `record.plies` (which never holds a partial ply) replays to.
+    ///
+    /// Then enters `.gameOver(winner:)` — the same terminal state a played-out game
+    /// reaches, so `onGameOver` / `onGameFinished` fire and stats, best-of-three and Full
+    /// Tavli scoring advance as for any loss. A resignation is worth 1 point (a 2-point
+    /// variant records `points = 1`). No-op when `canSurrender` is false.
+    public func surrender(as loser: Color? = nil) {
+        guard let defaultLoser = surrenderingColor else { return }
+        let resigning = aiColor == nil ? (loser ?? defaultLoser) : defaultLoser
+        let winner = resigning.opponent
+        stopTurnInFlight()
+        discardPendingHandicapRoll()
+        restoreRollOnStart = false
         cancelHumanAnalysis()
-        if handicap != nil { clearHint() }
+        clearHint()
         for hm in moveBuilder.built.reversed() { game.variant.undoHalfMove(hm, on: game.board) }
         moveBuilder = MoveBuilder(legalMoves: [], board: game.board)
         clearSelection()
         selectableSources = []
         legalMoves = []
         pendingRoll = nil
-        record.outcome = aiColor
+        record.outcome = winner
+        record.isDraw = false
         if game.variant.maxPoints > 1 { record.points = 1 }
-        phase = .gameOver(winner: aiColor)
-        onGameOver?(aiColor)
-        onGameFinished?(aiColor, 1)
+        phase = .gameOver(winner: winner)
+        onGameOver?(winner)
+        onGameFinished?(winner, 1)
     }
 
-    /// Reset to a fresh game, current player rolling first. Interrupts any
-    /// pending AI turn: the animation task is cancelled and the epoch bumped so
-    /// a still-running search cannot apply a stale move to the fresh board.
-    public func newGame(startingPlayer: Color = .black) {
+    /// Stop everything the current turn has in flight: the computer's search result
+    /// (discarded by the epoch bump), its dice tumble and hop animation, and a pending
+    /// auto-roll or auto-roll forced pass. Shared by `newGame` and `surrender`.
+    private func stopTurnInFlight() {
         aiTurnEpoch += 1
         aiAnimationTask?.cancel()
         aiAnimationTask = nil
@@ -633,6 +661,13 @@ public final class GameSession: ObservableObject {
         autoRollTask = nil
         autoRollPassing = false
         humanDiceRolling = false
+    }
+
+    /// Reset to a fresh game, current player rolling first. Interrupts any
+    /// pending AI turn: the animation task is cancelled and the epoch bumped so
+    /// a still-running search cannot apply a stale move to the fresh board.
+    public func newGame(startingPlayer: Color = .black) {
+        stopTurnInFlight()
         pendingRoll = nil
         restoreRollOnStart = false
         cancelHumanAnalysis()

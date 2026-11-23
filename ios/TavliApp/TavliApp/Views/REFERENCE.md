@@ -433,8 +433,9 @@ variants). Review falls back to `makeAgent(config:)` for a two-player game.
     `simctl io screenshot` polling — attachments garble during rotation on current runtimes).
   - The `SaveButton` and `SurrenderButton` are hidden once `session.isTerminal` (finished
     games aren't saved/resigned, #61/#74). The `SurrenderButton` (destructive brick "Resign")
-    is additionally `.disabled`/dimmed when `!session.canSurrender`, so it greys out — rather
-    than vanishing — while the AI is thinking. All buttons use `ChromeButton` roles
+    is never disabled or dimmed: while the game runs it is always available — in a two-player
+    game and while the computer thinks or animates too (the engine cancels the computer's turn).
+    Online it is replaced by "Leave match". All buttons use `ChromeButton` roles
     (`ChromeKit.swift`, #101).
   - **Move-history sheet (#60):** `DebugOverlay` is passed `onHistory: { showHistory = true }`
     for its "Move history" button. The `.sheet(isPresented: $showHistory)` is attached to the
@@ -455,12 +456,16 @@ variants). Review falls back to `makeAgent(config:)` for a two-player game.
     carries `pendingRoll` and a crash mid-turn resumes with the same dice. Online passes no
     `onAutosave`, so both are no-ops there.
   - **Surrender / resign (#74):** one confirmation everywhere (iPad Resign button and the
-    iPhone "⋯" menu both call `onSurrenderTapped`). It captures `surrenderChanceLine` — "You still
-    have a X% chance of winning." (or "The computer still rates your position at +0.52 points." for a
-    2-point variant via `EvalScale`) only when `session.humanWinProbability` is known **and** above
-    `surrenderWarningThreshold` (10%), else `nil` — then flips `showSurrenderConfirm`. A single
-    `.alert("Give up this game?")` shows that line as its message (no message when `nil`) with
-    "Keep playing" (cancel) and "Give up" (destructive). "Give up" calls `session.surrender()` then
+    iPhone "⋯" menu both call `onSurrenderTapped`, which returns at once online). It captures
+    `surrenderingColor = session.surrenderingColor` (the human vs the computer, the side on move
+    two-player) and `surrenderChanceLine`: vs the computer "You still have a X% chance of
+    winning." (or "The computer still rates your position at +0.52 points." for a 2-point variant
+    via `EvalScale`) only when `session.humanWinProbability` is known **and** above
+    `surrenderWarningThreshold` (10%), else `nil`; two-player always "%@ wins this game." (the
+    other side's `ChromeTheme.displayName`) — then flips `showSurrenderConfirm`. One alert,
+    titled `surrenderTitle` ("Give up this game?" vs the computer, "%@ gives up this game?"
+    two-player), shows that line as its message (no message when `nil`) with "Keep playing"
+    (cancel) and "Give up" (destructive). "Give up" calls `session.surrender(as: surrenderingColor)` then
     `onAutosave()` (or the tournament's `onGiveUp`) — surrender records no ply, so the per-move
     auto-save hook never fires; this clears the now-terminal game's auto-save slot, matching a
     played-out loss.

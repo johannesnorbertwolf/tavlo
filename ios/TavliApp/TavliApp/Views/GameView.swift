@@ -144,6 +144,10 @@ struct GameView: View {
     /// "you still have a 34% chance of winning" line captured when it opens — `nil`
     /// (no line) when the win chance is unknown or at/below the threshold.
     @State private var showSurrenderConfirm = false
+    /// The side the open confirmation names as resigning (#74): the human vs the
+    /// computer, the side on move in a two-player game. Captured on tap and passed to
+    /// `surrender(as:)`, so the side named is the side that resigns.
+    @State private var surrenderingColor: TavliEngine.Color? = nil
     /// Online (#134): confirm before forfeiting a match.
     @State private var showForfeitConfirm = false
     @State private var surrenderChanceLine: String? = nil
@@ -385,10 +389,12 @@ struct GameView: View {
             } message: {
                 Text("Name this save so you can find it on the start screen.")
             }
-            // The one resign confirmation (#74). Its message carries the human's
-            // remaining win chance (or equity, #143) only when that is known and above
-            // the warning threshold. The default ends the game in place (AI recorded as
-            // winner) and clears the auto-save slot via `onAutosave`. In the tournament
+            // The one resign confirmation (#74). Vs the computer its message carries the
+            // human's remaining win chance (or equity, #143) only when that is known and
+            // above the warning threshold; two-player it names the side giving up (title)
+            // and the winner. Resign is offered at any moment of a running game, also
+            // while the computer moves (the engine cancels its turn). The default ends the
+            // game in place and clears the auto-save slot via `onAutosave`. In the tournament
             // `onGiveUp` takes over: it concedes the match but keeps the in-progress
             // game saved (resumable) and returns to the tournament.
             // Online (#134): forfeiting is final, so it is confirmed; Back keeps the match.
@@ -398,13 +404,15 @@ struct GameView: View {
             } message: {
                 Text("\(online?.opponentName ?? "") wins the match. To continue later instead, use the back button.")
             }
-            .alert("Give up this game?", isPresented: $showSurrenderConfirm) {
+            // Two players (aiColor == nil): the title names the side giving up and the
+            // message the winner; the win-chance line is vs the computer only.
+            .alert(surrenderTitle, isPresented: $showSurrenderConfirm) {
                 Button("Keep playing", role: .cancel) {}
                 Button("Give up", role: .destructive) {
                     if let onGiveUp {
                         onGiveUp()
                     } else {
-                        session.surrender()
+                        session.surrender(as: surrenderingColor)
                         onAutosave()
                     }
                 }
@@ -496,12 +504,18 @@ struct GameView: View {
         showingSaveDialog = true
     }
 
-    /// Begin the surrender flow (#74): a single confirmation, mentioning the
-    /// remaining win chance (equity for 2-point variants, #143) only above the
-    /// threshold.
+    /// Begin the surrender flow (#74): a single confirmation. Vs the computer it mentions
+    /// the remaining win chance (equity for 2-point variants, #143) only above the
+    /// threshold; in a two-player game it names who gives up and who wins instead.
+    /// Never online (the online chrome offers "Leave match" instead).
     private func onSurrenderTapped() {
+        guard online == nil, let resigning = session.surrenderingColor else { return }
+        surrenderingColor = resigning
         surrenderChanceLine = nil
-        if let p = session.humanWinProbability, p > surrenderWarningThreshold {
+        if session.aiColor == nil {
+            // Two players: say who wins; no win chance (that is the computer's view).
+            surrenderChanceLine = String(localized: "\(ChromeTheme.displayName(resigning.opponent)) wins this game.")
+        } else if let p = session.humanWinProbability, p > surrenderWarningThreshold {
             if session.game.variant.reportsEquity {
                 let equity = EvalScale(variant: session.game.variant).value(p)
                 surrenderChanceLine = String(localized: "The computer still rates your position at \(equity) points.")
@@ -511,6 +525,15 @@ struct GameView: View {
             }
         }
         showSurrenderConfirm = true
+    }
+
+    /// The resign confirmation's title: "Give up this game?" vs the computer, "White
+    /// gives up this game?" in a two-player game.
+    private var surrenderTitle: String {
+        if session.aiColor == nil, let c = surrenderingColor {
+            return String(localized: "\(ChromeTheme.displayName(c)) gives up this game?")
+        }
+        return String(localized: "Give up this game?")
     }
 
     /// A timestamped fallback name (e.g. "Game · Jun 2, 3:04 PM") used when the
@@ -582,11 +605,9 @@ struct GameView: View {
                 } else {
                     HStack(spacing: 12) {
                         SaveButton(action: presentSaveDialog)
-                        // Disabled (not hidden) while the AI thinks so the row layout
-                        // stays put; `canSurrender` gates both the button and the intent.
+                        // Always enabled while the game runs (two players too, and while
+                        // the computer moves); hidden once it is over (#74).
                         SurrenderButton(action: onSurrenderTapped)
-                            .disabled(!session.canSurrender)
-                            .opacity(session.canSurrender ? 1 : 0.4)
                     }
                     ControlsView(session: session)
                 }
@@ -610,8 +631,6 @@ struct GameView: View {
                 } else {
                     SaveButton(action: presentSaveDialog)
                     SurrenderButton(action: onSurrenderTapped)
-                        .disabled(!session.canSurrender)
-                        .opacity(session.canSurrender ? 1 : 0.4)
                 }
             }
             BorneOffView(session: session, color: .white)
@@ -712,7 +731,6 @@ struct GameView: View {
                     Button(role: .destructive, action: onSurrenderTapped) {
                         Label("Resign", systemImage: "flag.fill")
                     }
-                    .disabled(!session.canSurrender)
                 }
             }
             Button { showHistory = true } label: {

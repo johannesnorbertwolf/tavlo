@@ -10447,6 +10447,62 @@
           }
         }
       }
+    },
+    "%@ gives up this game?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ gibt diese Partie auf?"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Παραιτούνται τα %@ από αυτό το παιχνίδι;"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ از این بازی تسلیم می‌شود؟"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ geeft deze partij op?"
+          }
+        }
+      }
+    },
+    "%@ wins this game." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ gewinnt diese Partie."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Νίκη σε αυτό το παιχνίδι: %@."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ این بازی را می‌برد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wint deze partij."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
