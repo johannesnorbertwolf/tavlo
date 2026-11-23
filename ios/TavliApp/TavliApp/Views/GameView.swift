@@ -131,6 +131,11 @@ struct GameView: View {
     /// orientation can place the open pane where it fits.
     @State private var showDebugPane = false
 
+    /// The iOS Settings app's "Developer tools" switch (release builds); DEBUG builds
+    /// always show the ladybug. Off = no debug button, menu item or pane anywhere.
+    @AppStorage(SettingsKey.developerTools) private var developerToolsSetting = false
+    private var developerTools: Bool { DeveloperTools.isEnabled(setting: developerToolsSetting) }
+
     /// Drives the post-game review sheet (#62). The drill (#63) is reached from
     /// inside review (#130), so it has no separate trigger here.
     @State private var showReview = false
@@ -287,8 +292,10 @@ struct GameView: View {
 
                     // The debug toggle (and its pane) sit in the top-left band.
                     VStack(alignment: .leading, spacing: 8) {
-                        DebugToggleButton(isOn: $showDebugPane)
-                        if showDebugPane {
+                        if developerTools {
+                            DebugToggleButton(isOn: $showDebugPane)
+                        }
+                        if showDebugPane && developerTools {
                             DebugOverlay(session: session,
                                          onHistory: { showHistory = true })
                         }
@@ -531,9 +538,11 @@ struct GameView: View {
                 }
                 SettingsButton { showSettings = true }
                 Spacer(minLength: 0)
-                DebugToggleButton(isOn: $showDebugPane)
+                if developerTools {
+                    DebugToggleButton(isOn: $showDebugPane)
+                }
             }
-            if showDebugPane {
+            if showDebugPane && developerTools {
                 DebugOverlay(session: session,
                              onHistory: { showHistory = true },
                              width: nil)
@@ -713,10 +722,12 @@ struct GameView: View {
             Button { showSettings = true } label: {
                 Label("Settings", systemImage: "gearshape")
             }
-            Button { showDebugPane.toggle() } label: {
-                Label(showDebugPane ? String(localized: "Hide debug pane")
-                                    : String(localized: "Show debug pane"),
-                      systemImage: "ladybug")
+            if developerTools {
+                Button { showDebugPane.toggle() } label: {
+                    Label(showDebugPane ? String(localized: "Hide debug pane")
+                                        : String(localized: "Show debug pane"),
+                          systemImage: "ladybug")
+                }
             }
         } label: {
             Image(systemName: "ellipsis")
@@ -785,7 +796,7 @@ struct GameView: View {
     /// closes it again (the menu opens it).
     @ViewBuilder
     private var compactDebugPane: some View {
-        if showDebugPane {
+        if showDebugPane && developerTools {
             VStack(alignment: .leading, spacing: 8) {
                 DebugToggleButton(isOn: $showDebugPane)
                 FitOrScroll {

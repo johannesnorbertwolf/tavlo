@@ -214,11 +214,12 @@ struct NewGameSheet: View {
         .padding(.top, isCompact ? 2 : 6)
     }
 
+    /// Never truncated: a longer translation (German Plakoto on a 13 mini) wraps to a
+    /// third line instead of ending in "…"; the sheet's `FitOrScroll` absorbs the height.
     private func caption(_ text: String) -> some View {
         Text(text)
             .font(ChromeType.caption)
             .foregroundStyle(ChromeKit.inkSecondary)
-            .lineLimit(2)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

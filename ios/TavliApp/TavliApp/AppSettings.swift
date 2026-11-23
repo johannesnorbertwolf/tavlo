@@ -257,6 +257,10 @@ enum SettingsKey {
     static let onlineMatchLength   = "settings.onlineMatchLength"
     /// The selected variant's id (#143) — the engine's `VariantPreference.key`.
     static let variant             = VariantPreference.key
+    /// Developer tools (the ladybug debug pane) in a release build: a switch in the iOS
+    /// Settings app under Tavlo (`Settings.bundle`), off by default. DEBUG builds always
+    /// show them (`DeveloperTools.isEnabled`).
+    static let developerTools      = "settings.developerTools"
     /// Light / dark / follow-the-system appearance (#191, default `.system`).
     static let appearance          = "settings.appearance"
 }
@@ -357,5 +361,17 @@ enum AppSettings {
 
     private static func raw(_ key: String) -> String? {
         UserDefaults.standard.string(forKey: key)
+    }
+}
+
+/// The ladybug debug pane's gate: always on in DEBUG builds, otherwise only when the
+/// "Developer tools" switch in the iOS Settings app (`Settings.bundle`) is on.
+enum DeveloperTools {
+    static func isEnabled(setting: Bool) -> Bool {
+        #if DEBUG
+        return true
+        #else
+        return setting
+        #endif
     }
 }
