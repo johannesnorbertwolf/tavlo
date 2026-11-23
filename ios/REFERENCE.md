@@ -185,49 +185,74 @@ so the game flow is validated without a simulator.
   chosen **index**, which the main actor maps back to the live `Move` before applying. An
   out-of-range/`nil` index (Core ML failure) falls back to a random live move.
 
-- **In-play analysis (#146, #108).** With `inPlayAnalysis: true` (settable as `inPlayAnalysisEnabled`,
-  default off in the engine and off via the app setting — the background sweep competed with the AI's
-  own move search and slowed its turn, so play stays snappy and the review deepens progressively when
-  opened instead), `GameSession` accumulates each ply's 2-ply
-  analysis *while the game is played*, into `analysisByPly` (exposed sorted as
-  `inPlayAnalysis: [AnalysisEntry]`). The app logs it with the finished game so the review opens
-  instantly (see *Save & load*). **Both sides are ranked the same way** (#108): the AI's *play*
-  search can be weakened (1-ply + selection noise, see *AI level*), so its plies must be graded by
-  the same full-strength yardstick as the human's rather than reusing the play search.
-  - **Background ranking, both sides.** Each turn's chokepoint — `beginTurn` for the human,
-    `playAITurn` for the AI — calls `startMoveAnalysis`: off the main actor, on an **isolated board
-    copy** (same `captureStacks`/`restoreStacks` isolation as the search), it runs the *same*
-    `evaluateMovesNply(depth: 2)` over the *same* `legalMoves` the review uses — so the captured
-    scores match a from-scratch review **exactly**, and at depth 2 regardless of the difficulty
-    setting (the σ noise lives only in `getBestMove`'s final pick, never in `evaluateMovesNply`). The
-    result is staged in `humanAnalysisScores` (aligned to `legalMoves`) only if the turn hasn't moved
-    on (an `analysisEpoch` staleness check). On commit (`completeMove` for the human,
-    `applyAIMove`/`animateAITurn` for the AI), `captureMoveAnalysis` keys the played move to its score
-    (net-delta match) and the best to the argmax via the reused `GameReview.matchRecorded`/`argmax`,
-    storing a `depth: 2` entry — honest `played`-vs-`best`, so a weakened AI's suboptimal plies show
-    up like a human's. If the ranking isn't ready (the mover committed faster than it computed —
-    common for quick bear-offs and for the AI with animations off), the in-flight ranking is handed
-    to a **deferred capture** (`pendingCaptures`, keyed by its epoch, out of reach of
-    `cancelHumanAnalysis`): when it finishes, `completeDeferredCapture` rebuilds the ranked position
-    (stored in `currentRanking`), matches the played move with `matchRecorded(_:_:on:mover:)` and
-    stores the same `depth: 2` entry — skipped if the ply is no longer in this game's history (a new
-    game drops all pending captures; a step-back that replaced the ply fails the move check). So every
-    ply played with analysis on is captured. (Before, such plies were simply not stored: the review
-    then opened with holes — "it left out the last few moves" — until its own pass filled them in.)
+- **Background analysis (#243; replaces the #146 in-play ranking).** Analysis is a job owned by
+  the **game**, not by the review: `AnalysisService` (`AnalysisService.swift`, `@MainActor`) keeps
+  one `GameAnalysisJob` per `gameId`. Setting `session.analysisService` attaches a session: every
+  change of `record` (a ply, a step-back, the outcome — `record`'s `didSet` → `syncAnalysisJob`) is
+  passed to its job (`update(record:)`), and a new `gameId` (`newGame`) takes a new job while the
+  old one finishes on its own. `inPlayAnalysis` = `analysisJob.entries` (before attaching: what a
+  resumed save carried). `nil` service = nothing is analysed (tests, drill sessions; attempt mode is
+  never analysed). The app attaches every **offline** session (`RootView`'s `.task(id: session)`);
+  online sessions are rebuilt with fresh ids on every reconnect, so they are not attached — their
+  review makes a job on demand (memory only, as before).
+  - **What a job does.** It replays the record model-free into `AnalysisPosition`s (pre-roll
+    stacks, mover, dice, played half-moves — passes included) and works through units, **lowest
+    tier first over all jobs** (then a `focused` job — an open review — then the oldest): tier 0 =
+    1-ply ranking of every moved ply (instant graph), tier 1 = the ply's dice luck
+    (`DiceLuck.rollValues`, as `analyzeLuck`), tier 2 = 2-ply ranking of every ply with a choice
+    (in slices of 8 moves), tier 3 = 3-ply for the close calls (`GameReview.shouldRefine(_, pass:
+    2)`, one move per unit) of `refineColors` — the human vs the computer, both sides in a
+    two-player game; the computer's plies stop at 2-ply, as in the review. Each score is the same
+    `evaluateMovesNply` over the same generated moves as `analyzeProgressive` (a slice scores
+    exactly as inside the full ranking), the played move is keyed by `matchRecorded(_:_:on:mover:)`
+    and the best by `argmax`, so a job's result equals a from-scratch review + `analyzeLuck`
+    (`AnalysisServiceTests`). A unit that cannot be scored (no matching move, model error) is marked
+    failed for its tier and skipped. `service.maxDepth` (default 3; tests use 2) caps the passes.
+  - **Isolation and priority.** Units run one at a time on one serial `.utility` dispatch queue
+    (`autoreleaseFrequency: .workItem`), each on a board rebuilt from the position's stacks —
+    never the live `Game`. Every prediction goes through a **throttled agent**
+    (`Agent.throttled(by:)`: same model, a checkpoint before each `value()`, still inside its own
+    autorelease pool) that calls `AnalysisGate.checkpoint`: while the gate is held the prediction
+    waits (condition wait, re-checked every 250 ms — no busy loop), and it throws once the unit's
+    `AnalysisToken` is cancelled (the unit returns `.cancelled`, its result is dropped). The session
+    holds the gate (`updateAnalysisGate`, from the `didSet`s of `phase`, `hintPending`,
+    `preparingDice`) while `phase == .aiThinking`, a hint is computed or weighted dice / an AI reroll
+    decision are prepared; the drill holds it while grading an attempt. Holders are weak, so a
+    dropped session releases its hold. So the computer's search never shares the model or the CPU
+    with analysis (the #155 slowdown). Measured (`AnalysisLatencyBenchmark`, Mac, CPU-only fixture
+    net, the computer's full-strength 2-ply search on 60 fixed positions while a 120-ply backlog is
+    refined at 3-ply): no analysis 157 ms mean / 123 median / 353 p90; with the service (gated)
+    157 / 124 / 351 — unchanged; the same analysis **ungated** 168 / 133 / 376 (+7%, on a
+    many-core Mac; worse on a 2+4-core phone). Hence no setting: the analysis always runs.
+    No new work starts while `ProcessInfo.thermalState >= .serious` (resumes on the change
+    notification); with nothing left the queue is idle.
+  - **Cancellation / step-back.** A step-back truncates the job to the common prefix (results,
+    partial slices and failures of the undone plies dropped; a unit on an undone ply is cancelled
+    at once); `remove(gameId:)` cancels and forgets a job. Resign holds nothing (the phase leaves
+    `.aiThinking`), so the gate is released and the analysis of the plies played goes on.
+  - **Persistence (incremental).** Each landing marks the job dirty; after `persistDelay` (1 s,
+    coalesced) `flush()` writes `entries` (`[AnalysisEntry](reviewResult:).withLuck`, luck-only pass
+    entries included) — into the **game log** when the game is logged (`GameLogStore.mergeAnalysis`),
+    else into the **autosave** when it holds this `gameId` (its `analysis` merged, everything else
+    kept). Merging uses `AnalysisEntry.merge` (per ply the deeper entry wins for the same played
+    move, luck kept from either; a different played move — a replayed line — replaces). The app also
+    flushes on backgrounding. A new job is **seeded** from the session's restored analysis, the
+    game log and the autosave (`seed`/`applySeeds`: entries matching the replayed ply — same played
+    move — become evaluations at their stored depth with `hadChoice` recomputed, stored luck becomes
+    `PlyLuck`), and only the missing tiers run: a resumed game, a reopened review or a relaunch
+    continues from the saved depth (luck included) instead of restarting.
   - **Saved with the game.** `snapshot(name:)` / `snapshot(name:fullTavli:)` write `inPlayAnalysis`
-    as the save's `analysis` (autosave + manual saves; a non-empty block makes the file schema v2),
-    and `resume(from:)` restores the entries that still match the replayed plies (same number, same
-    recorded move; luck-only pass entries skipped). Before, a resumed game lost everything captured
-    before the resume and its review opened at the first ply played after it ("it only started at
-    move 11").
-  - **Cancellation.** `cancelHumanAnalysis` (cancel task, drop staged scores, bump `analysisEpoch`)
-    runs from `newGame` (which also clears `analysisByPly`), and `surrender`, and
-    at the start of each `startMoveAnalysis`. A within-turn `undo` deliberately does **not** cancel:
-    the position returns to the same turn-start the ranking was computed for, so it stays valid (no
-    recompute on move edits). Covered by `GameSessionAnalysisTests` (human capture == from-scratch
-    review, weakened-opponent honest grading, cancellation, seeded refine, disabled = no-op) and
-    `ReviewCoverageTests` (deferred captures + resume keep the analysis complete; the review covers
-    every moved ply in every variant, resumed games and follow-up games included).
+    as the save's `analysis` (non-empty ⇒ schema v2), and `resume(from:)` keeps the entries that
+    still match the replayed plies (same number, same recorded move; pass entries = empty move), which
+    seed the job once a service is attached. A resumed game **keeps its `gameId`** (`save.gameId`;
+    pre-#104 saves get a fresh one) — before #243 every resume minted a new id, so analysis landing
+    after a relaunch could not find the autosave it belonged to.
+  - Tests: `AnalysisServiceTests` (a game analysed as it is played equals a from-scratch review +
+    luck; 3-ply refinement like the review; every variant + a handicap game; gate held while the
+    computer thinks / released on resign; a held gate pauses work; removal cancels a unit waiting at
+    the gate; focus priority; step-back; a new game's new job; incremental autosave / game-log
+    writes and resume-without-recompute after a "relaunch"; `merge`), `ReviewCoverageTests` (every
+    moved ply covered, resumed games included), `AnalysisLatencyBenchmark` (opt-in, `TAVLI_BENCH=1`).
 
 - **`SearchConfig`** — the leaf scoring + inner pruning mirror the CLI's `config/config.yml` search
   section (so move *evaluation* matches `./run.sh play`), but the **root search strategy is
@@ -332,7 +357,8 @@ so the game flow is validated without a simulator.
   off the main actor discards its result when it lands; the handicap AI roll checks it too), the
   animation task is cancelled (`aiDiceRolling` / `aiHopInFlight` cleared), and a pending
   auto-roll tumble / auto-roll forced pass is cancelled; a weighted roll or reroll being prepared
-  is dropped (`discardPendingHandicapRoll`), the hint cleared and the in-play ranking cancelled.
+  is dropped (`discardPendingHandicapRoll`) and the hint cleared (the background analysis gate is
+  released with the phase).
   Then **every half-move of the unfinished turn is taken back** (`moveBuilder.built`, undone on
   the board): the human's half-built move, and equally the computer's hops that had already
   landed mid-animation. The board therefore shows the position at the start of the turn in which
@@ -579,7 +605,7 @@ tests, no model/fixtures needed):
   tolerant: a malformed value or dice outside 1…6 decode as `nil` (the save still loads, awaiting
   a roll). `snapshot(name:)` / `snapshot(name:fullTavli:)` copy the session's `pendingRoll`;
   `GameSave(record:…)` (the game log) never sets it. The snapshots also carry the session's
-  in-play analysis so far as `analysis` (when non-empty, making the save v2), which `resume`
+  background analysis so far as `analysis` (when non-empty, making the save v2), which `resume`
   restores — so a resumed game's analysis, and its review, still cover the plies before the save. `AnalysisEntry { plyNumber, playedMove, playedScore, bestMove, bestScore, depth, luck? }` is the
   durable per-ply analysis (no `boardStacks` — reconstructed by replay; scores as `Double`; field
   names match the Python schema; `luck` (#231) is optional and omitted when `nil`, so no schema bump
@@ -614,12 +640,11 @@ tests, no model/fixtures needed):
   `attachAnalysis(_:forGameId:)` patches it back (bumping that file to v2). #231: it **carries
   stored luck** — a new entry without `luck` inherits the stored one for the same ply + played
   move, and stored luck-only pass entries are kept — so re-attaching a fresh review never drops
-  the luck pass; `attachLuck(_:forGameId:)` writes a `[PlyLuck]` in via `withLuck`. After a review,
-  `GameReviewModel` writes its `analysis` back here, and on a later review/drill of the same game
-  it loads the cached analysis and rebuilds via `GameReview.cachedResult` — no model, near-instant.
-  **In-play analysis (#146):** the game-over hook also writes `session.inPlayAnalysis` straight into
-  the logged game (`GameSave(record:name:analysis:)`, empty ⇒ stays v1), so the **first** review of a
-  game played with analysis on already loads cached and only refines (see *Post-game blunder review*).
+  the luck pass; `attachLuck(_:forGameId:)` writes a `[PlyLuck]` in via `withLuck`.
+  `mergeAnalysis(_:forGameId:)` (#243) is the background service's write: `AnalysisEntry.merge`
+  (deeper wins, luck kept), no-op-safe like `attachAnalysis`. The game-over hook writes
+  `session.inPlayAnalysis` (the background analysis so far) into the logged game
+  (`GameSave(record:name:analysis:)`, empty ⇒ stays v1); the service merges every later result in.
 
 The app wiring (autosave after every move, every roll (#171) and on background, auto-resume on launch, the
 saved-games list, and the in-game manual save) lives in `RootView`/`GameView` — see
@@ -994,10 +1019,8 @@ from the AI's best choice. SwiftUI-free (Foundation + Core ML via `Agent`), so i
   at 3-ply — the review opens with no visible 2-ply pass. An empty seed reproduces the original
   full 1→2→3-ply behaviour exactly (pre-#146 logs / analysis-off games review unchanged).
   **Cancellation:** the pass loop checks `Task.isCancelled` before each ply and, once cancelled,
-  returns at once with what it has (seed included, no further `onPassComplete`). `GameReviewModel`
-  cancels its detached analysis and luck pass when the review's `.task` is cancelled (the review was
-  closed), writes the partial analysis back, and re-runs from it if the view returns — closed reviews
-  no longer keep their 2-/3-ply and luck passes running, competing for the CPU with the next game.
+  returns at once with what it has (seed included, no further `onPassComplete`). The app no longer
+  calls it: the review reads the background analysis job (#243), which runs the same scoring.
 - **`PlyEvaluation`** — one analyzed human ply: 1-based `plyNumber`, dice, the **pre-move**
   `boardStacks` snapshot (for rendering the position faced), `mover`, the `playedMove`/`bestMove`
   `[from,to]` pairs and their win-probability scores (for `mover`), `hadChoice` (false ⇒ a forced
@@ -1044,24 +1067,21 @@ from the AI's best choice. SwiftUI-free (Foundation + Core ML via `Agent`), so i
   0…100 (`nil` with no choice plies); `inaccuracies`/`mistakes`/`blunders` + `count(_:)`;
   `decisionLoss` (pp total over choice plies); `luck` / `opponentLuck` (pp totals, `nil` until the
   luck pass has run).
-- **App wiring (minimal).** `GameReviewModel` publishes `luck: [PlyLuck]?`: from `cachedLuck`
-  when complete, else — after the main analysis and its write-back — one `analyzeLuck` run in the
-  same detached task, then `attachLuck` (so it is computed once per game). No UI shows it yet (#233).
+- **App wiring.** The luck is computed per ply by the background analysis job (#243, tier 1, right
+  after each ply's 1-ply ranking) and saved with it; `GameReviewModel.luck` = `job.luck` (complete or
+  `nil`).
 - **Not changed:** the 3-ply refinement band (`shouldRefine`, relative 5–15% + ≥ 0.5 pp) still
   targets the old relative threshold.
 
-The app side (`GameReviewView` + its `@MainActor GameReviewModel`) first reads any saved analysis
-(`GameLogStore.analysis(forGameId:)` — the in-play 2-ply, #146, or a prior review, #104), **seeds**
-the view from it via `GameReview.cachedResult` (so the graph/pager/drill are instant) and passes it
-as `seed:` to `analyzeProgressive`. With a complete 2-ply seed only the 3-ply borderline refinement
-runs, and since the phase is already `.reviewing`, `report` never shows the "Analyzing…" pass. Then
-it runs `analyzeProgressive` on a detached task and streams results back via `onEvaluation`,
-**upserting by `plyNumber`** so a deeper pass replaces the shallower result in place, and writes the
-merged (possibly deepened) analysis back with `attachAnalysis`. With no seed (a game played with
-analysis off, or a pre-#146 log) it runs the full pass exactly as before. The pager opens as soon as
+The app side (`GameReviewView` + its `@MainActor GameReviewModel`) runs **no analysis of its own**
+(#243): it takes the game's job from `AnalysisService.app` (the one that ran during play, or a new
+one seeded from the game log) and mirrors it — `result`, `luck`, `firstPassComplete`, `isComplete` —
+on every `revision`, while open marking it `focused` (its work goes first). Closing the review changes
+nothing else: the job keeps going and saves as it goes, so reopening it (or a relaunch) shows the
+progress so far and continues. The pager opens as soon as
 the first ply is scored; the
 win-probability graph and the drill become available once the 1-ply base pass completes
-(`firstPassComplete`, set from `onPassComplete(pass: 0)`), while the 2-/3-ply passes refine live (a
+(`firstPassComplete`: every moved ply has an evaluation), while the 2-/3-ply passes refine live (a
 small spinner by the move counter shows until all passes finish). The screen is a **full-screen,
 board-centric** mode (a `fullScreenCover` from the win overlay): the position the player faced fills
 the screen, with a panel (played→best + win-prob gap, the Your-move/Compare overlay) and

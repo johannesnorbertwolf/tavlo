@@ -202,14 +202,16 @@ final class GameSessionResignTests: XCTestCase {
     func testResignWhileComputerThinkingDiscardsTheSearch() async throws {
         let agent = try loadAgent()
         let s = GameSession(startingPlayer: .black, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
-                            inPlayAnalysis: true)
+                            searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off)
+        let service = AnalysisService()
+        s.analysisService = service
         s.start()
         XCTAssertEqual(s.phase, .aiThinking)
+        XCTAssertTrue(service.gate.isHeld, "background analysis paused while the computer thinks")
         XCTAssertTrue(s.canSurrender)
         s.surrender()
         XCTAssertEqual(s.phase, .gameOver(winner: .black))
-        XCTAssertFalse(s.inPlayAnalysisTaskActiveForTesting, "in-play analysis cancelled")
+        XCTAssertFalse(service.gate.isHeld, "resigning releases the analysis gate")
 
         try await Task.sleep(nanoseconds: 1_500_000_000)       // the 1-ply search is long done
         XCTAssertEqual(s.phase, .gameOver(winner: .black))

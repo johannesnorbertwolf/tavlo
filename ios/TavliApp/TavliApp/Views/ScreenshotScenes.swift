@@ -63,7 +63,6 @@ enum ScreenshotScenes {
         let defaults = UserDefaults.standard
         var domain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
         domain[SettingsKey.showWinProbability] = true
-        domain[SettingsKey.inPlayAnalysis] = false
         domain[SettingsKey.aiLevel] = AILevel.max
         if isHandicap {
             var prefs = HandicapPreferences()

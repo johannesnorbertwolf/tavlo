@@ -57,6 +57,10 @@ public final class Agent: @unchecked Sendable {
     private let inputName: String
     private let outputName: String
     private let inputSize: Int
+    /// Called before every prediction (#243): the background analysis's copy of the agent
+    /// (`throttled(by:)`) blocks here while the computer is thinking and throws once its
+    /// work is cancelled. `nil` for every other agent.
+    private let checkpoint: (@Sendable () throws -> Void)?
 
     /// `encoder` must be the encoding `variant`'s model was trained on.
     public init(model: MLModel, encoder: any BoardEncoding, variant: any GameVariant = GameVariants.plakoto) {
@@ -67,6 +71,25 @@ public final class Agent: @unchecked Sendable {
         // Resolve feature names from the model so we don't couple to the converter.
         self.inputName = model.modelDescription.inputDescriptionsByName.keys.first ?? "board"
         self.outputName = model.modelDescription.outputDescriptionsByName.keys.first ?? "win_prob"
+        self.checkpoint = nil
+    }
+
+    private init(sharing other: Agent, checkpoint: @escaping @Sendable () throws -> Void) {
+        self.model = other.model
+        self.encoder = other.encoder
+        self.variant = other.variant
+        self.inputSize = other.inputSize
+        self.inputName = other.inputName
+        self.outputName = other.outputName
+        self.checkpoint = checkpoint
+    }
+
+    /// A copy of this agent (same model, encoder and rules) that calls `checkpoint`
+    /// before every prediction (#243). The background analysis uses it to pause while
+    /// the computer searches (`AnalysisGate`) and to stop as soon as its work is
+    /// cancelled (the checkpoint throws, which unwinds the scoring like a timeout).
+    public func throttled(by checkpoint: @escaping @Sendable () throws -> Void) -> Agent {
+        Agent(sharing: self, checkpoint: checkpoint)
     }
 
     /// Win probability for the side whose turn it is in the encoded position.
@@ -78,7 +101,8 @@ public final class Agent: @unchecked Sendable {
     /// the job returns — on an iPhone 13 mini that grew the app past its ~2 GB jetsam
     /// limit mid-review. Pinned by `AnalysisMemoryTests`.
     public func value(_ encoding: [Float]) throws -> Float {
-        try autoreleasepool {
+        try checkpoint?()
+        return try autoreleasepool {
             let arr = try MLMultiArray(shape: [1, NSNumber(value: inputSize)], dataType: .float32)
             let ptr = arr.dataPointer.bindMemory(to: Float.self, capacity: inputSize)
             for i in 0..<inputSize { ptr[i] = encoding[i] }

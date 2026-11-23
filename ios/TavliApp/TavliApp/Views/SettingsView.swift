@@ -22,7 +22,6 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.autoRoll) private var autoRoll = true
     @AppStorage(SettingsKey.aiAnimation) private var aiAnimation = true
     @AppStorage(SettingsKey.showWinProbability) private var showWinProbability = false
-    @AppStorage(SettingsKey.inPlayAnalysis) private var inPlayAnalysis = false
     @AppStorage(SettingsKey.appearance) private var appearance: AppearanceSetting = .system
 
     var body: some View {
@@ -49,9 +48,6 @@ struct SettingsView: View {
                                   options: StartingPlayerSetting.allCases,
                                   label: \.label,
                                   caption: "The opening roll decides who starts, unless you force a side.")
-                        toggleRow("Analyze during play",
-                                  isOn: $inPlayAnalysis,
-                                  caption: "Work out each move's best play as you go, so the post-game review opens instantly. Off by default — it shares the computer's processing power, so the computer can be slower to move. Uses a little more battery.")
                     }
 
                     section("Display") {

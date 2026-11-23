@@ -542,7 +542,7 @@ public enum GameReview {
     }
 
     /// Index of the maximum score (ties → lowest index), or nil when empty.
-    /// `internal` (not `private`) so `GameSession`'s in-play capture (#146) picks the
+    /// `internal` (not `private`) so the background analysis (#243) picks the
     /// best move with the exact same tie-breaking the review uses.
     static func argmax(_ scores: [Float]) -> Int? {
         guard !scores.isEmpty else { return nil }
@@ -565,7 +565,7 @@ public enum GameReview {
     /// since the afterstate — and thus the score — depends only on that delta, it's
     /// the correct key.
     ///
-    /// `internal` (not `private`) so `GameSession`'s in-play capture (#146) keys the
+    /// `internal` (not `private`) so the background analysis (#243) keys the
     /// played move to its score with the exact same net-delta matching.
     static func matchRecorded(_ recorded: [[Int]], _ moves: [Move]) -> Int? {
         let target = netDelta(recorded)

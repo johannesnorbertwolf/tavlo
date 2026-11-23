@@ -3,10 +3,9 @@ import XCTest
 import CoreML
 @testable import TavliEngine
 
-/// Exercises in-play analysis (#146, #108): the 2-ply analysis the `GameSession`
-/// accumulates *during* play — ranked in the background for **both** sides at full
-/// strength (so the AI's own, possibly weakened, play search never feeds the grading) —
-/// and the seeded refine path the post-game review uses on top of it. Uses the fixture
+/// Grading both sides at full strength (#108) and the seeded refine path of
+/// `GameReview.analyzeProgressive` (#146). The analysis that runs *during* play is the
+/// background service's (#243), covered by `AnalysisServiceTests`. Uses the fixture
 /// value model so scores match real inference.
 @MainActor
 final class GameSessionAnalysisTests: XCTestCase {
@@ -63,7 +62,6 @@ final class GameSessionAnalysisTests: XCTestCase {
                 if s.currentPlayer == s.aiColor { await Self.tick() }
                 else { s.roll() }
             case .picking, .moving:
-                await s.awaitInPlayAnalysisForTesting()
                 playHumanTurn(s)
             case .aiThinking, .animating:
                 await Self.tick()
@@ -88,46 +86,6 @@ final class GameSessionAnalysisTests: XCTestCase {
         return result
     }
 
-    // MARK: - Human capture matches a from-scratch review
-
-    /// The key invariant: each human ply captured during play is identical to a
-    /// from-scratch 2-ply review of the same game — same best move, same scores, depth 2.
-    func testHumanCaptureMatchesFromScratchReview() async throws {
-        let agent = try loadAgent()
-        // maxDepth: 1 → fast 1-ply AI; the human ranking is depth-2 regardless, with the
-        // same beam params `.standard` (and thus the review) uses.
-        let s = GameSession(startingPlayer: .white, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1),
-                            animationTimings: .off, inPlayAnalysis: true)
-        await play(s, maxPlies: 14)
-
-        let human = s.aiColor!.opponent
-        let review = GameReview.analyze(record: s.record, agent: agent, humanColor: human,
-                                        depth: 2, searchConfig: SearchConfig(maxDepth: 1))
-        XCTAssertFalse(review.evaluations.isEmpty, "expected human plies to review")
-
-        let captured = Dictionary(s.inPlayAnalysis.map { ($0.plyNumber, $0) },
-                                  uniquingKeysWith: { a, _ in a })
-        let humanPlies = plyNumbers(of: human, in: s.record)
-
-        // Every reviewed human ply was captured in play, and matches it exactly.
-        XCTAssertEqual(captured.keys.filter { humanPlies.contains($0) }.count,
-                       review.evaluations.count,
-                       "every human ply should have an in-play entry")
-        for eval in review.evaluations {
-            guard let entry = captured[eval.plyNumber] else {
-                XCTFail("missing in-play entry for human ply \(eval.plyNumber)"); continue
-            }
-            XCTAssertEqual(entry.depth, 2)
-            XCTAssertEqual(entry.playedScore, Double(eval.playedScore), accuracy: 1e-4,
-                           "played score mismatch at ply \(eval.plyNumber)")
-            XCTAssertEqual(entry.bestScore, Double(eval.bestScore), accuracy: 1e-4,
-                           "best score mismatch at ply \(eval.plyNumber)")
-            XCTAssertEqual(entry.bestMove, eval.bestMove,
-                           "best move mismatch at ply \(eval.plyNumber)")
-        }
-    }
-
     // MARK: - Opponent grading (honest, like the human side)
 
     /// A weakened AI no longer plays its best move every turn (#108), so its plies must be
@@ -144,7 +102,7 @@ final class GameSessionAnalysisTests: XCTestCase {
         // 1-ply play + heavy selection noise → the AI frequently passes up its best move.
         let s = GameSession(startingPlayer: .black, agent: agent, aiColor: .black,
                             searchConfig: SearchConfig(maxDepth: 1, selectionNoise: 0.4),
-                            animationTimings: .off, inPlayAnalysis: true)
+                            animationTimings: .off)
         await play(s, maxPlies: 18)
 
         let aiReview = GameReview.analyze(record: s.record, agent: agent,
@@ -162,83 +120,6 @@ final class GameSessionAnalysisTests: XCTestCase {
                       "a weakened AI should fall short of its best on at least one ply")
     }
 
-    // MARK: - Cancellation
-
-    /// `surrender()` cancels the in-flight human ranking and drops its staged scores.
-    func testSurrenderCancelsInFlightHumanAnalysis() async throws {
-        let agent = try loadAgent()
-        let s = GameSession(startingPlayer: .white, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1),
-                            animationTimings: .off, inPlayAnalysis: true)
-        s.start()
-        s.roll()
-        await s.awaitInPlayAnalysisForTesting()
-        XCTAssertTrue(s.inPlayAnalysisReadyForTesting, "scores should be staged after awaiting")
-
-        s.surrender()
-        XCTAssertFalse(s.inPlayAnalysisReadyForTesting, "surrender drops the staged scores")
-        XCTAssertFalse(s.inPlayAnalysisTaskActiveForTesting, "surrender cancels the task")
-        XCTAssertTrue(s.isTerminal)
-    }
-
-    /// `newGame()` cancels analysis and clears everything accumulated so far.
-    func testNewGameClearsAccumulatedAnalysis() async throws {
-        let agent = try loadAgent()
-        let s = GameSession(startingPlayer: .white, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1),
-                            animationTimings: .off, inPlayAnalysis: true)
-        await play(s, maxPlies: 8)
-        XCTAssertFalse(s.inPlayAnalysis.isEmpty, "expected some captured plies before reset")
-
-        s.newGame(startingPlayer: .white)
-        XCTAssertTrue(s.inPlayAnalysis.isEmpty, "newGame clears accumulated analysis")
-        XCTAssertFalse(s.inPlayAnalysisTaskActiveForTesting)
-    }
-
-    /// A decision step-back during play truncates `record.plies`, so the in-play
-    /// analysis (#146) of the rewound plies must be dropped too. Otherwise a stale entry
-    /// from the undone line survives in `analysisByPly` keyed by ply number, and the
-    /// post-game review/drill — which pairs each saved entry with the *re-played* ply's
-    /// position by ply number — would surface that undone move on a board it no longer
-    /// fits (a move from points with no checker): the "impossible position" symptom.
-    func testStepBackDropsAnalysisForRewoundPlies() async throws {
-        let agent = try loadAgent()
-        let s = GameSession(startingPlayer: .white, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1),
-                            animationTimings: .off, inPlayAnalysis: true)
-        await play(s, maxPlies: 8)
-
-        // Settle on the human's between-turns roll, where a decision step-back is offered.
-        let deadline = Date().addingTimeInterval(30)
-        while !(s.phase == .awaitingRoll && s.currentPlayer != s.aiColor) {
-            if case .gameOver = s.phase { throw XCTSkip("game ended before a step-back point") }
-            if Date() > deadline { XCTFail("never reached a human turn"); return }
-            await Self.tick()
-        }
-        guard s.canUndoLastDecision else { throw XCTSkip("nothing to step back to") }
-        XCTAssertFalse(s.inPlayAnalysis.isEmpty, "expected captured analysis before the step-back")
-
-        s.undoLastDecision()
-
-        // Invariant: no analysis entry may reference a ply that no longer exists.
-        let maxPly = s.inPlayAnalysis.map(\.plyNumber).max() ?? 0
-        XCTAssertLessThanOrEqual(maxPly, s.record.plies.count,
-            "stale in-play analysis kept for a rewound ply (max \(maxPly) > \(s.record.plies.count) plies)")
-    }
-
-    // MARK: - Setting off
-
-    /// With analysis disabled nothing is accumulated, on either side.
-    func testDisabledCapturesNothing() async throws {
-        let agent = try loadAgent()
-        let s = GameSession(startingPlayer: .white, agent: agent, aiColor: .black,
-                            searchConfig: SearchConfig(maxDepth: 1),
-                            animationTimings: .off, inPlayAnalysis: false)
-        await play(s, maxPlies: 12)
-        XCTAssertTrue(s.inPlayAnalysis.isEmpty)
-        XCTAssertFalse(s.inPlayAnalysisTaskActiveForTesting)
-    }
-
     // MARK: - Seeded refine (GameReview, #146)
 
     /// The core of the seed mechanic: a complete depth-≤2 seed (what in-play analysis
@@ -251,7 +132,7 @@ final class GameSessionAnalysisTests: XCTestCase {
         let agent = try loadAgent()
         let s = GameSession(startingPlayer: .white, agent: agent, aiColor: .black,
                             searchConfig: SearchConfig(maxDepth: 1),
-                            animationTimings: .off, inPlayAnalysis: true)
+                            animationTimings: .off)
         await play(s, maxPlies: 12)
         let record = s.record
         let human = s.aiColor!.opponent
