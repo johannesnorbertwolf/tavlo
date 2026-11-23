@@ -206,14 +206,28 @@ so the game flow is validated without a simulator.
     (net-delta match) and the best to the argmax via the reused `GameReview.matchRecorded`/`argmax`,
     storing a `depth: 2` entry — honest `played`-vs-`best`, so a weakened AI's suboptimal plies show
     up like a human's. If the ranking isn't ready (the mover committed faster than it computed —
-    common for the AI with animations off), nothing is stored and the post-game review fills that ply
-    in.
+    common for quick bear-offs and for the AI with animations off), the in-flight ranking is handed
+    to a **deferred capture** (`pendingCaptures`, keyed by its epoch, out of reach of
+    `cancelHumanAnalysis`): when it finishes, `completeDeferredCapture` rebuilds the ranked position
+    (stored in `currentRanking`), matches the played move with `matchRecorded(_:_:on:mover:)` and
+    stores the same `depth: 2` entry — skipped if the ply is no longer in this game's history (a new
+    game drops all pending captures; a step-back that replaced the ply fails the move check). So every
+    ply played with analysis on is captured. (Before, such plies were simply not stored: the review
+    then opened with holes — "it left out the last few moves" — until its own pass filled them in.)
+  - **Saved with the game.** `snapshot(name:)` / `snapshot(name:fullTavli:)` write `inPlayAnalysis`
+    as the save's `analysis` (autosave + manual saves; a non-empty block makes the file schema v2),
+    and `resume(from:)` restores the entries that still match the replayed plies (same number, same
+    recorded move; luck-only pass entries skipped). Before, a resumed game lost everything captured
+    before the resume and its review opened at the first ply played after it ("it only started at
+    move 11").
   - **Cancellation.** `cancelHumanAnalysis` (cancel task, drop staged scores, bump `analysisEpoch`)
     runs from `newGame` (which also clears `analysisByPly`), and `surrender`, and
     at the start of each `startMoveAnalysis`. A within-turn `undo` deliberately does **not** cancel:
     the position returns to the same turn-start the ranking was computed for, so it stays valid (no
     recompute on move edits). Covered by `GameSessionAnalysisTests` (human capture == from-scratch
-    review, weakened-opponent honest grading, cancellation, seeded refine, disabled = no-op).
+    review, weakened-opponent honest grading, cancellation, seeded refine, disabled = no-op) and
+    `ReviewCoverageTests` (deferred captures + resume keep the analysis complete; the review covers
+    every moved ply in every variant, resumed games and follow-up games included).
 
 - **`SearchConfig`** — the leaf scoring + inner pruning mirror the CLI's `config/config.yml` search
   section (so move *evaluation* matches `./run.sh play`), but the **root search strategy is
@@ -545,7 +559,9 @@ tests, no model/fixtures needed):
   byte-identical to the pre-#171 format and an older reader just ignores the key. Decoding is
   tolerant: a malformed value or dice outside 1…6 decode as `nil` (the save still loads, awaiting
   a roll). `snapshot(name:)` / `snapshot(name:fullTavli:)` copy the session's `pendingRoll`;
-  `GameSave(record:…)` (the game log) never sets it. `AnalysisEntry { plyNumber, playedMove, playedScore, bestMove, bestScore, depth, luck? }` is the
+  `GameSave(record:…)` (the game log) never sets it. The snapshots also carry the session's
+  in-play analysis so far as `analysis` (when non-empty, making the save v2), which `resume`
+  restores — so a resumed game's analysis, and its review, still cover the plies before the save. `AnalysisEntry { plyNumber, playedMove, playedScore, bestMove, bestScore, depth, luck? }` is the
   durable per-ply analysis (no `boardStacks` — reconstructed by replay; scores as `Double`; field
   names match the Python schema; `luck` (#231) is optional and omitted when `nil`, so no schema bump
   and older files/readers are unaffected). An entry with an **empty `playedMove`** is a luck-only
@@ -958,6 +974,11 @@ from the AI's best choice. SwiftUI-free (Foundation + Core ML via `Agent`), so i
   2-ply seed makes the 1-/2-ply passes no-ops and leaves only the human's borderline plies to refine
   at 3-ply — the review opens with no visible 2-ply pass. An empty seed reproduces the original
   full 1→2→3-ply behaviour exactly (pre-#146 logs / analysis-off games review unchanged).
+  **Cancellation:** the pass loop checks `Task.isCancelled` before each ply and, once cancelled,
+  returns at once with what it has (seed included, no further `onPassComplete`). `GameReviewModel`
+  cancels its detached analysis and luck pass when the review's `.task` is cancelled (the review was
+  closed), writes the partial analysis back, and re-runs from it if the view returns — closed reviews
+  no longer keep their 2-/3-ply and luck passes running, competing for the CPU with the next game.
 - **`PlyEvaluation`** — one analyzed human ply: 1-based `plyNumber`, dice, the **pre-move**
   `boardStacks` snapshot (for rendering the position faced), `mover`, the `playedMove`/`bestMove`
   `[from,to]` pairs and their win-probability scores (for `mover`), `hadChoice` (false ⇒ a forced

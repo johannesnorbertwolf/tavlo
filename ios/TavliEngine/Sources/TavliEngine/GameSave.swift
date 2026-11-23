@@ -365,9 +365,12 @@ public extension Array where Element == AnalysisEntry {
 
 public extension GameSession {
     /// Capture the current game as a `GameSave` for persistence.
-    /// Includes the roll of the turn in progress (`pendingRoll`, #171) when one exists.
+    /// Includes the roll of the turn in progress (`pendingRoll`, #171) when one exists,
+    /// and the in-play analysis so far (#146) as the save's `analysis`, so a resumed game
+    /// keeps it (and its review covers the plies before the resume).
     func snapshot(name: String, savedAt: Date = Date()) -> GameSave {
-        var save = GameSave(record: record, name: name, savedAt: savedAt)
+        var save = GameSave(record: record, name: name, savedAt: savedAt,
+                            analysis: inPlayAnalysis.isEmpty ? nil : inPlayAnalysis)
         save.pendingRoll = pendingRoll
         save.handicap = handicap   // live tokens (#148); nil for a normal game
         return save
@@ -377,7 +380,8 @@ public extension GameSession {
     /// carries `fullTavli` so a resume lands back in the session — mid-leg, or on the
     /// between-legs screen when this leg is already over. `nil` = a standalone game.
     func snapshot(name: String, fullTavli: FullTavliSession?, savedAt: Date = Date()) -> GameSave {
-        var save = GameSave(record: record, name: name, savedAt: savedAt)
+        var save = GameSave(record: record, name: name, savedAt: savedAt,
+                            analysis: inPlayAnalysis.isEmpty ? nil : inPlayAnalysis)
         save.fullTavli = fullTavli
         save.pendingRoll = pendingRoll
         save.handicap = handicap   // live tokens (#148); nil for a normal game

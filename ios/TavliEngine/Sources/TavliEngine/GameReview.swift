@@ -310,6 +310,8 @@ public enum GameReview {
     ///   the human's borderline plies to refine at 3-ply — the review opens instantly
     ///   with no visible 2-ply pass. An empty seed reproduces the original behaviour
     ///   exactly, so pre-#146 logs and analysis-off games still review as before.
+    /// - Note: Stops early when the calling task is cancelled (a review closed mid-way),
+    ///   returning the plies scored so far plus the seed (no further `onPassComplete`).
     public static func analyzeProgressive(
         record: GameRecord,
         agent: Agent,
@@ -353,9 +355,12 @@ public enum GameReview {
                 pointScale: config.variant.maxPoints)
         }
 
-        for (pass, depth) in depths.enumerated() {
+        passes: for (pass, depth) in depths.enumerated() {
             var done = 0
             for ctx in contexts {
+                // A closed review stops here, keeping what it has (seed included), instead
+                // of running its deeper passes on in the background.
+                if Task.isCancelled { break passes }
                 // 1-ply base scores every ply. 2-ply refines *every* real-choice ply,
                 // both sides — even clear blunders, because the displayed best move
                 // must be accurate, and ranking the candidates is what finds it (#103).

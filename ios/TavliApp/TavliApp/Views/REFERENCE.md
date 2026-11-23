@@ -770,7 +770,8 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   played" and "Best move", each label over a `MoveMarkSwatch` + notation + value; a swatch
   only while that mark is on the board (`MoveHighlightView.drawnMarks`), else a same-size
   gap. Status line (indented to the notation): "Best move played ✓" / "Computer played the
-  best ✓", else `EvalScale.lossLabel` (ink from a mistake up, secondary ink below), or
+  best ✓", else `EvalScale.lossLabel` (ink from a mistake up, secondary ink below; a different
+  move whose loss rounds to zero reads "0.00 equity" / "0% win chance", never "−0.00"), or
   "Only move available" for a forced ply. No green, no red: amber and blue mean only your
   move / the best move.
 - **Summary card** (`summaryCard`, a `.chromeCard(padding: 14)` at the end of the detail,
