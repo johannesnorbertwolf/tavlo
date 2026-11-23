@@ -5,7 +5,19 @@ subtitle ≤ 30, promotional text ≤ 170, keywords ≤ 100 (comma-separated, no
 description ≤ 4000 characters. `docs/app-store/check_listing.py` checks them.
 
 Words already in the name or subtitle are left out of the keywords (Apple indexes them anyway).
-Greek and Persian need a native-speaker check, like the in-app texts.
+Greek needs a native-speaker check, like the in-app texts.
+
+**Listing rules (decided 2026-11-23):**
+- No cultural-insider claims: describe the games, not the culture.
+- Values first: free, open source (AGPL-3.0, public repo), no ads, no tracking, no account, online
+  or offline.
+- Handicaps stay out of the listing while they are experimental.
+- The drill leads the LEARN list.
+- Language order: English, Greek, German, Dutch.
+- **No Persian/Iran references and no Persian (fa) App Store localization** until Tavlo fully
+  supports the Iranian (takhteh) rules (see `docs/playing-communities.md`, #248). The app itself
+  keeps Persian, and the privacy page keeps its Persian section.
+- "Tavlo" alone is taken on the App Store (another developer's app), hence "Tavlo: …".
 
 ## Shared fields (all locales)
 
@@ -33,203 +45,146 @@ Greek and Persian need a native-speaker check, like the in-app texts.
 
 ## English (en-US, primary)
 
-**Name:** Tavlo: Greek Backgammon
+**Name:** Tavlo: Tavli & Backgammon
 
 **Subtitle:** Plakoto, Fevga & Portes
 
 **Promotional text:**
-Play Plakoto, Fevga and Portes against a strong computer, with a friend, or online with family. Afterwards, see where the game was won and lost.
+Free and open source, with no ads and no account. Play Plakoto, Fevga and Portes against the computer, a friend or family online, then drill the moves you got wrong.
 
 **Keywords:**
-tavli,tavla,τάβλι,narde,tawla,board game,dice,strategy,two player,offline,classic,family
+tavla,τάβλι,tawla,narde,mahbusa,tapa,long nardy,board game,dice,strategy,two player,offline,classic
 
 **Description:**
 
 ```
-Tavlo brings Greek backgammon to your iPhone and iPad: Plakoto, Fevga and Portes, the three games of tavli played in kafeneia and family living rooms all over Greece.
+Tavlo is free, open-source tavli. No ads, no tracking, no account, nothing to buy. Play online or offline, on iPhone and iPad.
 
-PLAY YOUR WAY
-• Against the computer: an opponent that learned each game by playing itself millions of times. Eight levels, from relaxed to full strength.
-• With a friend on the same iPhone or iPad.
-• Online with friends and family through Game Center, one move at a time, whenever you have a minute.
-• A single game, best of three, or Full Tavli: Portes, Fevga and Plakoto in a row.
+Three games: Plakoto, Fevga and Portes. You may know them by other names: Portes is close to backgammon (tavla), Plakoto to tapa and mahbusa, Fevga to long nardy.
 
-LEARN FROM EVERY GAME
-• Review: a win-chance graph of the whole game, with each of your moves shown next to the best one.
-• Every move is graded as an inaccuracy, a mistake or a blunder, and the game gets an accuracy score.
-• See how much the dice decided, and how much your moves did.
-• Drill: replay the positions where you went wrong until you find the better move.
+PLAY
+• Against the computer, at eight levels
+• With a friend on one iPhone or iPad
+• Online with friends and family, at your own pace
+• A single game, best of three, or Full Tavli: all three in a row
 
-CLOSE GAMES BETWEEN UNEQUAL PLAYERS
-Handicaps let a beginner and an expert, or a grandparent and a grandchild, play a close game of Plakoto: a head start, dice that lean towards one side, rerolls, hints, or small rule changes. Dice help, rerolls and hints can be adjusted during the game.
+LEARN
+• Drill the positions you got wrong until you find the better move
+• A win-chance graph of every game
+• Your move next to the best move
+• Inaccuracies, mistakes and blunders, and an accuracy score
+• How much the dice decided, and how much you did
 
-MADE WITH CARE
-• No ads, no tracking, no account.
-• Plays offline; only online games need a connection.
-• Dark mode, on iPhone and iPad.
-• In English, German, Dutch, Greek and Persian.
-```
-
----
-
-## German (de-DE)
-
-**Name:** Tavlo: Griechisches Backgammon
-
-**Subtitle:** Plakoto, Fevga und Portes
-
-**Promotional text:**
-Spiele Plakoto, Fevga und Portes gegen einen starken Computer, zu zweit oder online mit der Familie – und sieh danach, wo die Partie gewonnen und verloren wurde.
-
-**Keywords:**
-tavli,tavla,τάβλι,puff,brettspiel,würfel,würfelspiel,strategie,zwei spieler,offline,klassiker,narde
-
-**Description:**
-
-```
-Tavlo bringt griechisches Backgammon auf dein iPhone und iPad: Plakoto, Fevga und Portes, die drei Tavli-Spiele, die in ganz Griechenland im Kafenio und im Wohnzimmer gespielt werden.
-
-SPIEL, WIE DU WILLST
-• Gegen den Computer: ein Gegner, der jedes Spiel gelernt hat, indem er Millionen Partien gegen sich selbst gespielt hat. Acht Stufen, von entspannt bis volle Stärke.
-• Zu zweit auf demselben iPhone oder iPad.
-• Online mit Freunden und Familie über Game Center, Zug für Zug, wann immer du eine Minute hast.
-• Ein einzelnes Spiel, Best of 3 oder Full Tavli: Portes, Fevga und Plakoto hintereinander.
-
-LERN AUS JEDER PARTIE
-• Analyse: eine Gewinnchancen-Kurve über die ganze Partie, jeder deiner Züge neben dem besten.
-• Jeder Zug wird als Ungenauigkeit, Fehler oder grober Patzer bewertet, und die Partie bekommt eine Genauigkeit.
-• Sieh, wie viel die Würfel entschieden haben und wie viel deine Züge.
-• Drill: Spiel die Stellungen nach, in denen du danebenlagst, bis du den besseren Zug findest.
-
-SPANNENDE PARTIEN TROTZ UNTERSCHIEDLICHER STÄRKE
-Mit Handicaps spielen Anfänger und Profi, oder Oma und Enkel, eine knappe Partie Plakoto: ein Vorsprung, Würfel, die einer Seite helfen, Neuwürfe, Tipps oder kleine Regeländerungen. Würfelhilfe, Neuwürfe und Tipps lassen sich während der Partie anpassen.
-
-MIT SORGFALT GEMACHT
-• Keine Werbung, kein Tracking, kein Konto.
-• Spielt offline; nur Online-Partien brauchen eine Verbindung.
-• Dunkelmodus, auf iPhone und iPad.
-• Auf Deutsch, Englisch, Niederländisch, Griechisch und Persisch.
-```
-
----
-
-## Dutch (nl-NL)
-
-**Name:** Tavlo: Grieks Backgammon
-
-**Subtitle:** Plakoto, Fevga en Portes
-
-**Promotional text:**
-Speel Plakoto, Fevga en Portes tegen een sterke computer, met z'n tweeën of online met familie. Zie daarna waar de partij gewonnen en verloren werd.
-
-**Keywords:**
-tavli,tavla,τάβλι,bordspel,dobbelstenen,strategie,twee spelers,offline,klassiek,triktrak,narde
-
-**Description:**
-
-```
-Tavlo brengt Grieks backgammon naar je iPhone en iPad: Plakoto, Fevga en Portes, de drie tavli-spellen die overal in Griekenland in het kafenio en in de huiskamer worden gespeeld.
-
-SPEEL ZOALS JIJ WILT
-• Tegen de computer: een tegenstander die elk spel leerde door miljoenen partijen tegen zichzelf te spelen. Acht niveaus, van ontspannen tot volle sterkte.
-• Met z'n tweeën op dezelfde iPhone of iPad.
-• Online met vrienden en familie via Game Center, zet voor zet, wanneer je even tijd hebt.
-• Eén spel, best of 3, of Full Tavli: Portes, Fevga en Plakoto achter elkaar.
-
-LEER VAN ELKE PARTIJ
-• Analyse: een winstkansgrafiek van de hele partij, met elke zet van jou naast de beste.
-• Elke zet krijgt een oordeel (onnauwkeurigheid, fout of blunder) en de partij een nauwkeurigheidsscore.
-• Zie hoeveel de dobbelstenen bepaalden en hoeveel jouw zetten.
-• Drill: speel de stellingen waarin je de mist inging opnieuw, tot je de betere zet vindt.
-
-SPANNENDE PARTIJEN TUSSEN ONGELIJKE SPELERS
-Met handicaps spelen een beginner en een expert, of opa en kleinkind, een gelijkopgaande partij Plakoto: een voorsprong, dobbelstenen die één kant helpen, opnieuw gooien, hints of kleine regelwijzigingen. Dobbelhulp, opnieuw gooien en hints zijn tijdens de partij aan te passen.
-
-MET ZORG GEMAAKT
-• Geen advertenties, geen tracking, geen account.
-• Werkt offline; alleen online partijen hebben een verbinding nodig.
-• Donkere modus, op iPhone en iPad.
-• In het Nederlands, Engels, Duits, Grieks en Perzisch.
+Dark mode. English, Greek, German and Dutch.
 ```
 
 ---
 
 ## Greek (el) — needs a native-speaker check
 
-**Name:** Tavlo: Ελληνικό Τάβλι
+**Name:** Tavlo: Τάβλι & Backgammon
 
 **Subtitle:** Πλακωτό, Φεύγα και Πόρτες
 
 **Promotional text:**
-Παίξε Πλακωτό, Φεύγα και Πόρτες με έναν δυνατό υπολογιστή, με φίλο ή online με την οικογένεια. Μετά δες πού κρίθηκε το παιχνίδι.
+Δωρεάν και ανοιχτού κώδικα, χωρίς διαφημίσεις και λογαριασμό. Παίξε Πλακωτό, Φεύγα και Πόρτες με τον υπολογιστή, με φίλο ή online, και μετά εξασκήσου στα λάθη σου.
 
 **Keywords:**
-tavli,backgammon,ταβλι,πλακωτο,φευγα,πορτες,επιτραπέζιο,ζάρια,στρατηγική,δύο παίκτες,offline
+tavli,ταβλι,πλακωτο,φευγα,πορτες,επιτραπέζιο,ζάρια,στρατηγική,δύο παίκτες,offline,tavla,mahbusa,tapa
 
 **Description:**
 
 ```
-Το Tavlo φέρνει το ελληνικό τάβλι στο iPhone και στο iPad σου: Πλακωτό, Φεύγα και Πόρτες, τα τρία παιχνίδια που παίζονται σε κάθε καφενείο και σε κάθε σαλόνι.
+Το Tavlo είναι δωρεάν τάβλι ανοιχτού κώδικα. Χωρίς διαφημίσεις, χωρίς παρακολούθηση, χωρίς λογαριασμό, χωρίς αγορές. Παίξε online ή offline, σε iPhone και iPad.
 
-ΠΑΙΞΕ ΟΠΩΣ ΘΕΣ
-• Με τον υπολογιστή: έναν αντίπαλο που έμαθε κάθε παιχνίδι παίζοντας εκατομμύρια παρτίδες με τον εαυτό του. Οκτώ επίπεδα, από χαλαρό μέχρι πλήρη δύναμη.
-• Με φίλο στο ίδιο iPhone ή iPad.
-• Online με φίλους και οικογένεια μέσω Game Center, κίνηση-κίνηση, όποτε έχεις ένα λεπτό.
-• Ένα παιχνίδι, 2 στα 3, ή Πλήρες Τάβλι: Πόρτες, Φεύγα και Πλακωτό στη σειρά.
+Τρία παιχνίδια: Πλακωτό, Φεύγα και Πόρτες. Ίσως τα ξέρεις και με άλλα ονόματα: οι Πόρτες μοιάζουν με το backgammon (tavla), το Πλακωτό με το tapa και το mahbusa, η Φεύγα με το long nardy.
 
-ΜΑΘΕ ΑΠΟ ΚΑΘΕ ΠΑΡΤΙΔΑ
-• Ανάλυση: ένα γράφημα με την πιθανότητα νίκης σε όλη την παρτίδα, με κάθε κίνησή σου δίπλα στην καλύτερη.
-• Κάθε κίνηση χαρακτηρίζεται ως ανακρίβεια, λάθος ή γκάφα, και η παρτίδα παίρνει βαθμό ακρίβειας.
-• Δες πόσο έκριναν τα ζάρια και πόσο οι κινήσεις σου.
-• Εξάσκηση: ξαναπαίξε τις θέσεις όπου έκανες λάθος, μέχρι να βρεις την καλύτερη κίνηση.
+ΠΑΙΞΕ
+• Με τον υπολογιστή, σε οκτώ επίπεδα
+• Με φίλο στο ίδιο iPhone ή iPad
+• Online με φίλους και οικογένεια, με τον δικό σου ρυθμό
+• Ένα παιχνίδι, 2 στα 3, ή Πλήρες Τάβλι: και τα τρία στη σειρά
 
-ΣΥΝΑΡΠΑΣΤΙΚΕΣ ΠΑΡΤΙΔΕΣ ΑΝΑΜΕΣΑ ΣΕ ΑΝΙΣΟΥΣ ΠΑΙΚΤΕΣ
-Με το χάντικαπ, ένας αρχάριος και ένας έμπειρος, ή ο παππούς και το εγγόνι, παίζουν μια ισόπαλη παρτίδα Πλακωτό: προβάδισμα, ζάρια που βοηθούν τη μία πλευρά, ξαναρίξιμο, συμβουλές ή μικρές αλλαγές κανόνων. Η βοήθεια στα ζάρια, τα ξαναριξίματα και οι συμβουλές αλλάζουν και κατά τη διάρκεια της παρτίδας.
+ΜΑΘΕ
+• Εξάσκηση: ξαναπαίξε τις θέσεις όπου έκανες λάθος, μέχρι να βρεις την καλύτερη κίνηση
+• Γράφημα με την πιθανότητα νίκης σε κάθε παρτίδα
+• Η κίνησή σου δίπλα στην καλύτερη
+• Ανακρίβειες, λάθη και γκάφες, και βαθμός ακρίβειας
+• Πόσο έκριναν τα ζάρια και πόσο εσύ
 
-ΦΤΙΑΓΜΕΝΟ ΜΕ ΦΡΟΝΤΙΔΑ
-• Χωρίς διαφημίσεις, χωρίς παρακολούθηση, χωρίς λογαριασμό.
-• Παίζει offline· μόνο οι online παρτίδες χρειάζονται σύνδεση.
-• Σκοτεινή λειτουργία, σε iPhone και iPad.
-• Στα ελληνικά, αγγλικά, γερμανικά, ολλανδικά και περσικά.
+Σκοτεινή λειτουργία. Στα αγγλικά, ελληνικά, γερμανικά και ολλανδικά.
 ```
 
 ---
 
-## Persian (fa) — needs a native-speaker check
+## German (de-DE)
 
-**Name:** Tavlo: تخته نرد یونانی
+**Name:** Tavlo: Tavli & Backgammon
 
-**Subtitle:** پلاکوتو، فوگا و پورتس
+**Subtitle:** Plakoto, Fevga und Portes
 
 **Promotional text:**
-پلاکوتو، فوگا و پورتس را با یک کامپیوتر قوی، دو نفره یا آنلاین با خانواده بازی کن. بعد ببین بازی کجا برده و کجا باخته شد.
+Kostenlos und Open Source, ohne Werbung und ohne Konto. Spiele Plakoto, Fevga und Portes gegen den Computer, zu zweit oder online – und übe danach deine Fehler.
 
 **Keywords:**
-تاس,بازی فکری,بازی تخته ای,دو نفره,آفلاین,استراتژی,backgammon,tavli,τάβλι
+tavla,τάβλι,puff,brettspiel,würfelspiel,strategie,zwei spieler,offline,mahbusa,tapa,long nardy
 
 **Description:**
 
 ```
-Tavlo تخته نرد یونانی را به آیفون و آیپد تو می‌آورد: پلاکوتو، فوگا و پورتس، سه بازی تاولی که در سراسر یونان در قهوه‌خانه‌ها و خانه‌ها بازی می‌شوند.
+Tavlo ist kostenloses Open-Source-Tavli. Keine Werbung, kein Tracking, kein Konto, nichts zu kaufen. Spiele online oder offline, auf iPhone und iPad.
 
-هر طور که دوست داری بازی کن
-• با کامپیوتر: حریفی که هر بازی را با میلیون‌ها بار بازی با خودش یاد گرفته است. هشت سطح، از آسان تا قدرت کامل.
-• دو نفره روی همان آیفون یا آیپد.
-• آنلاین با دوستان و خانواده از طریق Game Center، حرکت به حرکت، هر وقت یک دقیقه وقت داری.
-• یک بازی، بهترین از ۳، یا تاولی کامل: پورتس، فوگا و پلاکوتو پشت سر هم.
+Drei Spiele: Plakoto, Fevga und Portes. Vielleicht kennst du sie unter anderen Namen: Portes ähnelt Backgammon (Tavla), Plakoto Tapa und Mahbusa, Fevga Long Nardy.
 
-از هر بازی یاد بگیر
-• تحلیل: نمودار شانس برد در کل بازی، با هر حرکت تو کنار بهترین حرکت.
-• هر حرکت به عنوان بی‌دقتی، اشتباه یا اشتباه فاحش ارزیابی می‌شود و بازی یک امتیاز دقت می‌گیرد.
-• ببین تاس‌ها چقدر تعیین‌کننده بودند و حرکت‌های تو چقدر.
-• تمرین: موقعیت‌هایی را که در آن اشتباه کردی دوباره بازی کن تا حرکت بهتر را پیدا کنی.
+SPIELEN
+• Gegen den Computer, in acht Stufen
+• Zu zweit auf einem iPhone oder iPad
+• Online mit Freunden und Familie, in deinem Tempo
+• Ein Spiel, Best of 3 oder Full Tavli: alle drei hintereinander
 
-بازی‌های نزدیک بین بازیکنان نابرابر
-با هندیکپ، یک مبتدی و یک حرفه‌ای، یا پدربزرگ و نوه، می‌توانند یک بازی نزدیک پلاکوتو داشته باشند: شروع جلوتر، تاس‌هایی که به یک طرف کمک می‌کنند، تاس دوباره، راهنمایی یا تغییرات کوچک در قوانین. کمک تاس، تاس دوباره و راهنمایی در طول بازی هم قابل تغییر است.
+LERNEN
+• Drill: Übe die Stellungen, in denen du danebenlagst, bis du den besseren Zug findest
+• Eine Gewinnchancen-Kurve jeder Partie
+• Dein Zug neben dem besten Zug
+• Ungenauigkeiten, Fehler und grobe Patzer, dazu eine Genauigkeit in Prozent
+• Wie viel die Würfel entschieden haben und wie viel du
 
-با دقت ساخته شده
-• بدون تبلیغ، بدون ردیابی، بدون حساب کاربری.
-• آفلاین کار می‌کند؛ فقط بازی‌های آنلاین به اینترنت نیاز دارند.
-• حالت تیره، روی آیفون و آیپد.
-• به فارسی، انگلیسی، آلمانی، هلندی و یونانی.
+Dunkelmodus. Auf Englisch, Griechisch, Deutsch und Niederländisch.
+```
+
+---
+
+## Dutch (nl-NL)
+
+**Name:** Tavlo: Tavli & Backgammon
+
+**Subtitle:** Plakoto, Fevga en Portes
+
+**Promotional text:**
+Gratis en open source, zonder advertenties en zonder account. Speel Plakoto, Fevga en Portes tegen de computer, met z'n tweeën of online, en oefen daarna je fouten.
+
+**Keywords:**
+tavla,τάβλι,bordspel,dobbelstenen,strategie,twee spelers,offline,klassiek,triktrak,mahbusa,tapa
+
+**Description:**
+
+```
+Tavlo is gratis, opensource tavli. Geen advertenties, geen tracking, geen account, niets te koop. Speel online of offline, op iPhone en iPad.
+
+Drie spellen: Plakoto, Fevga en Portes. Misschien ken je ze onder andere namen: Portes lijkt op backgammon (tavla), Plakoto op tapa en mahbusa, Fevga op long nardy.
+
+SPELEN
+• Tegen de computer, op acht niveaus
+• Met z'n tweeën op één iPhone of iPad
+• Online met vrienden en familie, in je eigen tempo
+• Eén spel, best of 3, of Full Tavli: alle drie achter elkaar
+
+LEREN
+• Drill: oefen de stellingen waarin je de mist inging, tot je de betere zet vindt
+• Een winstkansgrafiek van elke partij
+• Jouw zet naast de beste zet
+• Onnauwkeurigheden, fouten en blunders, en een nauwkeurigheidsscore
+• Hoeveel de dobbelstenen bepaalden, en hoeveel jij
+
+Donkere modus. In het Engels, Grieks, Duits en Nederlands.
 ```

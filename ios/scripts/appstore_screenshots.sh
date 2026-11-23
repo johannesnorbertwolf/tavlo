@@ -5,10 +5,11 @@
 # saves a PNG with `xcrun simctl io <udid> screenshot`.
 #
 # Usage:
-#   ios/scripts/appstore_screenshots.sh [-o OUTDIR] [-l "en de nl el fa"] [-d "iphone ipad"] [--no-build]
+#   ios/scripts/appstore_screenshots.sh [-o OUTDIR] [-l "en el de nl"] [-d "iphone ipad"] [--no-build]
 #
 #   -o OUTDIR    where to write (default: design/app-store/screenshots)
-#   -l LOCALES   space-separated subset of: en de nl el fa (default: all five)
+#   -l LOCALES   space-separated subset of: en de nl el fa (default: en el de nl; fa is not
+#                listed on the App Store for now, see docs/app-store/listing.md)
 #   -d DEVICES   space-separated subset of: iphone ipad (default: both)
 #   --no-build   reuse the last build in $DERIVED_DATA
 #
@@ -37,7 +38,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUTDIR="$ROOT/design/app-store/screenshots"
-LOCALES="en de nl el fa"
+LOCALES="en el de nl"
 DEVICES="iphone ipad"
 BUILD=1
 IPHONE_UDID="${IPHONE_UDID:-5065195B-B000-40D6-8E99-F14EDDFA0991}"
