@@ -107,6 +107,31 @@ final class GameReviewTests: XCTestCase {
         return (moves, scores)
     }
 
+    // MARK: - Drill grading
+
+    /// The drill grades an attempt that reaches the best move's position with the best
+    /// score itself (it was re-scored at another depth and read "51% vs 53%" for the
+    /// very same move): `sameOutcome` matches by resulting board, not by pair order.
+    func testSameOutcomeMatchesByResultingBoard() {
+        let board = GameBoard(config: Self.config)
+        board.initializeBoard()
+        let stacks = board.captureStacks()
+        let (moves, _) = openingScores(color: .white, die1: 6, die2: 5)
+        let pairs = moves.map { $0.halfMoves.map { [$0.from.position, $0.to.position] } }
+        guard let twoHalves = pairs.first(where: { $0.count == 2 && $0[0] != $0[1] }) else {
+            return XCTFail("expected a two-half opening move")
+        }
+        XCTAssertTrue(Self.agent.sameOutcome(boardStacks: stacks, twoHalves, twoHalves,
+                                             mover: .white, config: Self.config))
+        XCTAssertTrue(Self.agent.sameOutcome(boardStacks: stacks, twoHalves, Array(twoHalves.reversed()),
+                                             mover: .white, config: Self.config))
+        let different = pairs.first { !Self.agent.sameOutcome(boardStacks: stacks, $0, twoHalves,
+                                                               mover: .white, config: Self.config) }
+        XCTAssertNotNil(different, "some opening move must lead elsewhere")
+        // The helper works on an isolated copy: the stacks it was given are untouched.
+        XCTAssertEqual(board.captureStacks(), stacks)
+    }
+
     // MARK: - Blunder flagging
 
     /// The worst-scoring legal move at the opening is scored exactly, but the opening

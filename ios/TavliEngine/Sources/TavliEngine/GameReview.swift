@@ -626,6 +626,31 @@ public extension Agent {
     /// off the main actor. The score is identical to that move's entry in a full
     /// `evaluateMovesNply` ranking — i.e. directly comparable to a `PlyEvaluation`'s
     /// `bestScore`.
+    /// Whether moves `a` and `b` (`[from, to]` pairs) leave the same board from
+    /// `boardStacks`. The drill uses it to grade an attempt that reaches the best move's
+    /// (or the game move's) position with that move's known score, so the same move
+    /// never shows two values when the review scored it at a different depth.
+    func sameOutcome(boardStacks: [[Color]], _ a: [[Int]], _ b: [[Int]],
+                     mover: Color, config: GameConfig? = nil) -> Bool {
+        let config = config ?? GameConfig(variant: variant)
+        let board = GameBoard(config: config)
+        for (i, pieces) in boardStacks.enumerated() where i < board.points.count {
+            board.setPoint(i, pieces: pieces)
+        }
+        func outcome(_ pairs: [[Int]]) -> [[Color]] {
+            let move = Move(pairs.compactMap { p -> HalfMove? in
+                guard p.count == 2 else { return nil }
+                return HalfMove(from: board.points[p[0]], to: board.points[p[1]], color: mover)
+            })
+            let snapshot = board.captureSnapshot()
+            config.variant.apply(move, on: board)
+            let stacks = board.captureStacks()
+            board.restore(snapshot)
+            return stacks
+        }
+        return outcome(a) == outcome(b)
+    }
+
     func scoreCandidate(boardStacks: [[Color]],
                         move pairs: [[Int]],
                         mover: Color,
