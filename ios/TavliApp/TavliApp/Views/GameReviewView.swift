@@ -15,6 +15,13 @@ private typealias SColor = SwiftUI.Color
 /// with the best (blue); a "My moves · Mistakes · All moves" filter scopes Prev/Next,
 /// the swipe and the chart scrub; cards are numbered by turn like the Moves sheet; a
 /// move's level (`MoveSeverity` ?! / ? / ??, #231) shows as a neutral badge.
+///
+/// #259 — on an iPhone in portrait the review is two pages, switched by a small
+/// "Game · Moves" control at the top and opening on Game: the win-chance graph, the
+/// summary, "Drill mistakes" and the list of your mistakes and blunders (a row or a
+/// graph tap opens Moves at that ply); Moves = the board, Prev/Next, the move card and
+/// the filter. iPad and iPhone landscape keep one page. Every layout draws the ply's
+/// dice on the board, and the summary's rating line is live while the analysis runs.
 /// Pure presentation — all analysis lives in `TavliEngine`.
 struct GameReviewView: View {
     let record: GameRecord
@@ -38,10 +45,15 @@ struct GameReviewView: View {
     @State private var showDrill = false
     /// Which moves Prev/Next/swipe/scrub step through (#233); default your own choices.
     @State private var filter: ReviewFilter = .mine
+    /// The page shown on an iPhone in portrait (#259); opens on the game overview.
+    @State private var page: ReviewPage = .game
 
     /// #233: the navigation scope. `.mine` = your plies with a choice (forced skipped),
     /// `.mistakes` = your ? and ?? plies, `.all` = every evaluated ply, both sides.
     enum ReviewFilter: Hashable { case mine, mistakes, all }
+
+    /// #259: the iPhone portrait pages — the whole game, or move by move.
+    enum ReviewPage: Hashable { case game, moves }
 
     init(record: GameRecord, agent: Agent?, humanColor: TavliEngine.Color,
          opponentName: String? = nil) {
@@ -54,6 +66,7 @@ struct GameReviewView: View {
         // App Store screenshot scene (#184): open on the chosen move.
         if ScreenshotScenes.analysis(for: record.gameId) != nil {
             _selectedPly = State(initialValue: ScreenshotScenes.reviewPly)
+            if ScreenshotScenes.isReviewMoves { _page = State(initialValue: .moves) }
         }
         #endif
     }
@@ -267,7 +280,10 @@ struct GameReviewView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
-            .gesture(pagingGesture(current: i, plies: plies))
+            // The swipe pages through moves wherever a board shows — not on the
+            // iPhone's Game page (#259), which has none.
+            .gesture(pagingGesture(current: i, plies: plies),
+                     including: layout.mode == .compactPortrait && page == .game ? .subviews : .all)
         }
     }
 
@@ -287,6 +303,8 @@ struct GameReviewView: View {
             // shared points, blue alone when you played the best (#133, #232, #233).
             MoveHighlightView(playedMove: eval.playedMove, bestMove: boardBestMove(eval),
                               stacks: eval.boardStacks, flipped: flipped, variant: variant)
+            // The ply's roll where it sits during play (#259).
+            ReviewBoardDice(die1: eval.die1, die2: eval.die2)
         }
         .aspectRatio(1, contentMode: .fit)
         .boardLayoutDirection()   // #185: the physical board never mirrors
@@ -417,46 +435,163 @@ struct GameReviewView: View {
                 .frame(width: layout.panelRect.width)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        } else if page == .game {
+            VStack(spacing: 8) {
+                compactTopBar
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+                ScrollView {
+                    gamePage(plies: plies, selectedPly: eval.plyNumber, finished: finished,
+                             width: layout.boardSide - 32, onScrub: onScrub)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         } else {
             VStack(spacing: 8) {
-                topBar
+                compactTopBar
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
                 boardArea(eval)
                     .frame(width: layout.boardSide, height: layout.boardSide)
                 navRow(i: i, plies: plies)
                     .padding(.horizontal, 12)
-                compactDetailScroll {
-                    panelInfo(eval: eval, finished: finished, onScrub: onScrub)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        moveSection(eval: eval, finished: finished)
+                        filterPicker
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 
-    /// The phone's scrolling detail. DEBUG: the App Store review scene (#184) opens it
-    /// scrolled to the chart, so the chart + summary sit under the compared move.
+    // ── iPhone portrait pages (#259) ───────────────────────────────────────────
+
+    /// Close, then the "Game · Moves" switch centred on the bar (+ the fair-dice note).
     @ViewBuilder
-    private func compactDetailScroll<C: View>(@ViewBuilder _ content: () -> C) -> some View {
-        #if DEBUG
-        if ScreenshotScenes.isReview {
-            // Room below the summary so the chart can scroll up to the top.
-            let scroll = ScrollView { content().padding(.bottom, 240) }
-            ScrollViewReader { reader in
-                scroll.onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        reader.scrollTo(ScreenshotScenes.chartAnchor, anchor: .top)
-                    }
-                }
+    private var compactTopBar: some View {
+        let bar = ZStack {
+            HStack {
+                CloseButton { dismiss() }
+                Spacer(minLength: 0)
+            }
+            ReviewPageSwitch(page: $page)
+                .frame(maxWidth: 220)
+                .padding(.horizontal, 52)   // clear of Close on a narrow phone
+        }
+        if record.handicap?.altersDice == true {
+            VStack(alignment: .leading, spacing: 6) {
+                bar
+                HandicapReviewNote()
             }
         } else {
-            ScrollView { content() }
+            bar
         }
-        #else
-        ScrollView { content() }
-        #endif
+    }
+
+    /// Open the Moves page on `ply` (from the mistakes list or a graph tap).
+    private func openMoves(at ply: Int) {
+        selectedPly = ply
+        withAnimation(.easeInOut(duration: 0.2)) { page = .moves }
+    }
+
+    /// The Game page: the graph full width and taller, the summary, "Drill mistakes",
+    /// then your mistakes and blunders. A graph tap opens Moves at the nearest move
+    /// of the filter; a row opens that move.
+    private func gamePage(plies: [PlyEvaluation], selectedPly: Int, finished: Bool,
+                          width: CGFloat, onScrub: @escaping (Int) -> Void) -> some View {
+        let chartHeight = min(240, max(150, width * 0.5))
+        let mistakes = plies.filter { $0.mover == humanColor && $0.severity >= .mistake }
+        return VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 6) {
+                chartTitle
+                if model.firstPassComplete, plies.count >= 2 {
+                    chart(selectedPly: self.selectedPly == nil ? nil : selectedPly,
+                          height: chartHeight, tapOnly: true) { ply in
+                        onScrub(ply)
+                        withAnimation(.easeInOut(duration: 0.2)) { page = .moves }
+                    }
+                } else {
+                    // The first pass is still running: the graph's place, quietly busy.
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(ChromeKit.secondaryFill)
+                        .frame(height: chartHeight)
+                        .overlay(ProgressView().tint(ChromeTheme.ink))
+                }
+            }
+            summaryCard(finished: finished)
+            if hasMistakes {
+                Button("Drill mistakes") { showDrill = true }
+                    .buttonStyle(ChromeButton(role: .secondary, fullWidth: true))
+            }
+            if !mistakes.isEmpty {
+                mistakeList(mistakes)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// "Mistakes", then one row per ? / ?? of yours: "Turn 14  ?? Blunder  −12% win
+    /// chance ›". Where a row doesn't fit, every row drops the loss's unit, then the
+    /// badge its name — the whole list steps down together, so the rows stay alike.
+    private func mistakeList(_ mistakes: [PlyEvaluation]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Mistakes")
+                .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
+            ViewThatFits(in: .horizontal) {
+                mistakeRows(mistakes, badgeName: true, lossUnit: true)
+                mistakeRows(mistakes, badgeName: true, lossUnit: false)
+                mistakeRows(mistakes, badgeName: false, lossUnit: false)
+            }
+            .background(ChromeKit.cardColor, in: RoundedRectangle(cornerRadius: ChromeKit.cardRadius))
+            .overlay(RoundedRectangle(cornerRadius: ChromeKit.cardRadius)
+                        .stroke(ChromeKit.cardEdge, lineWidth: 1))
+        }
+    }
+
+    private func mistakeRows(_ mistakes: [PlyEvaluation], badgeName: Bool,
+                             lossUnit: Bool) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(mistakes.enumerated()), id: \.element.plyNumber) { k, e in
+                if k > 0 { Divider().overlay(ChromeTheme.ink.opacity(0.08)) }
+                Button { openMoves(at: e.plyNumber) } label: {
+                    HStack(spacing: 8) {
+                        mistakeRow(e, badgeName: badgeName, lossUnit: lossUnit)
+                        DirectionalSymbol("chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(ChromeKit.inkDim(0.45))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .padding(.horizontal, 14)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text("Turn \(turnNumber(e.plyNumber))") + Text(verbatim: ", "
+                    + e.severity.localizedName + ", " + scale.lossLabel(e.absoluteGap)))
+                .accessibilityAddTraits(.isButton)
+            }
+        }
+    }
+
+    private func mistakeRow(_ e: PlyEvaluation, badgeName: Bool, lossUnit: Bool) -> some View {
+        HStack(spacing: 8) {
+            Text("Turn \(turnNumber(e.plyNumber))")
+                .font(.callout.bold())
+                .foregroundStyle(ChromeTheme.ink)
+            SeverityBadge(severity: e.severity, showsName: badgeName)
+            Spacer(minLength: 8)
+            Text(verbatim: lossUnit ? scale.lossLabel(e.absoluteGap) : scale.lossGap(e.absoluteGap))
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(ChromeKit.inkSecondary)
+        }
+        .lineLimit(1)
     }
 
     /// The detail, what changes as you page first: the move, the step filter, then the
@@ -480,24 +615,34 @@ struct GameReviewView: View {
             // deeper passes refine it in place (needs ≥2 points to trace a line).
             if model.firstPassComplete, model.chartEvaluations.count >= 2 {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(scale.isEquity ? LocalizedStringKey("Expected points through the game") : LocalizedStringKey("Win chance through the game"))
-                        .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
-                    WinProbabilityChart(evaluations: model.chartEvaluations,
-                                        selectedPly: eval.plyNumber,
-                                        marks: chartMarks,
-                                        topColor: leadingColor,
-                                        topLabel: naming.name(leadingColor),
-                                        bottomLabel: naming.name(leadingColor.opponent),
-                                        onScrub: onScrub)
+                    chartTitle
+                    chart(selectedPly: eval.plyNumber, height: 96, tapOnly: false, onScrub: onScrub)
                 }
-                #if DEBUG
-                .id(ScreenshotScenes.chartAnchor)   // App Store review scene (#184)
-                #endif
             }
 
             summaryCard(finished: finished)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var chartTitle: some View {
+        Text(scale.isEquity ? LocalizedStringKey("Expected points through the game") : LocalizedStringKey("Win chance through the game"))
+            .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
+    }
+
+    /// The whole-game chart: scrubbed by drag beside the board, tapped on the iPhone's
+    /// Game page (#259) — where a tap opens the move, and a drag still scrolls the page.
+    private func chart(selectedPly: Int?, height: CGFloat, tapOnly: Bool,
+                       onScrub: @escaping (Int) -> Void) -> some View {
+        WinProbabilityChart(evaluations: model.chartEvaluations,
+                            selectedPly: selectedPly,
+                            marks: chartMarks,
+                            topColor: leadingColor,
+                            topLabel: naming.name(leadingColor),
+                            bottomLabel: naming.name(leadingColor.opponent),
+                            height: height,
+                            tapOnly: tapOnly,
+                            onScrub: onScrub)
     }
 
     /// Chart markers (#233): your ? / ?? by size + symbol; the opponent's quietly, and
@@ -518,41 +663,44 @@ struct GameReviewView: View {
 
     /// "Accuracy 91% · 2 mistakes · 1 blunder" (counts only when > 0; inaccuracies are
     /// left out, #257 — nothing filters or drills them), then one dice-vs-decisions line
-    /// (per-roll / per-move averages) once the luck pass is in.
+    /// (per-roll / per-move averages). #259: live — from the plies analysed so far, with
+    /// a small spinner while the analysis runs; the numbers update in place. "No
+    /// mistakes" waits for the finished analysis.
     @ViewBuilder
     private func summaryCard(finished: Bool) -> some View {
-        let s = model.result.summary(for: humanColor, luck: model.luck)
-        let luckLine = luckText(s)
-        let waitingForLuck = luckLine == nil && agent != nil
-        if s.accuracy != nil || luckLine != nil || waitingForLuck {
-            VStack(alignment: .leading, spacing: 6) {
-                if let accuracy = s.accuracy {
-                    accuracyText(accuracy, s)
-                        .font(.callout)
-                        .foregroundStyle(ChromeTheme.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if finished, s.mistakes == 0, s.blunders == 0 {
-                        Text("No mistakes — nicely played!")
-                            .font(.callout.bold())
+        let s = model.result.summary(for: humanColor, luck: model.partialLuck)
+        let luckLine = luckText(s, finished: finished)
+        if s.accuracy != nil || luckLine != nil || !finished {
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let accuracy = s.accuracy {
+                        accuracyText(accuracy, s)
+                            .font(.callout)
                             .foregroundStyle(ChromeTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if finished, s.mistakes == 0, s.blunders == 0 {
+                            Text("No mistakes — nicely played!")
+                                .font(.callout.bold())
+                                .foregroundStyle(ChromeTheme.ink)
+                        }
+                    }
+                    if let luckLine {
+                        Text(luckLine)
+                            .font(.caption)
+                            .foregroundStyle(ChromeKit.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                if let luckLine {
-                    Text(luckLine)
-                        .font(.caption)
-                        .foregroundStyle(ChromeKit.inkSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else if waitingForLuck {
-                    // Quiet placeholder while the luck pass runs after the analysis.
-                    HStack(spacing: 6) {
-                        ProgressView().controlSize(.mini)
-                        Text("Measuring dice luck…")
-                    }
-                    .font(.caption)
-                    .foregroundStyle(ChromeKit.inkDim(0.55))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if !finished {
+                    // Quiet: the analysis is still running; the numbers beside it update.
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(ChromeKit.inkDim(0.45))
+                        .accessibilityLabel("Analysis still running")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)
             .chromeCard(padding: 14)
         }
     }
@@ -575,33 +723,32 @@ struct GameReviewView: View {
 
     /// "Dice: +0.5% per roll for you · Your moves: −2.1% per move" — averages, so a
     /// long or wild game never reads past 100 %: the dice term is your mean luck per
-    /// roll minus the opponent's (`PlyLuck.luckPoints`, passes included), the moves
-    /// term your mean decision loss over your plies with a choice. Win chance, or
-    /// equity for a 2-point variant, to one decimal (`EvalScale.points`). `nil` until
-    /// the luck pass has run.
-    private func luckText(_ s: GameReviewSummary) -> String? {
-        guard let luck = model.luck else { return nil }
-        func meanLuck(_ c: TavliEngine.Color) -> Double {
-            let rolls = luck.filter { $0.mover == c }
-            return rolls.isEmpty ? 0 : rolls.reduce(0.0) { $0 + $1.luckPoints } / Double(rolls.count)
+    /// roll minus the opponent's (`GameReviewSummary.netLuckPerRoll`, passes included),
+    /// the moves term your mean decision loss over your plies with a choice. Win
+    /// chance, or equity for a 2-point variant, to one decimal (`EvalScale.points`).
+    /// #259: from what is analysed so far — the dice term once both sides have a
+    /// measured roll (or the analysis is done), the moves term once one of your moves
+    /// is in; `nil` while neither is.
+    private func luckText(_ s: GameReviewSummary, finished: Bool) -> String? {
+        var parts: [String] = []
+        if let net = s.netLuckPerRoll, finished || s.luckCoversBothSides {
+            if abs(net) < 0.05 {
+                parts.append(String(localized: "Dice: even"))
+            } else {
+                let favoured = net > 0 ? humanColor : humanColor.opponent
+                let amount = scale.points(abs(net), signed: true, decimals: 1)
+                parts.append(favoured == localColor
+                    ? String(localized: "Dice: \(amount) per roll for you")
+                    : String(localized: "Dice: \(amount) per roll for \(naming.name(favoured))"))
+            }
         }
-        let net = meanLuck(humanColor) - meanLuck(humanColor.opponent)
-        let dice: String
-        if abs(net) < 0.05 {
-            dice = String(localized: "Dice: even")
-        } else {
-            let favoured = net > 0 ? humanColor : humanColor.opponent
-            let amount = scale.points(abs(net), signed: true, decimals: 1)
-            dice = favoured == localColor
-                ? String(localized: "Dice: \(amount) per roll for you")
-                : String(localized: "Dice: \(amount) per roll for \(naming.name(favoured))")
+        if let perMove = s.decisionLossPerMove {
+            let loss = scale.points(-perMove, signed: true, decimals: 1)
+            parts.append(localColor != nil
+                ? String(localized: "Your moves: \(loss) per move")
+                : String(localized: "Moves by \(naming.name(humanColor)): \(loss) per move"))
         }
-        let perMove = s.choicePlies > 0 ? s.decisionLoss / Double(s.choicePlies) : 0
-        let loss = scale.points(-perMove, signed: true, decimals: 1)
-        let moves = localColor != nil
-            ? String(localized: "Your moves: \(loss) per move")
-            : String(localized: "Moves by \(naming.name(humanColor)): \(loss) per move")
-        return dice + separator + moves
+        return parts.isEmpty ? nil : parts.joined(separator: separator)
     }
 
     // ── The move ───────────────────────────────────────────────────────────────
@@ -620,15 +767,21 @@ struct GameReviewView: View {
                     Text("Turn \(turnNumber(eval.plyNumber))")
                         .font(.title3.bold())
                         .foregroundStyle(ChromeTheme.ink)
+                        .lineLimit(1)
+                        .fixedSize()
                     MoverChip(name: naming.name(eval.mover), color: eval.mover)
+                    // The dice are on the board (#259); the level sits on this line,
+                    // down to its mark alone where the name doesn't fit.
+                    if showsSeverity {
+                        ViewThatFits(in: .horizontal) {
+                            SeverityBadge(severity: eval.severity)
+                            SeverityBadge(severity: eval.severity, showsName: false)
+                        }
+                    }
                     if !finished {
                         // Deeper passes still refining in the background (#103).
                         ProgressView().controlSize(.small)
                     }
-                }
-                HStack(spacing: 8) {
-                    NotationDice(notation: notation(eval, eval.playedMove), size: 22)
-                    if showsSeverity { SeverityBadge(severity: eval.severity) }
                 }
             }
 
@@ -782,9 +935,11 @@ final class GameReviewModel: ObservableObject {
     /// The full win-probability trajectory for the chart (#105): every evaluated ply.
     var chartEvaluations: [PlyEvaluation] { allEvaluations }
 
-    /// Per-ply dice luck for both sides (#231): `nil` until every ply has it. Feeds
-    /// `result.summary(for:luck:)`.
+    /// Per-ply dice luck for both sides (#231): `nil` until every ply has it.
     @Published private(set) var luck: [PlyLuck]?
+    /// The luck found so far (#259), in play order — feeds the summary's live
+    /// per-roll line through `result.summary(for:luck:)`.
+    @Published private(set) var partialLuck: [PlyLuck] = []
 
     init() {}
 
@@ -808,6 +963,7 @@ final class GameReviewModel: ObservableObject {
         if let fixture = ScreenshotScenes.analysis(for: record.gameId) {
             fixed = true
             luck = GameReview.cachedLuck(record: record, analysis: fixture)
+            partialLuck = luck ?? []
             allEvaluations = GameReview.cachedResult(record: record, analysis: fixture).evaluations
             firstPassComplete = true
             phase = allEvaluations.isEmpty ? .nothingToReview : .reviewing(finished: true)
@@ -827,6 +983,7 @@ final class GameReviewModel: ObservableObject {
     private func sync(_ job: GameAnalysisJob) {
         allEvaluations = job.result.evaluations
         luck = job.luck
+        partialLuck = job.partialLuck
         firstPassComplete = job.firstPassComplete
         if allEvaluations.isEmpty {
             if !job.hasModel {
@@ -858,6 +1015,74 @@ private struct CloseButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Close")
+    }
+}
+
+/// The iPhone portrait review's "Game · Moves" switch (#259): the Caramel segmented look
+/// of the new-game sheet (recessed track, the selected page raised), a size smaller.
+private struct ReviewPageSwitch: View {
+    @Binding var page: GameReviewView.ReviewPage
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segment(.game, Text("Game"))
+            segment(.moves, Text("Moves"))
+        }
+        .padding(3)
+        .background(ChromeKit.trackColor, in: RoundedRectangle(cornerRadius: ChromeKit.buttonRadius))
+    }
+
+    private func segment(_ value: GameReviewView.ReviewPage, _ label: Text) -> some View {
+        let selected = page == value
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) { page = value }
+        } label: {
+            label
+                .font(ChromeType.callout.weight(selected ? .semibold : .regular))
+                .foregroundStyle(ChromeTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 6)
+                .frame(maxWidth: .infinity, minHeight: 38)
+                .background(
+                    RoundedRectangle(cornerRadius: ChromeKit.buttonRadius - 3)
+                        .fill(selected ? ChromeKit.selectedSegmentColor : SColor.clear)
+                        .shadow(color: selected ? ChromeKit.cardShadow : .clear, radius: 2, x: 0, y: 1)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// The reviewed ply's roll on the board's centre bar (#259), placed like the live
+/// `BoardDiceView` (same `BoardGeometry` centres and size): two dice, four for a pasch.
+/// Display only — the roll as it was shown before the move, nothing greyed.
+struct ReviewBoardDice: View {
+    let die1: Int
+    let die2: Int
+
+    private var values: [Int] {
+        guard die1 > 0, die2 > 0 else { return [] }
+        return die1 == die2 ? Array(repeating: die1, count: 4) : [die1, die2]
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: proxy.size))
+            let centers = geo.diceCenters(count: values.count)
+            ZStack {
+                ForEach(Array(values.enumerated()), id: \.offset) { idx, value in
+                    DieFace(value: value, size: geo.diceSize)
+                        .position(centers[idx])
+                }
+            }
+        }
+        .aspectRatio(1, contentMode: .fit)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(verbatim: values.map(String.init).joined(separator: " ")))
     }
 }
 
@@ -946,8 +1171,8 @@ private struct WinProbabilityChart: View {
     }
 
     let evaluations: [PlyEvaluation]
-    /// `plyNumber` of the move currently shown — marked with a solid dot.
-    let selectedPly: Int
+    /// `plyNumber` of the move currently shown — marked with a solid dot (none when nil).
+    let selectedPly: Int?
     /// Marked plies by `plyNumber`.
     let marks: [Int: Mark]
     /// The side whose win chance runs up.
@@ -955,6 +1180,10 @@ private struct WinProbabilityChart: View {
     /// Names on the top / bottom reference lines (You / Computer, White / Red).
     let topLabel: String
     let bottomLabel: String
+    /// The chart's height: 96 beside the board, taller on the iPhone's Game page (#259).
+    var height: CGFloat = 96
+    /// Tap only (#259, Game page): a tap picks a move, a drag scrolls the page.
+    var tapOnly = false
     /// Called with a tapped/scrubbed `plyNumber`; the caller snaps to the nearest move.
     let onScrub: (Int) -> Void
 
@@ -972,14 +1201,18 @@ private struct WinProbabilityChart: View {
 
     var body: some View {
         GeometryReader { geo in
-            Canvas { ctx, size in draw(into: ctx, size: size) }
+            let canvas = Canvas { ctx, size in draw(into: ctx, size: size) }
                 .contentShape(Rectangle())
-                .highPriorityGesture(            // beat the ancestor paging swipe
+            if tapOnly {
+                canvas.onTapGesture { scrub(atX: $0.x, width: geo.size.width) }
+            } else {
+                canvas.highPriorityGesture(            // beat the ancestor paging swipe
                     DragGesture(minimumDistance: 0)
                         .onChanged { scrub(atX: $0.location.x, width: geo.size.width) }
                 )
+            }
         }
-        .frame(height: 96)
+        .frame(height: height)
         .boardLayoutDirection()   // #185: time runs left→right like the board's geometry
         .accessibilityLabel("Win chance through the game")
     }

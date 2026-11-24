@@ -1108,16 +1108,22 @@ from the AI's best choice. SwiftUI-free (Foundation + Core ML via `Agent`), so i
   plies **with a choice** of Lichess's per-move `103.1668·exp(−0.04354·loss_pp) − 3.1669`, clamped
   0…100 (`nil` with no choice plies); `inaccuracies`/`mistakes`/`blunders` + `count(_:)`;
   `decisionLoss` (pp total over choice plies); `luck` / `opponentLuck` (pp totals, `nil` until the
-  luck pass has run).
+  luck pass has run). **#259, partial input:** evaluations and luck may be what the analysis has
+  found so far; `luckRolls` / `opponentLuckRolls` count the rolls the luck covers per side (0 without
+  luck), `netLuckPerRoll` = your mean luck per measured roll minus the opponent's (a side with none
+  counts 0; `nil` without luck or before any roll is measured), `luckCoversBothSides` = each side has
+  ≥ 1 measured roll, `decisionLossPerMove` = `decisionLoss / choicePlies` (`nil` with no choice
+  plies). The review's live rating line is built from these.
 - **App wiring.** The luck is computed per ply by the background analysis job (#243, tier 1, right
-  after each ply's 1-ply ranking) and saved with it; `GameReviewModel.luck` = `job.luck` (complete or
-  `nil`).
+  after each ply's 1-ply ranking) and saved with it; `job.luck` is complete or `nil`,
+  `job.partialLuck` (#259) the luck found so far in play order (= `luck` once complete).
+  `GameReviewModel.luck` = `job.luck`, `partialLuck` = `job.partialLuck` (feeds the summary).
 - **Not changed:** the 3-ply refinement band (`shouldRefine`, relative 5–15% + ≥ 0.5 pp) still
   targets the old relative threshold.
 
 The app side (`GameReviewView` + its `@MainActor GameReviewModel`) runs **no analysis of its own**
 (#243): it takes the game's job from `AnalysisService.app` (the one that ran during play, or a new
-one seeded from the game log) and mirrors it — `result`, `luck`, `firstPassComplete`, `isComplete` —
+one seeded from the game log) and mirrors it — `result`, `luck`, `partialLuck`, `firstPassComplete`, `isComplete` —
 on every `revision`, while open marking it `focused` (its work goes first). Closing the review changes
 nothing else: the job keeps going and saves as it goes, so reopening it (or a relaunch) shows the
 progress so far and continues. The pager opens as soon as
