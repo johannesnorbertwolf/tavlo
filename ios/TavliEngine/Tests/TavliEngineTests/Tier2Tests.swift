@@ -182,7 +182,7 @@ final class Tier2Tests: XCTestCase {
         XCTAssertEqual(r.white, SideRules(overshoot: true, safePoint: 0, checkers: 17, homeSize: 3))
         XCTAssertEqual(r.black, SideRules(overshoot: false, safePoint: 6, checkers: 13, homeSize: 4))
         XCTAssertEqual(r.safeSlot(.black, boardSize: 24), 19)
-        XCTAssertEqual(HandicapSetup.currentVersion, 2)
+        XCTAssertEqual(HandicapSetup.currentVersion, 3)
         let back = try JSONDecoder().decode(HandicapSetup.self, from: JSONEncoder().encode(n))
         XCTAssertEqual(back, n)
         XCTAssertEqual(n.tier1Only, HandicapSetup(version: n.version))

@@ -26,13 +26,16 @@ where its 6-point-home race values would be wrong. Under dice handicaps it still
 assumes fair dice ahead, exactly like the net.
 
 Tier-1 dice kinds (concept doc §3):
-- `weighted_dice:β` — the rules' `roll_valuer` is the agent's 1-ply `Agent.roll_values`
-  (21 per-roll best-move values under the cell's own move generator); the favoured side's
+- `weighted_lean:κ` / `weighted_gain:g` / `weighted_hybrid:g` (#261; the fixed-β
+  `weighted_dice:β` of E1 is gone) — the rules' `roll_valuer` is the agent's 1-ply
+  `Agent.roll_values` (21 per-roll best-move values under the cell's own move generator); the
+  mode turns them into this turn's β_t (`domain.handicap.turn_beta`), and the favoured side's
   roll is the tilted inverse CDF of the turn's SAME main-stream uniforms (domain/handicap.py),
-  so β = 0 is the fair game bit-for-bit and pairs stay aligned.
+  so β_t = 0 is the fair roll bit-for-bit and pairs stay aligned.
 - `rerolls:N` — the favoured side holds N tokens per game. Policy (`wants_reroll`): reroll
   while tokens remain and v(rolled) < E_p[v(fresh roll)] − margin, p = the side's own roll
-  distribution (fair unless it also has weighted dice), margin `REROLL_MARGIN` (--margin).
+  distribution (fair unless it also has weighted dice: then tilted by the same β_t),
+  margin `REROLL_MARGIN` (--margin).
   A reroll draws two uniforms from a dedicated per-colour stream (`_reroll_rng`), never from
   the main stream: the main stream is consumed exactly two uniforms per turn whatever the
   rerolls, so every later turn of both games in a pair still sees the same uniforms; only
@@ -183,7 +186,7 @@ def play_game(agent, config, rules, seed: int, trace: Optional[list] = None,
             if valuer is not None and (tokens[player] or rules.needs_roll_values(player)):
                 values = valuer(board, player)
             dice = rules.roll(player, u1, u2, q1, q2, board, values)
-            beta = rules.roll_beta(player)
+            beta = rules.roll_beta(player, values)
             while tokens[player] and wants_reroll(values, dice.die1.value, dice.die2.value,
                                                   beta, reroll_margin):
                 tokens[player] -= 1

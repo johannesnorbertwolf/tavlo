@@ -3,13 +3,15 @@
     python ios/scripts/make_handicap_table.py [docs/handicap-e1-tier1.json] \
         [ios/TavliApp/TavliApp/Resources/HandicapTable.json]
 
-The sweep (`scripts/run_e1_tier1.sh`) reports, per cell label (`weighted_dice:4`,
-`rerolls:2`, combos joined with '+'), the *handicapped* side's win rate. Both dice kinds
+The sweep (`scripts/run_e1_tier1.sh`) reports, per cell label (`rerolls:2`,
+`weighted_hybrid:0.8`, combos joined with '+'), the *handicapped* side's win rate. Both dice kinds
 are bonus kinds (the opponent of the handicapped side is favoured), so the app's
 `logOddsShift` is `logit(1 - rate)`, the favoured side's shift against the 50 % baseline.
 Only cells made purely of dice levers are kept: position levers (head start, moves first)
 are estimated on device from the net. Every app step without a measurement stays `null`
-(the builder then says "not measured yet"). The Swift reader is `HandicapTable` in
+(the builder then says "not measured yet"). #261 replaced the fixed-β `weighted_dice:β` of E1
+with the three modes `weighted_lean` / `weighted_gain` / `weighted_hybrid`; none is measured yet,
+so the old E1 weighted-dice cells are dropped and the app shows weighted dice as "not measured yet". The Swift reader is `HandicapTable` in
 `ios/TavliEngine/Sources/TavliEngine/HandicapDice.swift`.
 
 Tier 2 (#148 E3): `--tier2 <sweep.json>` merges a tier-2 sweep run with the handicap-aware
@@ -24,10 +26,11 @@ import json
 import math
 import sys
 
-DICE_KINDS = ("weighted_dice", "rerolls")
+DICE_KINDS = ("weighted_lean", "weighted_gain", "weighted_hybrid", "rerolls")
 TIER2_KINDS = ("overshoot", "safe_point", "checkers", "smaller_house")
-# The app's steps (HandicapSetup.diceTiltSteps without 0, and 1...maxRerolls).
-APP_CELLS = [f"weighted_dice:{b}" for b in (0.3, 0.6, 1.2, 2)] + [f"rerolls:{n}" for n in (1, 2, 3, 4)]
+# The app's measured steps (rerolls 1...maxRerolls). Weighted-dice cells are added only once a
+# sweep measures them (labels `weighted_<mode>:<strength>`, WeightedDiceMode.strengths).
+APP_CELLS = [f"rerolls:{n}" for n in (1, 2, 3, 4)]
 
 
 def logit(p: float) -> float:

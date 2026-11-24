@@ -87,14 +87,24 @@ with `is_pasch() == False` so the plain generator plays them as two dice (dedupl
 size = `HandicapBoard(Board)` overriding `is_home`/`clone` — the generator only sees home size through
 `is_home`; `board.py`/`move_generation.py` are untouched. Results / rationale: `docs/handicap-phase1.md`.
 
-Tier-1 dice kinds (both bonus, category "dice", on-distribution): `weighted_dice:β` tilts the favoured
-side's roll to p'(r) ∝ p(r)·exp(β·v(r)) over the 21 `ROLLS`, with `v` from an injected
-`roll_valuer(board, color)` (constructor arg / attribute; or `values=` passed to `roll`), drawn by
-`weighted_faces`: inverse CDF of one uniform `(int(6u1)+u2)/6` over the 36 ordered outcomes, which
-for β = 0 is exactly `(face(u1), face(u2))` — fair dice bit-for-bit, same uniforms, so pairs stay
-aligned. Cannot share a side with the face kinds (ceiling/floor/forced-low/no-doubles).
+Tier-1 dice kinds (all bonus, category "dice", on-distribution). **Weighted dice (#261, three modes,
+`WEIGHTED_KINDS`; the fixed-β `weighted_dice` is gone):** the favoured side's roll is tilted to
+q(r) ∝ p(r)·exp(β_t·v(r)) over the 21 `ROLLS`, with `v` from an injected `roll_valuer(board, color)`
+(constructor arg / attribute; or `values=` passed to `roll`) and a per-turn β_t from `turn_beta`
+(μ, σ from `roll_spread`; σ floor `SIGMA_FLOOR` = 1 pp): `weighted_lean:κ` β_t = κ/max(σ, floor)
+(`lean_beta`; constant bend, 2σ above average = e^{2κ}×); `weighted_gain:g` the largest β_t with
+E_q[v] − μ ≤ g pp and max q/p ≤ `GAIN_CAP` (3), one bisection over [0, 50/σ] (`gain_beta`; σ < floor
+→ 0); `weighted_hybrid:g` min of that and `HYBRID_KAPPA_MAX`(0.3)/max(σ, floor) (`hybrid_beta`).
+First-order gain ≈ β·σ². Steps `LEAN_KAPPAS` (0.04/0.08/0.15/0.25), `GAIN_STEPS_PP` (0.2/0.4/0.8/1.5),
+calibrated by `scripts/weighted_dice_calibration.py`. `max_points` (the RuleSet's) divides g and the
+floor for normalised-equity variants. One mode per side. Drawn by `weighted_faces`: inverse CDF of one
+uniform `(int(6u1)+u2)/6` over the 36 ordered outcomes, which for β_t = 0 is exactly
+`(face(u1), face(u2))` — fair dice bit-for-bit, same uniforms, so pairs stay aligned. Cannot share a
+side with the face kinds (ceiling/floor/forced-low/no-doubles). The Swift port (`HandicapDice`) is
+pinned to these functions.
 `rerolls:N` only exposes `reroll_tokens(color)`; when to reroll is a player policy in the game loop
-(`ai/handicap_sweep.py`). `needs_roll_values(color)` / `roll_beta(color)` tell the loop when values are needed.
+(`ai/handicap_sweep.py`). `needs_roll_values(color)` tells the loop when values are needed;
+`roll_beta(color, values)` is this turn's β_t (0 = fair), also used by the reroll policy.
 
 **Tier 2** (#148 E3; rules for the ONE handicap-aware model, variant `plakoto_hc`). The rules live on
 the board: `HandicapBoard` carries per colour `home_white/home_black`, `checkers[c]`, `overshoot[c]`,

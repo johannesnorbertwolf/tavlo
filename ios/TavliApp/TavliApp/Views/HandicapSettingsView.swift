@@ -85,8 +85,7 @@ struct HandicapSettingsView: View {
                         itemCard(title: "Weighted dice",
                                  caption: "Before each roll the dice lean towards rolls that are good for this side. The game says so in its Handicap tag.",
                                  side: binding(\.diceSide)) {
-                            stepSlider(value: binding(\.dice), range: 0...(HandicapDiceStrength.allCases.count - 1),
-                                       label: prefs.diceStrength.label)
+                            WeightedDiceEditor(mode: binding(\.diceMode), level: binding(\.dice))
                         }
                         itemCard(title: "Rerolls",
                                  caption: "Roll again after seeing the dice, this many times per game.",

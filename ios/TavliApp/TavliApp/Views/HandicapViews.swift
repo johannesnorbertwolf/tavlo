@@ -150,14 +150,86 @@ struct HandicapEstimateView: View {
 
     private func pct(_ p: Double) -> String { ChromeDigits.localized("\(Int((p * 100).rounded()))%") }
 
+    /// Weighted dice (#261: no mode is measured yet) and/or rerolls left out of the number.
     private func unmeasuredLine(_ kinds: [String]) -> String {
+        let dice = kinds.contains { $0.hasPrefix("weighted_") }
+        let rerolls = kinds.contains("rerolls")
         let line: String
-        switch Set(kinds) {
-        case ["weighted_dice", "rerolls"]: line = String(localized: "Weighted dice and rerolls")
-        case ["weighted_dice"]:            line = String(localized: "Weighted dice")
-        default:                           line = String(localized: "Rerolls")
+        switch (dice, rerolls) {
+        case (true, true): line = String(localized: "Weighted dice and rerolls")
+        case (true, false): line = String(localized: "Weighted dice")
+        default:            line = String(localized: "Rerolls")
         }
         return String(localized: "\(line): not measured yet, so not in the number.")
+    }
+}
+
+// MARK: - Weighted dice editor
+
+/// Weighted dice (#261) as the builder and the handicap card edit them: the mode
+/// (Lean · Fixed gain · Hybrid, a small Caramel segmented choice), the strength slider
+/// (Off → Very strong, the same names in every mode) and the mode's one-line explanation.
+struct WeightedDiceEditor: View {
+    @Binding var mode: WeightedDiceMode
+    @Binding var level: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            WeightedDiceModePicker(mode: $mode)
+            HStack(spacing: 12) {
+                Slider(value: Binding(get: { Double(level) },
+                                      set: { level = Int($0.rounded()) }),
+                       in: 0...Double(WeightedDice.levels), step: 1)
+                    .tint(ChromeTheme.undoTint)
+                    .accessibilityLabel(Text("Weighted dice"))
+                    .accessibilityValue(Text(HandicapDiceStrength(level: level).label))
+                    .accessibilityIdentifier("weightedDiceStrength")
+                Text(HandicapDiceStrength(level: level).label)
+                    .font(ChromeType.callout.monospacedDigit())
+                    .foregroundStyle(ChromeTheme.ink)
+                    .lineLimit(1)
+                    .frame(minWidth: ChromeType.isCompact ? 96 : 120, alignment: .trailing)
+            }
+            Text(mode.explanation(level: level))
+                .font(ChromeType.caption)
+                .foregroundStyle(ChromeKit.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("weightedDiceExplanation")
+        }
+    }
+}
+
+/// Lean · Fixed gain · Hybrid: the Caramel segmented look of the new-game sheet and the
+/// review's page switch (recessed track, the chosen mode raised), a size smaller.
+struct WeightedDiceModePicker: View {
+    @Binding var mode: WeightedDiceMode
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(WeightedDiceMode.allCases) { m in
+                let selected = m == mode
+                Button { mode = m } label: {
+                    Text(m.label)
+                        .font(ChromeType.subheadline.weight(selected ? .semibold : .regular))
+                        .foregroundStyle(ChromeTheme.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .padding(.horizontal, 4)
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .background(
+                            RoundedRectangle(cornerRadius: ChromeKit.buttonRadius - 3)
+                                .fill(selected ? ChromeKit.selectedSegmentColor : SwiftUI.Color.clear)
+                                .shadow(color: selected ? ChromeKit.cardShadow : .clear, radius: 2, x: 0, y: 1)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityIdentifier("weightedDiceMode.\(m.rawValue)")
+            }
+        }
+        .padding(3)
+        .background(ChromeKit.trackColor, in: RoundedRectangle(cornerRadius: ChromeKit.buttonRadius))
     }
 }
 
@@ -367,10 +439,26 @@ struct HandicapInfoSheet: View {
     /// The human ("You") vs the computer, White for two players.
     private var sideA: EngineColor { session.aiColor?.opponent ?? .white }
 
+    /// Each side's mode choice while its weighted dice are off (an off setup has no mode),
+    /// so picking a mode and then a strength lands on that mode.
+    @State private var offModes: [EngineColor: WeightedDiceMode] = [:]
+
+    /// The weighted dice shown for `c`: the live setup, or the mode picked while off.
+    private func diceBinding(_ c: EngineColor, live: WeightedDice) -> (mode: Binding<WeightedDiceMode>, level: Binding<Int>) {
+        let mode = live.isOn ? live.mode : (offModes[c] ?? .hybrid)
+        return (Binding(get: { mode },
+                        set: { m in
+                            offModes[c] = m
+                            if live.isOn { session.adjustHandicap(for: c, weightedDice: WeightedDice(mode: m, level: live.level)) }
+                        }),
+                Binding(get: { live.level },
+                        set: { l in session.adjustHandicap(for: c, weightedDice: WeightedDice(mode: mode, level: l)) }))
+    }
+
     /// The dice / rerolls / hints a side may change now.
     private func sideCard(_ c: EngineColor, state: HandicapGameState) -> some View {
         let items = state.setup[c]
-        let strength = HandicapDiceStrength(beta: items.diceTilt)
+        let dice = diceBinding(c, live: items.weightedDice)
         // Weighted dice and hints need the net; a game without one keeps them as they are.
         let netAvailable = session.handicapAgent != nil
         return VStack(alignment: .leading, spacing: 10) {
@@ -380,28 +468,12 @@ struct HandicapInfoSheet: View {
                     .font(ChromeType.body.weight(.semibold))
                     .foregroundStyle(ChromeTheme.ink)
             }
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Weighted dice")
                     .font(ChromeType.callout)
                     .foregroundStyle(ChromeKit.inkSecondary)
-                HStack(spacing: 12) {
-                    Slider(value: Binding(
-                        get: { Double(strength.rawValue) },
-                        set: { v in
-                            let step = HandicapDiceStrength(rawValue: Int(v.rounded())) ?? .off
-                            session.adjustHandicap(for: c, diceTilt: step.beta)
-                        }),
-                           in: 0...Double(HandicapDiceStrength.allCases.count - 1), step: 1)
-                        .tint(ChromeTheme.undoTint)
-                        .accessibilityLabel(Text("Weighted dice"))
-                        .accessibilityValue(Text(strength.label))
-                    Text(strength.label)
-                        .font(ChromeType.callout)
-                        .foregroundStyle(ChromeTheme.ink)
-                        .lineLimit(1)
-                        .frame(minWidth: ChromeType.isCompact ? 96 : 120, alignment: .trailing)
-                }
-                .disabled(!netAvailable)
+                WeightedDiceEditor(mode: dice.mode, level: dice.level)
+                    .disabled(!netAvailable)
             }
             countStepper(title: "Rerolls left", value: state.rerollsLeft[c],
                          range: 0...HandicapSetup.maxRerolls) {

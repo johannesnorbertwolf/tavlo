@@ -10577,6 +10577,174 @@
           }
         }
       }
+    },
+    "Lean" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neigung"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κλίση"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تمایل"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neiging"
+          }
+        }
+      }
+    },
+    "Fixed gain" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fester Vorteil"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Σταθερό κέρδος"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سود ثابت"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vaste winst"
+          }
+        }
+      }
+    },
+    "Hybrid" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hybrid"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Υβριδικό"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ترکیبی"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hybride"
+          }
+        }
+      }
+    },
+    "Good rolls are a bit more likely, the same in every position." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gute Würfe sind etwas wahrscheinlicher, in jeder Stellung gleich."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Οι καλές ζαριές είναι λίγο πιο πιθανές, το ίδιο σε κάθε θέση."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌های خوب کمی محتمل‌ترند، در هر موقعیت به یک اندازه."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goede worpen zijn iets waarschijnlijker, in elke stand evenveel."
+          }
+        }
+      }
+    },
+    "About %@ win chance per roll on average, steady through the game." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Schnitt etwa %@ Gewinnchance pro Wurf, gleichmäßig über das ganze Spiel."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κατά μέσο όρο περίπου %@ πιθανότητα νίκης ανά ζαριά, σταθερά σε όλο το παιχνίδι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "به‌طور میانگین حدود %@ شانس برد در هر پرتاب، یکنواخت در طول بازی."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemiddeld zo'n %@ winkans per worp, gelijkmatig door het hele potje."
+          }
+        }
+      }
+    },
+    "Steady gain, but never bends the dice much in quiet positions." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gleichmäßiger Vorteil, aber in ruhigen Stellungen nie stark gewichtet."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Σταθερό κέρδος, αλλά ποτέ πολύ γερμένα ζάρια σε ήρεμες θέσεις."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "سود یکنواخت، اما در موقعیت‌های آرام هرگز تاس‌ها را زیاد متمایل نمی‌کند."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelijkmatige winst, maar in rustige standen nooit sterk gewogen."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
