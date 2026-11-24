@@ -4000,58 +4000,58 @@
         }
       }
     },
-    "Equity" : {
+    "Expected points" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equity"
+            "value" : "Erwartete Punkte"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equity"
+            "value" : "Αναμενόμενοι πόντοι"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ارزش موقعیت"
+            "value" : "امتیاز مورد انتظار"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equity"
+            "value" : "Verwachte punten"
           }
         }
       }
     },
-    "%@ equity" : {
+    "%@ points" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ Equity"
+            "value" : "%@ Punkte"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ equity"
+            "value" : "%@ πόντοι"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ارزش موقعیت"
+            "value" : "%@ امتیاز"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ equity"
+            "value" : "%@ punten"
           }
         }
       }
@@ -4252,86 +4252,86 @@
         }
       }
     },
-    "Equity through the game" : {
+    "Expected points through the game" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equity im Spielverlauf"
+            "value" : "Erwartete Punkte im Spielverlauf"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equity στη διάρκεια της παρτίδας"
+            "value" : "Αναμενόμενοι πόντοι στη διάρκεια της παρτίδας"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ارزش موقعیت در طول بازی"
+            "value" : "امتیاز مورد انتظار در طول بازی"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Equity in het spelverloop"
+            "value" : "Verwachte punten tijdens het spel"
           }
         }
       }
     },
-    "%@ equity vs your move" : {
+    "%@ points vs your move" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ Equity gegenüber deinem Zug"
+            "value" : "%@ Punkte ggü. deinem Zug"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ equity έναντι της κίνησής σου"
+            "value" : "%@ πόντοι έναντι της κίνησής σου"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ارزش موقعیت نسبت به حرکت تو"
+            "value" : "%@ امتیاز نسبت به حرکت تو"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ equity t.o.v. jouw zet"
+            "value" : "%@ punten t.o.v. jouw zet"
           }
         }
       }
     },
-    "%@ equity vs your try" : {
+    "%@ points vs your try" : {
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ Equity gegenüber deinem Versuch"
+            "value" : "%@ Punkte ggü. deinem Versuch"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ equity έναντι της προσπάθειάς σου"
+            "value" : "%@ πόντοι έναντι της προσπάθειάς σου"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ارزش موقعیت نسبت به تلاش تو"
+            "value" : "%@ امتیاز نسبت به تلاش تو"
           }
         },
         "nl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ equity t.o.v. jouw poging"
+            "value" : "%@ punten t.o.v. jouw poging"
           }
         }
       }
@@ -9928,100 +9928,6 @@
         }
       }
     },
-    "%lld inaccuracies" : {
-      "localizations" : {
-        "de" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld Ungenauigkeit"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld Ungenauigkeiten"
-                }
-              }
-            }
-          }
-        },
-        "el" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld ανακρίβεια"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld ανακρίβειες"
-                }
-              }
-            }
-          }
-        },
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld inaccuracy"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld inaccuracies"
-                }
-              }
-            }
-          }
-        },
-        "fa" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld بی‌دقتی"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld بی‌دقتی"
-                }
-              }
-            }
-          }
-        },
-        "nl" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld onnauwkeurigheid"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld onnauwkeurigheden"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "Dice: %@ per roll for you" : {
       "localizations" : {
         "de" : {
@@ -10162,36 +10068,36 @@
         }
       }
     },
-    "· Mistake %lld of %lld" : {
+    "· %lld of %lld" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "· Mistake %1$lld of %2$lld"
+            "value" : "· %1$lld of %2$lld"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "· Fehler %1$lld von %2$lld"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· Fout %1$lld van %2$lld"
+            "value" : "· %1$lld von %2$lld"
           }
         },
         "el" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "· Λάθος %1$lld από %2$lld"
+            "value" : "· %1$lld από %2$lld"
           }
         },
         "fa" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "· اشتباه %1$lld از %2$lld"
+            "value" : "· %1$lld از %2$lld"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %1$lld van %2$lld"
           }
         }
       }

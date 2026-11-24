@@ -74,22 +74,58 @@ struct DrillView: View {
             .padding(.vertical, 16)
     }
 
+    /// "Drill · 2 of 5  [?? Blunder] −12% win chance … Done" (#256): from the start of
+    /// each card, the review's severity badge and what the game move gave up. One line:
+    /// where it doesn't fit (iPhone, landscape rail, longer languages) the loss drops its
+    /// unit ("−12%"), then the badge its name ("??").
     private var headerRow: some View {
         HStack {
-            Text("Drill")
-                .font(.title3.bold())
-                .foregroundStyle(ChromeTheme.ink)
-            if case .drilling = model.phase {
-                Text("· Mistake \(model.index + 1) of \(model.total)")
-                    .font(.callout)
-                    .foregroundStyle(ChromeKit.inkDim(0.6))
+            if case .drilling = model.phase, let eval = model.current {
+                ViewThatFits(in: .horizontal) {
+                    headerTitle(eval, badgeName: true, lossUnit: true)
+                    headerTitle(eval, badgeName: true, lossUnit: false)
+                    headerTitle(eval, badgeName: false, lossUnit: false)
+                }
+                .layoutPriority(1)
+            } else {
+                drillTitle
             }
-            Spacer()
+            Spacer(minLength: 8)
             Button("Done") { dismiss() }
                 .font(.callout.bold())
                 .foregroundStyle(ChromeTheme.ink)
                 .buttonStyle(.plain)
+                .fixedSize()   // never wraps; the title line steps down instead (#256)
         }
+    }
+
+    private var drillTitle: some View {
+        Text("Drill")
+            .font(.title3.bold())
+            .foregroundStyle(ChromeTheme.ink)
+    }
+
+    private func headerTitle(_ eval: PlyEvaluation, badgeName: Bool, lossUnit: Bool) -> some View {
+        // The game's own scale: win chance in house Plakoto, points in a 2-point variant.
+        let scale = EvalScale(variant: model.session?.game.variant ?? record.replayConfig.variant)
+        return HStack(spacing: 8) {
+            drillTitle
+            Text("· \(model.index + 1) of \(model.total)")
+                .font(.callout)
+                .foregroundStyle(ChromeKit.inkDim(0.6))
+            HStack(spacing: 6) {
+                SeverityBadge(severity: eval.severity, showsName: badgeName)
+                Text(verbatim: lossUnit ? scale.lossLabel(eval.absoluteGap)
+                                        : scale.lossGap(eval.absoluteGap))
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(ChromeKit.inkDim(0.6))
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(verbatim: eval.severity.localizedName + ", "
+                                     + scale.lossLabel(eval.absoluteGap)))
+        }
+        .lineLimit(1)
+        .fixedSize()
     }
 
     @ViewBuilder
@@ -651,14 +687,14 @@ private struct DrillCard: View {
         if lastAttempt != nil, let tried = lastAttemptScore {
             let gap = scale.lossGap(Double(eval.bestScore - tried))
             if scale.isEquity {
-                Text("\(gap) equity vs your try")
+                Text("\(gap) points vs your try")
             } else {
                 Text("\(gap) win chance vs your try")
             }
         } else {
             let gap = scale.lossGap(Double(eval.bestScore - eval.playedScore))
             if scale.isEquity {
-                Text("\(gap) equity vs your move")
+                Text("\(gap) points vs your move")
             } else {
                 Text("\(gap) win chance vs your move")
             }
