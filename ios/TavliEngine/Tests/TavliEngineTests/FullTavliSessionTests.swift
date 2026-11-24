@@ -91,22 +91,45 @@ final class FullTavliSessionTests: XCTestCase {
 
     // ── Plakoto-leg variant choice ───────────────────────────────────────────
 
-    func testPlakotoLegFollowsStandardPreferenceOnly() {
+    func testStoredPlakotoLegIdIsNormalized() {
         XCTAssertEqual(FullTavliSession.plakotoLegVariantID(preferredID: "plakoto_standard"), "plakoto_standard")
         for other in ["plakoto", "portes", "fevga", nil, "unknown"] as [String?] {
             XCTAssertEqual(FullTavliSession.plakotoLegVariantID(preferredID: other), "plakoto")
         }
-        XCTAssertEqual(FullTavliSession(preferredVariantID: "plakoto_standard", aiColor: .black)
-                        .legVariantIDs, ["portes", "fevga", "plakoto_standard"])
-        XCTAssertEqual(FullTavliSession(preferredVariantID: "fevga", aiColor: nil).plakotoVariantID,
-                       "plakoto")
     }
 
-    func testPreferenceIsReadFromUserDefaults() {
-        let defaults = UserDefaults(suiteName: "FullTavliTest-\(UUID().uuidString)")!
-        VariantPreference.save(GameVariants.plakotoStandard, to: defaults)
-        let s = FullTavliSession(preferredVariantID: VariantPreference.load(from: defaults).id, aiColor: nil)
-        XCTAssertEqual(s.plakotoVariantID, "plakoto_standard")
+    /// #258: the Plakoto leg follows the House rules switch — standard when off (the
+    /// default), house when on — whichever single variant is picked.
+    func testPlakotoLegFollowsHouseRulesSwitch() {
+        XCTAssertEqual(FullTavliSession.plakotoLegVariantID(houseRules: false), "plakoto_standard")
+        XCTAssertEqual(FullTavliSession.plakotoLegVariantID(houseRules: true), "plakoto")
+        XCTAssertEqual(FullTavliSession(houseRules: false, aiColor: .black).legVariantIDs,
+                       ["portes", "fevga", "plakoto_standard"])
+        XCTAssertEqual(FullTavliSession(houseRules: true, aiColor: nil).legVariantIDs,
+                       ["portes", "fevga", "plakoto"])
+    }
+
+    func testSwitchIsReadFromUserDefaults() throws {
+        let suite = "FullTavliTest-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        // Fresh install: switch off → standard leg, whatever variant is picked.
+        VariantPreference.save(GameVariants.fevga, to: defaults)
+        XCTAssertEqual(FullTavliSession(houseRules: VariantPreference.houseRules(from: defaults), aiColor: nil)
+                        .plakotoVariantID, "plakoto_standard")
+        VariantPreference.setHouseRules(true, to: defaults)
+        XCTAssertEqual(FullTavliSession(houseRules: VariantPreference.houseRules(from: defaults), aiColor: nil)
+                        .plakotoVariantID, "plakoto")
+    }
+
+    /// A session keeps its own Plakoto rules through a save round trip, whatever the
+    /// switch says later (#258: saved games keep their rule set).
+    func testSessionKeepsItsRulesThroughCoding() throws {
+        for houseRules in [false, true] {
+            let s = FullTavliSession(houseRules: houseRules, aiColor: .black)
+            let back = try JSONDecoder().decode(FullTavliSession.self, from: JSONEncoder().encode(s))
+            XCTAssertEqual(back.plakotoVariantID, houseRules ? "plakoto" : "plakoto_standard")
+        }
     }
 
     // ── AI gating ────────────────────────────────────────────────────────────

@@ -4,30 +4,40 @@ import TavliEngine
 private typealias SColor = SwiftUI.Color
 
 /// The remembered new-game setup (#189): what the start screen's play button starts
-/// and the new-game sheet edits. Built from the four `@AppStorage` values the views
-/// hold, so both stay live.
+/// and the new-game sheet edits. Built from the `@AppStorage` values the views hold, so
+/// both stay live. `variant` is the **picked** choice (#258: Plakoto · Portes · Fevga);
+/// `played` applies the House rules switch.
 struct NewGameSetup {
     var variant: GameVariantSetting
     var level: Int
     var playAs: PreferredColorSetting
     var length: MatchLengthSetting
+    /// The House rules switch (#258).
+    var houseRules = false
 
     var isFullTavli: Bool { length == .fullTavli }
 
+    /// The rules a single game / best-of-three of this setup is played under (#258).
+    var played: GameVariantSetting { variant.pickerChoice.playing(houseRules: houseRules) }
+
+    /// Whether the wolf tag goes with this setup (#258): House rules on and a Plakoto
+    /// game in it — a Plakoto single game / best-of-three, or Full Tavli's Plakoto leg.
+    var showsHouseRulesTag: Bool { houseRules && (isFullTavli || variant.isPlakoto) }
+
     /// Whether the computer can play this setup: the variant's model is bundled, or for
-    /// Full Tavli every leg's model (its Plakoto leg follows the variant, #144).
+    /// Full Tavli every leg's model (its Plakoto leg follows the House rules switch).
     var aiAvailable: Bool {
         isFullTavli
-            ? FullTavliSession(preferredVariantID: variant.rawValue, aiColor: .black).isAIAvailable()
-            : AppSettings.aiAvailable(variant)
+            ? FullTavliSession(houseRules: houseRules, aiColor: .black).isAIAvailable()
+            : AppSettings.aiAvailable(played)
     }
 
     /// The play button's subtitle: "Level 6 · Plakoto · Best of 3", or "Level 6 · Full
-    /// Tavli" (Full Tavli ignores the variant).
+    /// Tavli" (Full Tavli ignores the variant). House rules show as the wolf tag beside it.
     var summary: String {
         let parts = isFullTavli
             ? [AILevelCopy.name(level), length.label]
-            : [AILevelCopy.name(level), variant.setupLabel, length.label]
+            : [AILevelCopy.name(level), played.shortLabel, length.label]
         return parts.joined(separator: ChromeDigits.listSeparator)
     }
 
@@ -35,7 +45,7 @@ struct NewGameSetup {
     var unavailableMessage: String {
         isFullTavli
             ? String(localized: "The computer is still learning some of the Full Tavli games. Play Full Tavli with two players for now.")
-            : String(localized: "The computer is still learning \(variant.name). Play it with two players for now.")
+            : String(localized: "The computer is still learning \(played.name). Play it with two players for now.")
     }
 }
 
@@ -51,14 +61,22 @@ struct NewGameSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage(SettingsKey.variant) private var variant: GameVariantSetting = .plakoto
+    @AppStorage(SettingsKey.variant) private var variant: GameVariantSetting = .plakotoStandard
+    @AppStorage(SettingsKey.houseRules) private var houseRules = false
     @AppStorage(SettingsKey.aiLevel) private var level = AILevel.max
     @AppStorage(SettingsKey.preferredColor) private var playAs: PreferredColorSetting = .white
     @AppStorage(SettingsKey.matchLength) private var length: MatchLengthSetting = .bestOfThree
 
     private var isCompact: Bool { ChromeType.isCompact }
+
+    /// The picker's binding: a stray house `plakoto` (normally migrated at launch, #258)
+    /// shows as Plakoto.
+    private var pickedVariant: Binding<GameVariantSetting> {
+        Binding(get: { variant.pickerChoice }, set: { variant = $0 })
+    }
+
     private var setup: NewGameSetup {
-        NewGameSetup(variant: variant, level: level, playAs: playAs, length: length)
+        NewGameSetup(variant: variant, level: level, playAs: playAs, length: length, houseRules: houseRules)
     }
 
     var body: some View {
@@ -108,14 +126,19 @@ struct NewGameSheet: View {
 
     private var variantSection: some View {
         SheetSection("Variant") {
-            SegmentedChoice(options: GameVariantSetting.allCases,
-                            selection: $variant,
+            SegmentedChoice(options: GameVariantSetting.pickerCases,
+                            selection: pickedVariant,
                             label: \.shortLabel)
                 .disabled(setup.isFullTavli)
                 .opacity(setup.isFullTavli ? 0.45 : 1)
+            // #258: with House rules on, a Plakoto game (or Full Tavli's Plakoto leg)
+            // carries the wolf tag above its rules line.
+            if setup.showsHouseRulesTag {
+                HouseRulesTag()
+            }
             caption(setup.isFullTavli
                     ? String(localized: "Full Tavli plays all three variants in turn.")
-                    : variant.rulesReminder)
+                    : setup.played.rulesReminder)
         }
     }
 

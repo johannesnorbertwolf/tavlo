@@ -11,9 +11,11 @@ import Foundation
 /// for both — the session still advances. After the third leg the higher total wins;
 /// equal totals are a drawn session (no tiebreak game).
 ///
-/// **The Plakoto leg** is house-rules `plakoto` unless the player's saved variant
-/// preference is `plakoto_standard` (`plakotoLegVariantID(preferredID:)`); it is fixed
-/// when the session is created, so a resumed session keeps its own rules.
+/// **The Plakoto leg** is standard `plakoto_standard`, or house-rules `plakoto` when the
+/// House rules switch is on (#258, `init(houseRules:aiColor:handicap:)`,
+/// `plakotoLegVariantID(houseRules:)`); it is fixed when the session is created, so a
+/// resumed session keeps its own rules whatever the switch says now. A stored session
+/// without the field (pre-#144 data) decodes as house Plakoto, the rules it was played under.
 ///
 /// **Persistence.** `Codable` and carried by `GameSave.fullTavli` next to the leg in
 /// progress (or the leg just finished, between legs). `resume(savedGame:)` reconciles
@@ -55,9 +57,10 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
         self.handicap = Self.sessionHandicap(handicap)
     }
 
-    /// A fresh session whose Plakoto leg follows the player's variant preference.
-    public init(preferredVariantID: String?, aiColor: Color?, handicap: HandicapSetup? = nil) {
-        self.init(plakotoVariantID: Self.plakotoLegVariantID(preferredID: preferredVariantID),
+    /// A fresh session whose Plakoto leg follows the House rules switch (#258): house
+    /// Plakoto when on, standard Plakoto when off.
+    public init(houseRules: Bool, aiColor: Color?, handicap: HandicapSetup? = nil) {
+        self.init(plakotoVariantID: Self.plakotoLegVariantID(houseRules: houseRules),
                   aiColor: aiColor, handicap: handicap)
     }
 
@@ -94,8 +97,13 @@ public struct FullTavliSession: Codable, Equatable, Sendable {
         handicap = Self.sessionHandicap(played)
     }
 
-    /// The Plakoto leg's rules for a saved variant preference: standard Plakoto only
-    /// when that is what the player picked, house-rules Plakoto otherwise.
+    /// The Plakoto leg's rules for the House rules switch (#258).
+    public static func plakotoLegVariantID(houseRules: Bool) -> String {
+        houseRules ? GameVariants.plakoto.id : GameVariants.plakotoStandard.id
+    }
+
+    /// Normalizes a stored Plakoto-leg id: standard Plakoto stays, anything else (house
+    /// `plakoto`, or an unknown id) is house Plakoto — the pre-#258 sessions' default.
     public static func plakotoLegVariantID(preferredID: String?) -> String {
         preferredID == GameVariants.plakotoStandard.id ? GameVariants.plakotoStandard.id
                                                        : GameVariants.plakoto.id

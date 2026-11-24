@@ -693,13 +693,15 @@ private struct ModePickerView: View {
     // the `AppSettings` accessors.
     @AppStorage(SettingsKey.preferredColor) private var preferredColor: PreferredColorSetting = .white
     @AppStorage(SettingsKey.matchLength) private var matchLength: MatchLengthSetting = .bestOfThree
-    @AppStorage(SettingsKey.variant) private var variant: GameVariantSetting = .plakoto
+    @AppStorage(SettingsKey.variant) private var variant: GameVariantSetting = .plakotoStandard
+    @AppStorage(SettingsKey.houseRules) private var houseRules = false
     @AppStorage(SettingsKey.aiLevel) private var aiLevel = AILevel.max
 
     private var isCompact: Bool { ChromeType.isCompact }
 
     private var setup: NewGameSetup {
-        NewGameSetup(variant: variant, level: aiLevel, playAs: preferredColor, length: matchLength)
+        NewGameSetup(variant: variant, level: aiLevel, playAs: preferredColor, length: matchLength,
+                     houseRules: houseRules)
     }
 
     private var autosave: SaveMetadata? { saves.first(where: \.isAutosave) }
@@ -856,17 +858,32 @@ private struct ModePickerView: View {
                             .font(ChromeType.headline.bold())
                         PlayAsChecker(setting: preferredColor, size: isCompact ? 16 : 18)
                     }
-                    Text(setup.summary)
-                        .font(ChromeType.subheadline.weight(.medium))
-                        .opacity(0.92)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
+                    summaryLine
                 }
                 .padding(.vertical, isCompact ? 6 : 8)
                 .frame(maxHeight: .infinity)
             }
             .buttonStyle(ChromeButton(role: .primary, fullWidth: true))
             .accessibilityIdentifier("playVsComputer")
+        }
+    }
+
+    /// The play button's subtitle — "Level 6 · Plakoto · Best of 3" — and, with House
+    /// rules on for a Plakoto game (or Full Tavli), the wolf tag (#258): beside it when it
+    /// fits (iPad), else on a line of its own under it (a phone; the button grows a little).
+    @ViewBuilder
+    private var summaryLine: some View {
+        let text = Text(setup.summary)
+            .font(ChromeType.subheadline.weight(.medium))
+            .opacity(0.92)
+            .lineLimit(1)
+        if setup.showsHouseRulesTag {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 6) { text; HouseRulesTag() }
+                VStack(spacing: 4) { text.minimumScaleFactor(0.75); HouseRulesTag() }
+            }
+        } else {
+            text.minimumScaleFactor(0.75)
         }
     }
 
@@ -1024,7 +1041,8 @@ private enum SaveCopy {
         return AppSettings.aiAvailable(GameVariantSetting(variantID: meta.variantID))
     }
 
-    /// "Plakoto (house rules)", "Fevga · two players", "Full Tavli · Portes".
+    /// "Plakoto · House rules", "Fevga · two players", "Full Tavli · Portes" — the save's
+    /// own rule set (#258), never the current switch.
     static func mode(_ meta: SaveMetadata) -> String {
         let variant = GameVariantSetting(variantID: meta.variantID)
         let mode = meta.isVsAI ? variant.name

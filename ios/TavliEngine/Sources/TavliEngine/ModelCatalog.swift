@@ -64,17 +64,86 @@ public struct ModelCatalog: Sendable {
     }
 }
 
-/// The persisted variant choice (#143): the `GameVariant.id` stored under one
-/// `UserDefaults` key. Unknown or missing ids (a fresh install, a value from a newer
-/// build) fall back to Plakoto, the app's default.
+/// The persisted variant choice (#143) and the House rules switch (#258).
+///
+/// **Since #258** the picker offers **Plakoto · Portes · Fevga**, where Plakoto means the
+/// standard rules (`plakoto_standard`); the family's house rules (`plakoto`) are no
+/// longer a picker entry but a separate switch (`houseRulesKey`, default **off**). The
+/// stored choice (`key`) is therefore one of `choiceIDs`; the rules a new game is played
+/// under come from both (`playedVariantID(choiceID:houseRules:)`): the switch turns
+/// every Plakoto game — single, best-of-three, the Plakoto leg of Full Tavli, vs the
+/// computer and two players — into house Plakoto and leaves Portes / Fevga alone.
+///
+/// A stored house `plakoto` choice (any build before #258) is rewritten once at launch
+/// to Plakoto with the switch **off** (`migrate`); `choiceID(forStored:)` reads it the
+/// same way in case the migration has not run. Unknown or missing ids (a fresh install,
+/// a value from a newer build) fall back to Plakoto.
 public enum VariantPreference {
     public static let key = "settings.variant"
+    /// The House rules switch (#258): `Bool`, absent = off.
+    public static let houseRulesKey = "settings.houseRules"
 
-    public static func load(from defaults: UserDefaults = .standard) -> any GameVariant {
-        defaults.string(forKey: key).flatMap(GameVariants.variant(forID:)) ?? GameVariants.plakoto
+    /// The picker's choices, in order: Plakoto (standard rules), Portes, Fevga.
+    public static let choiceIDs = [GameVariants.plakotoStandard.id, GameVariants.portes.id,
+                                   GameVariants.fevga.id]
+
+    /// Whether `variantID` is either Plakoto rule set (the only game with house rules).
+    public static func isPlakoto(_ variantID: String) -> Bool {
+        variantID == GameVariants.plakoto.id || variantID == GameVariants.plakotoStandard.id
     }
 
+    /// The picker choice for a stored id: house `plakoto` reads as Plakoto (the switch
+    /// carries the house rules now), an unknown or missing id as Plakoto.
+    public static func choiceID(forStored id: String?) -> String {
+        guard let id, GameVariants.variant(forID: id) != nil else { return GameVariants.plakotoStandard.id }
+        return id == GameVariants.plakoto.id ? GameVariants.plakotoStandard.id : id
+    }
+
+    /// The rules a new game of `choiceID` is played under: house Plakoto for a Plakoto
+    /// choice with the switch on, otherwise the choice itself (normalized).
+    public static func playedVariantID(choiceID: String, houseRules: Bool) -> String {
+        let choice = Self.choiceID(forStored: choiceID)
+        guard isPlakoto(choice) else { return choice }
+        return houseRules ? GameVariants.plakoto.id : GameVariants.plakotoStandard.id
+    }
+
+    /// The picker choice as stored (normalized by `choiceID(forStored:)`).
+    public static func loadChoice(from defaults: UserDefaults = .standard) -> any GameVariant {
+        GameVariants.variant(forID: choiceID(forStored: defaults.string(forKey: key)))
+            ?? GameVariants.plakotoStandard
+    }
+
+    /// Whether the House rules switch is on (default off).
+    public static func houseRules(from defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: houseRulesKey) as? Bool ?? false
+    }
+
+    public static func setHouseRules(_ on: Bool, to defaults: UserDefaults = .standard) {
+        defaults.set(on, forKey: houseRulesKey)
+    }
+
+    /// The rules new games are played under: the stored choice with the switch applied.
+    public static func load(from defaults: UserDefaults = .standard) -> any GameVariant {
+        let id = playedVariantID(choiceID: choiceID(forStored: defaults.string(forKey: key)),
+                                 houseRules: houseRules(from: defaults))
+        return GameVariants.variant(forID: id) ?? GameVariants.plakotoStandard
+    }
+
+    /// Store the picker choice for `variant`; house Plakoto is stored as Plakoto (the
+    /// switch is set separately, `setHouseRules`).
     public static func save(_ variant: any GameVariant, to defaults: UserDefaults = .standard) {
-        defaults.set(variant.id, forKey: key)
+        defaults.set(choiceID(forStored: variant.id), forKey: key)
+    }
+
+    /// One-time rewrite of a pre-#258 preference, run at launch: a stored house
+    /// `plakoto` becomes Plakoto with the switch **off** (house rules are opt-in for
+    /// everyone, existing installs included). Idempotent — later builds never store
+    /// `plakoto` as the choice. Returns whether anything was rewritten.
+    @discardableResult
+    public static func migrate(_ defaults: UserDefaults = .standard) -> Bool {
+        guard defaults.string(forKey: key) == GameVariants.plakoto.id else { return false }
+        defaults.set(GameVariants.plakotoStandard.id, forKey: key)
+        if defaults.object(forKey: houseRulesKey) == nil { setHouseRules(false, to: defaults) }
+        return true
     }
 }

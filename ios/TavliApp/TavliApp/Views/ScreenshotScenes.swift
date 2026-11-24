@@ -65,6 +65,8 @@ enum ScreenshotScenes {
         domain[SettingsKey.showWinProbability] = true
         domain[SettingsKey.aiLevel] = AILevel.max
         if isHandicap {
+            // The scene shows a head start, which needs House rules (#258).
+            domain[SettingsKey.houseRules] = true
             var prefs = HandicapPreferences()
             prefs.enabled = true
             prefs.headStart = 2

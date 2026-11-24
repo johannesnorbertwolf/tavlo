@@ -8,28 +8,42 @@ import TavliEngine
 /// (it stays playable two-player). Bound to the persisted `@AppStorage` setting by the
 /// caller.
 struct VariantPickerView: View {
+    /// The picked choice (#258: Plakoto · Portes · Fevga).
     @Binding var selection: GameVariantSetting
     /// Flag variants without a bundled model (vs-AI surfaces only; online needs no model).
     var showsAIAvailability = true
 
+    /// #258: the House rules switch turns a Plakoto choice into house Plakoto (tag +
+    /// its rules summary); the caller sends `played` with the invite.
+    @AppStorage(SettingsKey.houseRules) private var houseRules = false
+
+    private var played: GameVariantSetting { selection.pickerChoice.playing(houseRules: houseRules) }
+
+    private var picked: Binding<GameVariantSetting> {
+        Binding(get: { selection.pickerChoice }, set: { selection = $0 })
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Picker("Game", selection: $selection) {
-                ForEach(GameVariantSetting.allCases) { option in
+            Picker("Game", selection: picked) {
+                ForEach(GameVariantSetting.pickerCases) { option in
                     Text(option.shortLabel).tag(option)
                 }
             }
             .pickerStyle(.segmented)
             .tint(ChromeTheme.undoTint)
             HStack(spacing: 8) {
-                Text(selection.name)
+                Text(played.shortLabel)
                     .font(ChromeType.body.weight(.semibold))
                     .foregroundStyle(ChromeTheme.ink)
-                if showsAIAvailability && !AppSettings.aiAvailable(selection) {
+                if played.isHouseRules {
+                    HouseRulesTag()
+                }
+                if showsAIAvailability && !AppSettings.aiAvailable(played) {
                     AIUnavailableBadge()
                 }
             }
-            Text(selection.summary)
+            Text(played.summary)
                 .font(ChromeType.caption)
                 .foregroundStyle(ChromeKit.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)

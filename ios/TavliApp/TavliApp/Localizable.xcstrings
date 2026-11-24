@@ -3692,34 +3692,6 @@
         }
       }
     },
-    "Standard" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standard"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Στάνταρ"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "استاندارد"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standaard"
-          }
-        }
-      }
-    },
     "Portes" : {
       "localizations" : {
         "de" : {
@@ -3772,118 +3744,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Fevga"
-          }
-        }
-      }
-    },
-    "Plakoto (house rules)" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto (Hausregeln)"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Πλακωτό (κανόνες σπιτιού)"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "پلاکوتو (قوانین خانگی)"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto (huisregels)"
-          }
-        }
-      }
-    },
-    "Plakoto (standard rules)" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto (Standardregeln)"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Πλακωτό (στάνταρ κανόνες)"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "پلاکوتو (قوانین استاندارد)"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto (standaardregels)"
-          }
-        }
-      }
-    },
-    "The pinning game, as the computer first learned it. Land on a lone opposing checker to pin it under yours until you leave. Bear off only with exact rolls; every win counts as one game." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das Festsetz-Spiel, so wie der Computer es zuerst gelernt hat. Landest du auf einem einzelnen gegnerischen Stein, setzt du ihn unter deinem fest, bis du weiterziehst. Abgetragen wird nur mit genauen Würfen; jeder Sieg zählt als ein Spiel."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Το παιχνίδι του πλακώματος, όπως το πρωτοέμαθε ο υπολογιστής. Αν πέσεις σε μοναχό πούλι του αντιπάλου, το πλακώνεις κάτω από το δικό σου μέχρι να φύγεις. Μαζεύεις μόνο με ακριβείς ζαριές και κάθε νίκη μετράει ένα παιχνίδι."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "بازی حبس کردن، همان‌طور که کامپیوتر اول یاد گرفت. اگر روی یک مهرهٔ تنهای حریف فرود بیایی، آن را زیر مهرهٔ خودت حبس می‌کنی تا وقتی که از آنجا بروی. مهره‌ها را فقط با تاس دقیق می‌شود بیرون برد؛ هر برد یک بازی حساب می‌شود."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Het vastzetspel, zoals de computer het als eerste leerde. Land je op een losse steen van je tegenstander, dan zet je die onder de jouwe vast tot je verder trekt. Uitspelen alleen met precieze worpen; elke winst telt als één spel."
-          }
-        }
-      }
-    },
-    "Plakoto by the standard (bkgm) rules: use both dice whenever you can (the larger one if only one fits), bear off with higher rolls from your highest point. Pinning your opponent's last checker on its start point (the mother) wins two points once your own start point is clear; if both mothers are pinned, the game is a draw. Winning before your opponent bears off any checker also scores two points." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto nach den Standardregeln (bkgm): Nutze wann immer möglich beide Würfel (den größeren, wenn nur einer passt), und trage mit höheren Würfen von deinem höchsten Punkt ab. Setzt du den letzten Stein deines Gegners auf seinem Startpunkt fest (die Mutter), gewinnst du zwei Punkte, sobald dein eigener Startpunkt leer ist; sind beide Mütter festgesetzt, endet das Spiel unentschieden. Ein Sieg, bevor dein Gegner einen Stein abgetragen hat, zählt ebenfalls zwei Punkte."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Πλακωτό με τους στάνταρ κανόνες (bkgm): παίζεις και τα δύο ζάρια όποτε μπορείς (το μεγαλύτερο, αν χωράει μόνο το ένα) και μαζεύεις με μεγαλύτερες ζαριές από την ψηλότερη θέση σου. Αν πλακώσεις το τελευταίο πούλι του αντιπάλου στην αφετηρία του (τη μάνα), κερδίζεις δύο πόντους μόλις αδειάσει η δική σου αφετηρία. Αν πλακωθούν και οι δύο μάνες, το παιχνίδι λήγει ισόπαλο. Αν νικήσεις πριν μαζέψει ο αντίπαλος έστω ένα πούλι, παίρνεις επίσης δύο πόντους."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "پلاکوتو با قوانین استاندارد (bkgm): هر وقت بتوانی از هر دو تاس استفاده کن (اگر فقط یکی جا شود، تاس بزرگ‌تر را)، و با تاس بزرگ‌تر از دورترین خانه‌ات مهره بیرون ببر. اگر آخرین مهرهٔ حریف را روی خانهٔ شروعش (مادر) حبس کنی، به محض خالی شدن خانهٔ شروع خودت دو امتیاز می‌بری؛ اگر هر دو مادر حبس شوند، بازی مساوی است. بردن پیش از آنکه حریف حتی یک مهره بیرون ببرد هم دو امتیاز دارد."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto volgens de standaardregels (bkgm): gebruik waar mogelijk beide dobbelstenen (de hoogste als er maar één past), en speel met hogere worpen uit vanaf je hoogste punt. Zet je de laatste steen van je tegenstander op zijn startpunt vast (de moeder), dan win je twee punten zodra je eigen startpunt leeg is; staan beide moeders vast, dan is het gelijkspel. Winnen voordat je tegenstander een steen heeft uitgespeeld levert ook twee punten op."
           }
         }
       }
@@ -5928,34 +5788,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Enkel spel"
-          }
-        }
-      }
-    },
-    "Standard Plakoto" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standard-Plakoto"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Στάνταρ Πλακωτό"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "پلاکوتوی استاندارد"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standaard Plakoto"
           }
         }
       }
@@ -10382,62 +10214,6 @@
         }
       }
     },
-    "Plakoto (house rules), single or Best of 3: every item." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto (Hausregeln), einzeln oder Best of 3: alles."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Πλακωτό (κανόνες σπιτιού), μονό ή 2 στα 3: όλα."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "پلاکوتو (قوانین خانگی)، تک‌بازی یا بهترین از ۳: همه موارد."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Plakoto (huisregels), los of Best of 3: alles."
-          }
-        }
-      }
-    },
-    "Standard Plakoto, Fevga, Portes and Full Tavli: weighted dice, rerolls, hints and moves first." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standard-Plakoto, Fevga, Portes und Full Tavli: gewichtete Würfel, Neuwürfe, Tipps und „Beginnt“."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Στάνταρ Πλακωτό, Φεύγα, Πόρτες και Πλήρες Τάβλι: ευνοϊκά ζάρια, νέες ζαριές, βοήθειες και «Ξεκινά»."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "پلاکوتوی استاندارد، فوگا، پورتس و تاولی کامل: تاس‌های وزن‌دار، تاس دوباره، راهنمایی‌ها و «اول حرکت می‌کند»."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Standaard Plakoto, Fevga, Portes en Full Tavli: gewogen dobbelstenen, opnieuw gooien, hints en ‘Begint’."
-          }
-        }
-      }
-    },
     "Offline games only." : {
       "localizations" : {
         "de" : {
@@ -10462,62 +10238,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Alleen offline potjes."
-          }
-        }
-      }
-    },
-    "Off in Full Tavli: only in Plakoto (house rules), single game or Best of 3." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aus in Full Tavli: nur in Plakoto (Hausregeln), Einzelspiel oder Best of 3."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ανενεργό στο Πλήρες Τάβλι: μόνο στο Πλακωτό (κανόνες σπιτιού), ένα παιχνίδι ή 2 στα 3."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "در تاولی کامل خاموش است: فقط در پلاکوتو (قوانین خانگی)، تک‌بازی یا بهترین از ۳."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uit in Full Tavli: alleen in Plakoto (huisregels), enkel spel of Best of 3."
-          }
-        }
-      }
-    },
-    "Off in %@: only in Plakoto (house rules)." : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aus in %@: nur in Plakoto (Hausregeln)."
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ανενεργό (%@): μόνο στο Πλακωτό (κανόνες σπιτιού)."
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "در %@ خاموش است: فقط در پلاکوتو (قوانین خانگی)."
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uit in %@: alleen in Plakoto (huisregels)."
           }
         }
       }
@@ -10574,6 +10294,286 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wijzigingen gelden vanaf de volgende worp en voor de volgende potjes van een Best of 3 of Full Tavli."
+          }
+        }
+      }
+    },
+    "House rules" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hausregeln"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κανόνες σπιτιού"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "قوانین خانگی"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Huisregels"
+          }
+        }
+      }
+    },
+    "Plakoto · House rules" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto · Hausregeln"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Πλακωτό · Κανόνες σπιτιού"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو · قوانین خانگی"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto · Huisregels"
+          }
+        }
+      }
+    },
+    "Only for Plakoto: bear off with exact rolls only, you don't have to use both dice, pinning the mother checker wins at once, and every win counts one point." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur für Plakoto: Abtragen nur mit genauen Würfen, du musst nicht beide Würfel nutzen, wer den Mutterstein festsetzt, gewinnt sofort, und jeder Sieg zählt einen Punkt."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μόνο για το Πλακωτό: μαζεύεις μόνο με ακριβείς ζαριές, δεν χρειάζεται να παίξεις και τα δύο ζάρια, όποιος πλακώσει τη μάνα κερδίζει αμέσως και κάθε νίκη μετράει έναν πόντο."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فقط برای پلاکوتو: مهره‌ها فقط با تاس دقیق بیرون برده می‌شوند، لازم نیست از هر دو تاس استفاده کنی، حبس کردن مهرهٔ مادر فوراً بازی را می‌برد و هر برد یک امتیاز دارد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alleen voor Plakoto: uitspelen alleen met precieze worpen, je hoeft niet beide dobbelstenen te gebruiken, wie de moedersteen vastzet wint meteen, en elke winst telt één punt."
+          }
+        }
+      }
+    },
+    "The pinning game: land on a lone opposing checker to pin it under yours until you leave. Use both dice whenever you can (the larger one if only one fits) and bear off with higher rolls from your highest point. Pinning your opponent's last checker on its start point (the mother) wins two points once your own start point is clear; if both mothers are pinned, the game is a draw. Winning before your opponent bears off any checker also scores two points." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Festsetz-Spiel: Landest du auf einem einzelnen gegnerischen Stein, setzt du ihn unter deinem fest, bis du weiterziehst. Nutze wann immer möglich beide Würfel (den größeren, wenn nur einer passt), und trage mit höheren Würfen von deinem höchsten Punkt ab. Setzt du den letzten Stein deines Gegners auf seinem Startpunkt fest (die Mutter), gewinnst du zwei Punkte, sobald dein eigener Startpunkt leer ist; sind beide Mütter festgesetzt, endet das Spiel unentschieden. Ein Sieg, bevor dein Gegner einen Stein abgetragen hat, zählt ebenfalls zwei Punkte."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Το παιχνίδι του πλακώματος: αν πέσεις σε μοναχό πούλι του αντιπάλου, το πλακώνεις κάτω από το δικό σου μέχρι να φύγεις. Παίζεις και τα δύο ζάρια όποτε μπορείς (το μεγαλύτερο, αν χωράει μόνο το ένα) και μαζεύεις με μεγαλύτερες ζαριές από την ψηλότερη θέση σου. Αν πλακώσεις το τελευταίο πούλι του αντιπάλου στην αφετηρία του (τη μάνα), κερδίζεις δύο πόντους μόλις αδειάσει η δική σου αφετηρία. Αν πλακωθούν και οι δύο μάνες, το παιχνίδι λήγει ισόπαλο. Αν νικήσεις πριν μαζέψει ο αντίπαλος έστω ένα πούλι, παίρνεις επίσης δύο πόντους."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "بازی حبس کردن: اگر روی یک مهرهٔ تنهای حریف فرود بیایی، آن را زیر مهرهٔ خودت حبس می‌کنی تا وقتی که از آنجا بروی. هر وقت بتوانی از هر دو تاس استفاده کن (اگر فقط یکی جا شود، تاس بزرگ‌تر را)، و با تاس بزرگ‌تر از دورترین خانه‌ات مهره بیرون ببر. اگر آخرین مهرهٔ حریف را روی خانهٔ شروعش (مادر) حبس کنی، به محض خالی شدن خانهٔ شروع خودت دو امتیاز می‌بری؛ اگر هر دو مادر حبس شوند، بازی مساوی است. بردن پیش از آنکه حریف حتی یک مهره بیرون ببرد هم دو امتیاز دارد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het vastzetspel: land je op een losse steen van je tegenstander, dan zet je die onder de jouwe vast tot je verder trekt. Gebruik waar mogelijk beide dobbelstenen (de hoogste als er maar één past), en speel met hogere worpen uit vanaf je hoogste punt. Zet je de laatste steen van je tegenstander op zijn startpunt vast (de moeder), dan win je twee punten zodra je eigen startpunt leeg is; staan beide moeders vast, dan is het gelijkspel. Winnen voordat je tegenstander een steen heeft uitgespeeld levert ook twee punten op."
+          }
+        }
+      }
+    },
+    "Plakoto with House rules: land on a lone opposing checker to pin it under yours until you leave. Bear off only with exact rolls, you don't have to use both dice, pinning the mother checker wins at once, and every win counts as one game." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto mit Hausregeln: Landest du auf einem einzelnen gegnerischen Stein, setzt du ihn unter deinem fest, bis du weiterziehst. Abgetragen wird nur mit genauen Würfen, du musst nicht beide Würfel nutzen, wer den Mutterstein festsetzt, gewinnt sofort, und jeder Sieg zählt als ein Spiel."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Πλακωτό με κανόνες σπιτιού: αν πέσεις σε μοναχό πούλι του αντιπάλου, το πλακώνεις κάτω από το δικό σου μέχρι να φύγεις. Μαζεύεις μόνο με ακριβείς ζαριές, δεν χρειάζεται να παίξεις και τα δύο ζάρια, όποιος πλακώσει τη μάνα κερδίζει αμέσως και κάθε νίκη μετράει ένα παιχνίδι."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو با قوانین خانگی: اگر روی یک مهرهٔ تنهای حریف فرود بیایی، آن را زیر مهرهٔ خودت حبس می‌کنی تا وقتی که از آنجا بروی. مهره‌ها فقط با تاس دقیق بیرون برده می‌شوند، لازم نیست از هر دو تاس استفاده کنی، حبس کردن مهرهٔ مادر فوراً بازی را می‌برد و هر برد یک بازی حساب می‌شود."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto met huisregels: land je op een losse steen van je tegenstander, dan zet je die onder de jouwe vast tot je verder trekt. Uitspelen alleen met precieze worpen, je hoeft niet beide dobbelstenen te gebruiken, wie de moedersteen vastzet wint meteen, en elke winst telt als één spel."
+          }
+        }
+      }
+    },
+    "Off in Full Tavli: only in a Plakoto single game or Best of 3 with House rules." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus in Full Tavli: nur in Plakoto mit Hausregeln, Einzelspiel oder Best of 3."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ανενεργό στο Πλήρες Τάβλι: μόνο στο Πλακωτό με κανόνες σπιτιού, ένα παιχνίδι ή 2 στα 3."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در تاولی کامل خاموش است: فقط در پلاکوتو با قوانین خانگی، تک‌بازی یا بهترین از ۳."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uit in Full Tavli: alleen in Plakoto met huisregels, enkel spel of Best of 3."
+          }
+        }
+      }
+    },
+    "Needs House rules: turn them on in Settings." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Braucht Hausregeln: in den Einstellungen einschalten."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Χρειάζεται κανόνες σπιτιού: ενεργοποίησέ τους στις Ρυθμίσεις."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "به قوانین خانگی نیاز دارد: آن را در تنظیمات روشن کن."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vraagt huisregels: zet ze aan in Instellingen."
+          }
+        }
+      }
+    },
+    "Off in %@: only in Plakoto with House rules (turn them on in Settings)." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus in %@: nur in Plakoto mit Hausregeln (in den Einstellungen einschalten)."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ανενεργό (%@): μόνο στο Πλακωτό με κανόνες σπιτιού (ενεργοποίησέ τους στις Ρυθμίσεις)."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "در %@ خاموش است: فقط در پلاکوتو با قوانین خانگی (آن را در تنظیمات روشن کن)."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uit in %@: alleen in Plakoto met huisregels (aan te zetten in Instellingen)."
+          }
+        }
+      }
+    },
+    "Plakoto with House rules, single game or Best of 3: every item." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto mit Hausregeln, Einzelspiel oder Best of 3: alles."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Πλακωτό με κανόνες σπιτιού, ένα παιχνίδι ή 2 στα 3: όλα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "پلاکوتو با قوانین خانگی، تک‌بازی یا بهترین از ۳: همه موارد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plakoto met huisregels, enkel spel of Best of 3: alles."
+          }
+        }
+      }
+    },
+    "Every other game and Full Tavli: weighted dice, rerolls, hints and moves first." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle anderen Spiele und Full Tavli: gewichtete Würfel, Neuwürfe, Tipps und „Beginnt“."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Όλα τα άλλα παιχνίδια και το Πλήρες Τάβλι: ευνοϊκά ζάρια, νέες ζαριές, βοήθειες και «Ξεκινά»."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "همهٔ بازی‌های دیگر و تاولی کامل: تاس‌های وزن‌دار، تاس دوباره، راهنمایی‌ها و «اول حرکت می‌کند»."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle andere spellen en Full Tavli: gewogen dobbelstenen, opnieuw gooien, hints en ‘Begint’."
           }
         }
       }

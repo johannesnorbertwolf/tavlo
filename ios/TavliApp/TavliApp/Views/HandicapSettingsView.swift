@@ -12,13 +12,15 @@ private typealias EngineColor = TavliEngine.Color
 /// **Per variant (#246).** Weighted dice, rerolls, hints and moves first work in every
 /// variant and across Full Tavli; the head start and the rule changes only in a house-
 /// Plakoto single game or best-of-three. The next game's kind (the remembered variant +
-/// length) decides: items it can't use stay visible but disabled, with the reason, and
-/// the applicability note says what is left out.
+/// length + the House rules switch, #258) decides: items it can't use stay visible but
+/// disabled, with the reason (in Plakoto: "Needs House rules: turn them on in
+/// Settings."), and the applicability note says what is left out.
 struct HandicapSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(HandicapPreferences.storageKey) private var raw = ""
     @AppStorage(SettingsKey.matchLength) private var matchLength: MatchLengthSetting = .bestOfThree
-    @AppStorage(SettingsKey.variant) private var variantID = GameVariants.defaultID
+    @AppStorage(SettingsKey.variant) private var variantID = GameVariants.plakotoStandard.id
+    @AppStorage(SettingsKey.houseRules) private var houseRules = false
     @AppStorage(SettingsKey.startingPlayer) private var startingPlayer: StartingPlayerSetting = .openingRoll
 
     @State private var vsComputer = true
@@ -172,6 +174,7 @@ struct HandicapSettingsView: View {
         .onChange(of: raw) { _, _ in refreshEstimate() }
         .onChange(of: vsComputer) { _, _ in refreshEstimate() }
         .onChange(of: variantID) { _, _ in refreshEstimate() }
+        .onChange(of: houseRules) { _, _ in refreshEstimate() }
         .onChange(of: matchLength) { _, _ in refreshEstimate() }
     }
 
@@ -218,18 +221,25 @@ struct HandicapSettingsView: View {
 
     // MARK: - Applicability (concept §7, per variant since #246)
 
-    private var variant: GameVariantSetting { GameVariantSetting(variantID: variantID) }
+    /// The next game's rules: the picked variant with the House rules switch (#258).
+    private var variant: GameVariantSetting {
+        GameVariantSetting(choiceID: variantID).playing(houseRules: houseRules)
+    }
     private var isFullTavli: Bool { matchLength == .fullTavli }
 
     /// The next game's name for the notes: the variant, or Full Tavli.
     private var nextGameName: String { isFullTavli ? String(localized: "Full Tavli") : variant.name }
 
-    /// Why `item` is off for the next game, or `nil` when it applies.
+    /// Why `item` is off for the next game, or `nil` when it applies. #258: house Plakoto
+    /// is the House rules switch, not a game of its own — the reason says to turn it on.
     private func unavailableReason(_ item: HandicapItemKind) -> String? {
         switch HandicapSetup.availability(item, variantID: variant.rawValue, fullTavli: isFullTavli) {
         case .available:      return nil
-        case .notInFullTavli: return String(localized: "Off in Full Tavli: only in Plakoto (house rules), single game or Best of 3.")
-        case .houseRulesOnly: return String(localized: "Off in \(variant.name): only in Plakoto (house rules).")
+        case .notInFullTavli: return String(localized: "Off in Full Tavli: only in a Plakoto single game or Best of 3 with House rules.")
+        case .houseRulesOnly:
+            return variant.isPlakoto
+                ? String(localized: "Needs House rules: turn them on in Settings.")
+                : String(localized: "Off in \(variant.name): only in Plakoto with House rules (turn them on in Settings).")
         }
     }
 
@@ -238,8 +248,8 @@ struct HandicapSettingsView: View {
     private var applicabilityNote: some View {
         VStack(alignment: .leading, spacing: 4) {
             Group {
-                Text("Plakoto (house rules), single or Best of 3: every item.")
-                Text("Standard Plakoto, Fevga, Portes and Full Tavli: weighted dice, rerolls, hints and moves first.")
+                Text("Plakoto with House rules, single game or Best of 3: every item.")
+                Text("Every other game and Full Tavli: weighted dice, rerolls, hints and moves first.")
                 Text("Offline games only.")
             }
             .foregroundStyle(ChromeKit.inkSecondary)

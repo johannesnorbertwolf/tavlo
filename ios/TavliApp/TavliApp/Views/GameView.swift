@@ -192,12 +192,19 @@ struct GameView: View {
     /// state plus any transient banner (opponent left, match ended).
     @ViewBuilder private var turnStatus: some View {
         VStack(spacing: 6) {
-            // Which game this is (#143) — always visible with the turn status.
-            Text(GameVariantSetting(variant: session.game.variant).name)
-                .font(ChromeType.caption.weight(.semibold))
-                .foregroundStyle(ChromeKit.inkSecondary)
-                .textCase(.uppercase)
-                .accessibilityIdentifier("variantName")
+            // Which game this is (#143) — always visible with the turn status; a house-
+            // rules game carries the wolf tag (#258, the game's own rules, not the switch).
+            let variant = GameVariantSetting(variant: session.game.variant)
+            HStack(spacing: 6) {
+                Text(variant.shortLabel)
+                    .font(ChromeType.caption.weight(.semibold))
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                    .textCase(.uppercase)
+                    .accessibilityIdentifier("variantName")
+                if variant.isHouseRules {
+                    HouseRulesTag()
+                }
+            }
             if let online, online.isMatchOver, !session.isTerminal {
                 // Ended without a final move (a forfeit): the banner says why.
                 EmptyView()

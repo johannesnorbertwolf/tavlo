@@ -384,8 +384,10 @@ published read-state and calls its intents — no game logic lives here. (T9 fir
 this against the static `BoardView`; T10 swapped in `PlayableBoardView` so the assembled
 screen is fully playable, and added the Back button + hosted debug toggle.)
 
-**Variants (#143).** The turn-status block opens with the variant's name (uppercase caption,
-`accessibilityIdentifier("variantName")`). `BorneOffView` counts via
+**Variants (#143).** The turn-status block opens with the variant's name (uppercase caption
+`shortLabel`, `accessibilityIdentifier("variantName")`), followed for a house-Plakoto game by the
+wolf tag (#258, `HouseRulesTag`, from the game's own variant — never the current switch, so a
+resumed or online game shows its own rule set; an online joiner sees the inviter's). `BorneOffView` counts via
 `BoardLayout.borneOffCount` (never the raw end stack). The win overlay shows for
 `.gameOver(winner: nil)` too: title "Draw" + `ResultCopy.drawSubtitle`; a win in a 2-point
 variant gets a "Double game · 2 points" / "Single game · 1 point" subtitle and the turn label
@@ -628,6 +630,7 @@ never drops below 0.72 ink opacity.
   | `inkSecondary` · `inkDim(x)` | ink @ 0.72 · ink @ x | `#cf9f62` tan (≥ 7:1 on every surface) |
   | `iconInk` | ink @ 0.75 | `#d9ad72` |
   | `ChromeTheme.undoTint` (accent) · `onAccent` | `#a87a3e` · white | `#e09a42` · `#140a02` (dark label) |
+  | `houseTagFill` · `houseTagEdge` · `houseTagInk` (#258 wolf tag) | `#f3e1bf` · `#a87a3e` · `#7a4f1e` | `#3a2413` · `#e09a42` · `#f2b866` (opaque, so the tag reads on the solid play button too) |
   | `secondaryFill` / `…Pressed` | accent @ 16 % / 34 % | `#ffbe6e` @ 11 % / 22 % |
   | `ChromeTheme.doneTint` · `surrenderTint` | `#6a8a4a` · `#b05a44` | `#86c46c` · `#ff8d72` |
   | `ChromeTheme.checkerColor` White / Red | `#fbeed1` / `#a83a2a` | `#f3e8cc` / `#e04a35` |
@@ -1045,7 +1048,9 @@ too), and `match.recordGame(winner:points:)`.
     - **`playCard`** — one full-width primary button: "Play the computer" + a `PlayAsChecker`
       (ivory / red / split for Random) over the remembered setup as a subtitle
       (`NewGameSetup.summary`: "Level 6 · Plakoto · Best of 3", Full Tavli "Level 6 · Full
-      Tavli"). Tapping starts at once (`onPlay` → `RootView` resolves the colour with
+      Tavli"). #258 `summaryLine`: with `showsHouseRulesTag` the wolf tag goes beside the
+      subtitle when it fits (`ViewThatFits`, iPad) or on its own line under it (a phone; the
+      button grows ~20 pt, still fits a 13 mini without scrolling). Tapping starts at once (`onPlay` → `RootView` resolves the colour with
       `PreferredColorSetting.resolve()` and calls `beginGame` / `beginFullTavli`). No model →
       the "The computer is still learning …" note in its place (a card on a phone).
     - **`adjustButton`** — a square `.secondary` `slider.horizontal.3` button ("Game setup")
@@ -1084,7 +1089,7 @@ too), and `match.recordGame(winner:points:)`.
   every leg's model (`FullTavliSession(...).isAIAvailable()`) with a "still learning some of the
   Full Tavli games" note; "Two players on this iPad" always works.
 - **Running it.** `beginFullTavli(humanColor:)` (`nil` = two players) creates the session via
-  `AppSettings.newFullTavli` (Plakoto leg per `VariantPreference`), names every leg
+  `AppSettings.newFullTavli` (Plakoto leg per the House rules switch, #258), names every leg
   `"Full Tavli · <date>"`, and `startFullTavliLeg` builds each leg's session for the leg's
   variant (its own agent). Starter = single-game rules: vs AI the starting-player setting or the
   opening-roll ceremony (`pendingVariant`/`pendingHumanColor`; backing out of leg 1 cancels the
@@ -1126,9 +1131,13 @@ tapped (defaults equal the `AppSettings` accessors), so the start screen's subti
 players" pick the choices up immediately — there is no Cancel/commit step.
 
 - **Header** — "Play the computer" (`ChromeType.title2` bold) + a 44 pt `xmark` close.
-- **Variant** — `SegmentedChoice` over `GameVariantSetting.shortLabel` + the one-line
-  `rulesReminder`. In Full Tavli the row is dimmed (0.45) + disabled and the caption reads "Full
-  Tavli plays all three variants in turn." (its Plakoto leg still follows the stored variant).
+- **Variant** — `SegmentedChoice` over `GameVariantSetting.pickerCases` (#258: Plakoto · Portes ·
+  Fevga, Plakoto = standard rules; a stray stored house `plakoto` shows as Plakoto) by `shortLabel`
+  + the one-line `rulesReminder` of `NewGameSetup.played` (the choice with the House rules switch
+  applied). With House rules on and a Plakoto game in the setup (`showsHouseRulesTag`: Plakoto, or
+  Full Tavli for its Plakoto leg) the wolf tag (`HouseRulesTag`) sits between the picker and the
+  caption. In Full Tavli the row is dimmed (0.45) + disabled and the caption reads "Full Tavli
+  plays all three variants in turn." (its Plakoto leg follows the House rules switch).
 - **Level** — eight number chips 1…8 (44 pt phone / 50 pt iPad; selected = solid amber
   `ChromeTheme.undoTint`, others `ChromeKit.trackColor`) + "Level N · <description>"
   (`AILevelCopy`).
@@ -1139,8 +1148,9 @@ players" pick the choices up immediately — there is no Cancel/commit step.
 - **Play** — full-width `.primary` `ChromeButton` (`title3` bold) → `onPlay`. Disabled (0.45)
   with the "The computer is still learning …" message above it when `NewGameSetup.aiAvailable` is false.
 
-Helpers in the file: `NewGameSetup` (variant/level/playAs/length → `aiAvailable`, `summary`,
-`unavailableMessage`; shared with the start screen), `SheetSection` (quiet label over content),
+Helpers in the file: `NewGameSetup` (variant/level/playAs/length/houseRules → `played`,
+`showsHouseRulesTag`, `aiAvailable`, `summary` ("Level 8 · Plakoto · Best of 3", the tag is drawn
+beside or under it by the start screen), `unavailableMessage`; shared with the start screen), `SheetSection` (quiet label over content),
 `SegmentedChoice` (recessed `trackColor` track, the selected option on a raised
 `selectedSegmentColor` pill — the mockup's look, which the system segmented picker can't take),
 `PlayAsChecker` (also on the start screen's play button).
@@ -1153,7 +1163,13 @@ a `ScrollView` capped at 560 pt. Every control binds to `@AppStorage`; each defa
 `AppSettings` accessor.
 
 - **Game** — *Play as* (`PreferredColorSetting` White / Random / Red, default **White**; also in
-  the new-game sheet), *Auto-roll* (default **on**).
+  the new-game sheet), *Auto-roll* (default **on**), *House rules* (#258, `SettingsKey.houseRules`,
+  default **off** for everyone; `houseRulesRow`: title + a head-only `HouseRulesTag`, caption
+  "Only for Plakoto: bear off with exact rolls only, you don't have to use both dice, pinning the
+  mother checker wins at once, and every win counts one point." — the differences of house
+  Plakoto from the standard rules, `docs/variants/plakoto-standard.md`). On: every *new* Plakoto
+  game (single, Best of 3, Full Tavli's Plakoto leg, vs the computer and two players, online
+  invites) is house Plakoto; games already started / saved / resumed keep their own rules.
 - **Advanced** — *First move* (`StartingPlayerSetting`: opening roll / I start / Computer
   starts). (*Analyze during play*, #146, was removed in #243: the background analysis pauses
   while the computer thinks, so it no longer slows it and always runs; the key
@@ -1216,14 +1232,16 @@ only when a handicap is active / exists.
   `SettingsView` ("Handicap" + "Off"/summary + chevron) presenting `HandicapSettingsView` as a sheet.
 - **Builder.** `HandicapSettingsView`: header + intro, a card with the master toggle, the label
   switch (`@State vsComputer`, labels only) and the applicability note (#246, three caption lines:
-  "Plakoto (house rules), single or Best of 3: every item." / "Standard Plakoto, Fevga, Portes and
-  Full Tavli: weighted dice, rerolls, hints and moves first." / "Offline games only."; plus a brick
+  "Plakoto with House rules, single game or Best of 3: every item." / "Every other game and Full
+  Tavli: weighted dice, rerolls, hints and moves first." / "Offline games only."; plus a brick
   warning when the next game — the remembered variant + length — leaves set items out: "Your next
   game is Fevga: the head start and rule changes are left out.", or "… so it will be played without
   a handicap." when nothing set applies). Items the next game can't use stay **visible but
   disabled** (dimmed controls) with a 🔒 reason from `HandicapSetup.availability` ("Off in Full
-  Tavli: only in Plakoto (house rules), single game or Best of 3." / "Off in Fevga: only in Plakoto
-  (house rules)."): the head start card (reason under its caption) and the whole "Rule changes"
+  Tavli: only in a Plakoto single game or Best of 3 with House rules." / in Plakoto without the
+  switch "Needs House rules: turn them on in Settings." / "Off in Fevga: only in Plakoto with House
+  rules (turn them on in Settings)." — #258: house Plakoto is the switch, never a game of its own;
+  the next game = the picked variant + length + the switch, `@AppStorage` live): the head start card (reason under its caption) and the whole "Rule changes"
   group (reason under the heading). "Moves first" reads "Starts every game of Full Tavli; no opening
   roll." for Full Tavli. Then one `itemCard` per item (title, segmented side picker ≤ 210 pt — on a phone only, a
   `ViewThatFits` drops the picker below the title when the row can't fit it, e.g. Greek "Υπολογιστής", #225 — an integer
@@ -1320,7 +1338,7 @@ that would need agreement. Glossary:
 |---|---|
 | Plakoto / Portes / Fevga | Πλακωτό / Πόρτες / Φεύγα |
 | Full Tavli | Πλήρες Τάβλι |
-| Standard (Plakoto rules) / house rules | Στάνταρ / κανόνες σπιτιού |
+| House rules (#258 switch + wolf tag) | Κανόνες σπιτιού (in a sentence: κανόνες σπιτιού) |
 | checker | πούλι |
 | point (on the board) / home board | θέση / σπίτι |
 | start point | αφετηρία |

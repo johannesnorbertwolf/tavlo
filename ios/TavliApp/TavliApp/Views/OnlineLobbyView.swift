@@ -110,7 +110,9 @@ private struct OnlineLobbyView: View {
     /// Match length for the next invite (#145). Defaults to best-of-three.
     @AppStorage(SettingsKey.onlineMatchLength) private var matchLength: MatchLengthSetting = .bestOfThree
     /// Variant for the next invite (#143), shared with the start screen / Settings.
-    @AppStorage(SettingsKey.variant) private var variant: GameVariantSetting = .plakoto
+    @AppStorage(SettingsKey.variant) private var variant: GameVariantSetting = .plakotoStandard
+    /// The House rules switch (#258): the inviter's rule set goes in the payload.
+    @AppStorage(SettingsKey.houseRules) private var houseRules = false
 
     var body: some View {
         ZStack {
@@ -160,7 +162,8 @@ private struct OnlineLobbyView: View {
     private var authenticatedBody: some View {
         // Variant for the invite (#143) — every variant works online (two humans, no
         // model needed); the match carries it in its payload, so the joiner plays the
-        // same rules.
+        // same rules. #258: the inviter's House rules switch decides Plakoto's rules (the
+        // joiner sees the wolf tag in the game chrome).
         VariantPickerView(selection: $variant, showsAIAvailability: false)
             .frame(maxWidth: 392)
             .chromeCard(padding: 20)
@@ -175,7 +178,7 @@ private struct OnlineLobbyView: View {
         .frame(maxWidth: 392)
 
         Button {
-            coordinator.presentInvite(targetWins: matchLength.targetWins, variantID: variant.rawValue)
+            coordinator.presentInvite(targetWins: matchLength.targetWins, variantID: variant.pickerChoice.playing(houseRules: houseRules).rawValue)
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: "person.2.fill")
