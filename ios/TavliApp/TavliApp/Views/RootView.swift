@@ -716,7 +716,7 @@ private struct ModePickerView: View {
                 topBar
                 FitOrScroll {
                     VStack(spacing: isCompact ? 16 : 32) {
-                        Text("Tavlo")
+                        Text(verbatim: "Tavtav")
                             .font(ChromeType.wordmark)
                             .compactSingleLine()
                             .foregroundStyle(CaramelPalette.frameText)
