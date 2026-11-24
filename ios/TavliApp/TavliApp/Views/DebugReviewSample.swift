@@ -29,10 +29,18 @@ enum DebugReviewSample {
         return level == 0 ? nil : level
     }
 
+    /// The game's rules (#256): `-debugReviewVariant portes` (any registry id) plays the
+    /// sample in that variant, e.g. to check a 2-point variant's "points" wording; house
+    /// Plakoto otherwise.
+    static var config: GameConfig {
+        UserDefaults.standard.string(forKey: "debugReviewVariant")
+            .map { GameConfig(variantID: $0) } ?? .standard
+    }
+
     /// The same game on every launch (fixed seed), so screenshots are reproducible.
     static func record(plies count: Int = 24, seed: UInt64 = 232) -> GameRecord {
         var rng = SplitMix(state: seed)
-        let config = GameConfig.standard
+        let config = Self.config
         let variant = config.variant
         let board = GameBoard(config: config)
         variant.setUpInitialPosition(on: board)
@@ -77,7 +85,7 @@ private struct DebugReviewSampleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content.fullScreenCover(isPresented: $showing) {
-            GameReviewView(record: record, agent: GameSession.makeAgent(),
+            GameReviewView(record: record, agent: GameSession.makeAgent(config: DebugReviewSample.config),
                            humanColor: DebugReviewSample.humanColor)
         }
     }

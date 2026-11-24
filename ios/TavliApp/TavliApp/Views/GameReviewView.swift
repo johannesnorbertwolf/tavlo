@@ -480,7 +480,7 @@ struct GameReviewView: View {
             // deeper passes refine it in place (needs ≥2 points to trace a line).
             if model.firstPassComplete, model.chartEvaluations.count >= 2 {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(scale.isEquity ? LocalizedStringKey("Equity through the game") : LocalizedStringKey("Win chance through the game"))
+                    Text(scale.isEquity ? LocalizedStringKey("Expected points through the game") : LocalizedStringKey("Win chance through the game"))
                         .font(.caption).foregroundStyle(ChromeKit.inkDim(0.55))
                     WinProbabilityChart(evaluations: model.chartEvaluations,
                                         selectedPly: eval.plyNumber,
@@ -516,9 +516,9 @@ struct GameReviewView: View {
 
     // ── Summary card (#233) ────────────────────────────────────────────────────
 
-    /// "Accuracy 91% · 2 mistakes · 1 blunder" (counts only when > 0, inaccuracies
-    /// quieter), then one dice-vs-decisions line (per-roll / per-move averages) once
-    /// the luck pass is in.
+    /// "Accuracy 91% · 2 mistakes · 1 blunder" (counts only when > 0; inaccuracies are
+    /// left out, #257 — nothing filters or drills them), then one dice-vs-decisions line
+    /// (per-roll / per-move averages) once the luck pass is in.
     @ViewBuilder
     private func summaryCard(finished: Bool) -> some View {
         let s = model.result.summary(for: humanColor, luck: model.luck)
@@ -569,10 +569,6 @@ struct GameReviewView: View {
         }
         if s.blunders > 0 {
             text = text + Text(verbatim: separator) + Text("\(s.blunders) blunders")
-        }
-        if s.inaccuracies > 0 {
-            text = text + Text(verbatim: separator)
-                + Text("\(s.inaccuracies) inaccuracies").foregroundColor(ChromeKit.inkSecondary)
         }
         return text
     }
@@ -878,9 +874,11 @@ extension MoveSeverity {
 }
 
 /// A move's level (#231, #233): the annotation mark + its name in a neutral capsule —
-/// amber and blue are reserved for your move and the best move.
-private struct SeverityBadge: View {
+/// amber and blue are reserved for your move and the best move. Also on each drill card
+/// (#256); `showsName: false` is its narrow form, the mark alone ("??").
+struct SeverityBadge: View {
     let severity: MoveSeverity
+    var showsName = true
     @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
@@ -889,7 +887,7 @@ private struct SeverityBadge: View {
             Text(verbatim: layoutDirection == .rightToLeft
                  ? BidiText.isolatedLeftToRight(severity.symbol ?? "")
                  : (severity.symbol ?? ""))
-            Text(severity.localizedName)
+            if showsName { Text(severity.localizedName) }
         }
         .font(.caption.bold())
         .padding(.horizontal, 8).padding(.vertical, 3)

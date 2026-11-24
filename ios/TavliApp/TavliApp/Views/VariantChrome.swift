@@ -52,8 +52,9 @@ struct AIUnavailableBadge: View {
 
 /// How an evaluation in `[0, 1]` is shown for a variant (#143). Plakoto's network
 /// outputs a win probability ("Win chance 63%"); a variant with 2-point wins outputs
-/// normalized expected points, shown as **equity** in points ("Equity +0.52",
-/// range ±maxPoints) — calling it a win chance would be wrong.
+/// normalized expected points (equity), shown in **points** ("Expected points +0.52",
+/// range ±maxPoints; #256: the UI never says "equity") — calling it a win chance would
+/// be wrong.
 struct EvalScale {
     let variant: any GameVariant
 
@@ -62,9 +63,9 @@ struct EvalScale {
 
     var isEquity: Bool { variant.reportsEquity }
 
-    /// "Win chance" / "Equity".
+    /// "Win chance" / "Expected points".
     var title: String {
-        isEquity ? String(localized: "Equity") : String(localized: "Win chance")
+        isEquity ? String(localized: "Expected points") : String(localized: "Win chance")
     }
 
     /// A value for display: "63%" or "+0.52" (in the locale's digits, #185).
@@ -95,7 +96,7 @@ struct EvalScale {
     /// The gap as a loss, "−12%" / "−0.48", with the sign inside the locale-digit isolate
     /// (#229), so a right-to-left line never puts the minus after its number. A gap that
     /// rounds to zero at display precision reads "0%" / "0.00" — never a negative zero
-    /// ("−0.00 equity" for a move as good as the best); like `points`, no sign on a zero.
+    /// ("−0.00 points" for a move as good as the best); like `points`, no sign on a zero.
     func lossGap(_ d: Double) -> String {
         let d = max(0, d)
         let magnitude = isEquity ? String(format: "%.2f", d * 2 * Double(variant.maxPoints))
@@ -104,9 +105,10 @@ struct EvalScale {
         return ChromeDigits.localized((isZero ? "" : "\u{2212}") + magnitude)
     }
 
-    /// "−12% win chance" / "−0.48 equity" — the cost of a move vs the best.
+    /// "−12% win chance" / "−0.48 points" — the cost of a move vs the best (#256: a
+    /// 2-point variant's equity is expected points, so it says points).
     func lossLabel(_ d: Double) -> String {
-        isEquity ? String(localized: "\(lossGap(d)) equity")
+        isEquity ? String(localized: "\(lossGap(d)) points")
                  : String(localized: "\(lossGap(d)) win chance")
     }
 }

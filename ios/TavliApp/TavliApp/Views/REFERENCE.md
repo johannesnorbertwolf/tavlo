@@ -393,8 +393,8 @@ variant gets a "Double game · 2 points" / "Single game · 1 point" subtitle and
 (`WinOverlayView.showsStats`). `GameView.Match.lastGameResult: MatchGameResult?` replaces
 `lastGameWinner` (offline falls back to `session.record.result`); `MatchScoreboardView` /
 `MatchOverlayView` show `score(for:)` (points) and a draw title/subtitle. `WinProbabilityBar`,
-the resign confirmation's chance line and `DebugOverlay` go through `EvalScale` ("Equity +0.52" for 2-point
-variants). Review falls back to `makeAgent(config:)` for a two-player game.
+the resign confirmation's chance line and `DebugOverlay` go through `EvalScale` ("Expected points +0.52"
+for 2-point variants; #256: their equity is expected points, so the UI says points, never "equity"). Review falls back to `makeAgent(config:)` for a two-player game.
 
 - **`GameView`** (`@ObservedObject session`, plus `stats: HumanGameStats = .empty` (#64) — the
   human's record shown in the win overlay, `onBack: () -> Void = {}` — returns to the mode
@@ -708,6 +708,13 @@ Per screen (compact only):
   portrait the played/best rows and the loss line sit above the fold.
 - **DrillView** — portrait: board edge-to-edge between the prompt and the feedback/
   actions; landscape: the header moves into the card's rail (`railHeader`).
+- **Drill header (#256)** — one line, from the start of each card (before any attempt):
+  "Drill · 2 of 5", the review's `SeverityBadge` ("?? Blunder" / "? Mistake") and what the
+  game move gave up (`EvalScale.lossLabel(eval.absoluteGap)`: "−12% win chance" in house
+  Plakoto, "−0.48 points" in a 2-point variant), caption, dimmed ink. A `ViewThatFits`
+  steps down when the line is too narrow (13 mini portrait, the landscape rail, long
+  German/Greek names): the loss without its unit ("−12%"), then the badge's mark alone
+  (`SeverityBadge(showsName: false)`, "??"). VoiceOver reads "Blunder, −12% win chance".
 
 **Review/drill board overlays (#232, #233).** The review always compares on your own
 plies with a choice: `MoveHighlightView` gets the played move + best move (amber / blue,
@@ -736,7 +743,7 @@ The **drill** board (`DrillCard.board`) shows, over the live
   attempt, solution comparing your attempt); "You tried" amber only while the solution
   compares it (and it isn't identical to the best); "Best move" blue in the solution. The
   gap line under the solution is measured against the compared move: "−x win chance vs your
-  try" / "−x equity vs your try" after an attempt, "… vs your move" otherwise.
+  try" / "−x points vs your try" after an attempt, "… vs your move" otherwise.
 - **Correct attempt → auto-advance.** A graded-correct attempt (`gap ≤ max(0.01, 3 % of
   best)` — "Excellent — that's the best move!" / "Great — very close to optimal.") stays held
   on the board, sets `DrillModel.celebrating` and shows a "Well done ✓" capsule
@@ -782,27 +789,29 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   refining spinner while deeper passes run (the 1-/2-/3-ply chip is gone), the dice and a
   `SeverityBadge` ("?? Blunder", "? Mistake", "?! Inaccuracy": the `MoveSeverity` symbol,
   LTR-isolated under RTL, + `MoveSeverity.localizedName` in a neutral ink capsule, a touch
-  stronger for a blunder) — on your moves, and on the opponent's only when it can err
+  stronger for a blunder; `showsName: false` = the mark alone, the drill header's narrow
+  form) — on your moves, and on the opponent's only when it can err
   (`record.opponentCanErr(of:)`, #231). Rows: "You played" / "Computer played" / "%@
   played" and "Best move", each label over a `MoveMarkSwatch` + notation + value; a swatch
   only while that mark is on the board (`MoveHighlightView.drawnMarks`), else a same-size
   gap. Status line (indented to the notation): "Best move played ✓" / "Computer played the
   best ✓", else `EvalScale.lossLabel` (ink from a mistake up, secondary ink below; a different
-  move whose loss rounds to zero reads "0.00 equity" / "0% win chance", never "−0.00"), or
+  move whose loss rounds to zero reads "0.00 points" / "0% win chance", never "−0.00"), or
   "Only move available" for a forced ply. No green, no red: amber and blue mean only your
   move / the best move.
 - **Summary card** (`summaryCard`, a `.chromeCard(padding: 14)` at the end of the detail,
   under the chart), from `model.result.summary(for: humanColor, luck: model.luck)`:
-  "**Accuracy 91%** · 2 mistakes · 1 blunder · 3 inaccuracies" (one `Text`
-  concatenation; counts only when > 0, plural variations in the catalog with a
-  non-breaking space after the number, inaccuracies in secondary ink); "No mistakes —
+  "**Accuracy 91%** · 2 mistakes · 1 blunder" (one `Text` concatenation; counts only
+  when > 0, plural variations in the catalog with a non-breaking space after the number;
+  #257: no inaccuracy count — the filter, chart marks and drill cover only ? / ??, so
+  nothing would let you find them; their "?!" badge still shows when paging); "No mistakes —
   nicely played!" under it once the analysis is finished with no ? / ??. Then one line,
   once the luck pass is in, as **per-move averages** (sums grow with game length and
   can pass 100 %): "Dice: +0.5% per roll for you · Your moves: −2.1% per move". Dice =
   your mean `PlyLuck.luckPoints` over your rolls (passes included) minus the opponent's
   mean over theirs; moves = `decisionLoss / choicePlies` (your mean loss over plies with
   a choice). Both via `EvalScale.points(_:signed:decimals: 1)`: win-chance pp to one
-  decimal ("2.1%"), or equity = pp / 50 with three decimals ("0.042") for a 2-point
+  decimal ("2.1%"), or expected points = pp / 50 with three decimals ("0.042") for a 2-point
   variant; locale digits. Wording: "Dice: even" when |net| < 0.05 pp, "Dice: x per roll
   for %@" when it favoured the other side, "Moves by %@: x per move" in a two-player game.
   While the luck pass runs (only when there is an agent): a mini spinner + "Measuring dice
@@ -972,7 +981,9 @@ too), and `match.recordGame(winner:points:)`.
     with plenty of blunders to drill. Nothing is saved or counted. #233 options:
     `-debugReviewAs red` reviews as Red (the computer plays White and starts), and
     `-debugReviewLevel N` records the computer's level (N < 8 makes its mistakes show on
-    the chart and its cards carry level badges; unset = unknown = full strength). Combine with
+    the chart and its cards carry level badges; unset = unknown = full strength); #256:
+    `-debugReviewVariant <id>` (`portes`, `fevga`, `plakoto_standard`) plays the sample in that
+    variant (its model analyses it), for the 2-point "points" wording. Combine with
     `-settings.appearance light|dark` and `-AppleLanguages "(fa)"` (argument-domain
     overrides) for screenshots, e.g.
     `xcrun simctl launch <udid> com.plakoto.TavliApp -debugReviewSample -settings.appearance dark`.
@@ -1326,7 +1337,7 @@ that would need agreement. Glossary:
 | blunder / drill / review | γκάφα / εξάσκηση / ανάλυση |
 | inaccuracy / mistake / accuracy (review levels, #233) | ανακρίβεια / λάθος / ακρίβεια |
 | turn (a full turn, review) | γύρος |
-| win chance / equity | πιθανότητα νίκης / equity (kept, like de/nl) |
+| win chance / expected points (#256, was "equity") | πιθανότητα νίκης / αναμενόμενοι πόντοι |
 | Best of 3 | 2 στα 3 |
 | handicap / hint / weighted dice / head start / safe point | χάντικαπ / βοήθεια / ευνοϊκά ζάρια / προβάδισμα / ασφαλής θέση |
 | Off / On | Όχι / Ναι |
@@ -1378,7 +1389,7 @@ Persian copy avoids "·" between two numbers (dice are "تاس ۴ و ۵").
 **#229 polish.** Every pre-formatted signed/decimal number goes through `ChromeDigits.localized` (digits +
 the locale's decimal separator "٫" + one LTR isolate around the whole token, built by the pure
 `BidiText.localizedNumber`; en/de/nl byte-identical, so de/nl equity keeps "." as before). The loss lines
-use `EvalScale.lossGap` (the "−" is inside the isolate) with keys "%@ win chance" / "%@ equity" (+ "vs your
+use `EvalScale.lossGap` (the "−" is inside the isolate) with keys "%@ win chance" / "%@ points" (+ "vs your
 move/try"), no literal minus in the template. Summary lists (new-game subtitle, handicap summary, review)
 join with `ChromeDigits.listSeparator` (" · " / Arabic comma). The Continue card's "date · moves" is the
 template key "%@ · %@" (fa: "%1$@، %2$@"). The "%@-ply" key is a stale leftover (no user-facing ply text
@@ -1417,7 +1428,7 @@ register, تو):
 | Computer | کامپیوتر |
 | You | تو |
 | White / Red | سفید / قرمز |
-| win chance / equity | شانس برد / ارزش موقعیت |
+| win chance / expected points (#256, was "equity") | شانس برد / امتیاز مورد انتظار |
 | blunder | اشتباه بزرگ (the review's level badge and counts: اشتباه فاحش, #233) |
 | inaccuracy / mistake / accuracy (#233) | بی‌دقتی / اشتباه / دقت |
 | turn (a full turn, review) | دور |
