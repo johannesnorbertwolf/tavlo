@@ -701,6 +701,34 @@
         }
       }
     },
+    "Analysis still running" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyse läuft noch"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Η ανάλυση συνεχίζεται"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تحلیل هنوز در جریان است"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyse loopt nog"
+          }
+        }
+      }
+    },
     "Animate computer moves" : {
       "localizations" : {
         "de" : {
@@ -9512,34 +9540,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Dobbelstenen: gelijk"
-          }
-        }
-      }
-    },
-    "Measuring dice luck…" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Würfelglück wird berechnet…"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Υπολογισμός τύχης ζαριών…"
-          }
-        },
-        "fa" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "در حال سنجش شانس تاس‌ها…"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dobbelgeluk berekenen…"
           }
         }
       }

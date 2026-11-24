@@ -474,6 +474,13 @@ public final class GameAnalysisJob: ObservableObject {
         return positions.compactMap { lucks[$0.plyNumber] }
     }
 
+    /// The dice luck found so far (#259), in play order — every ply's once complete
+    /// (then equal to `luck`). Lets the review show its per-roll rating live while the
+    /// analysis still runs.
+    public var partialLuck: [PlyLuck] {
+        positions.compactMap { lucks[$0.plyNumber] }
+    }
+
     /// The persisted form: one entry per evaluated ply with its luck, plus luck-only
     /// entries for passes (`[AnalysisEntry].withLuck`).
     public var entries: [AnalysisEntry] {

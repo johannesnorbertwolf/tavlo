@@ -141,6 +141,45 @@ final class MoveSeverityTests: XCTestCase {
         XCTAssertNil(GameReviewResult(evaluations: []).summary(for: .black).accuracy)
     }
 
+    /// #259: the per-roll / per-move averages the review's live rating shows, from
+    /// whatever luck and evaluations are in so far.
+    func testPerRollAndPerMoveAveragesFromPartialLuck() {
+        let evals = [
+            eval(played: 0.60, best: 0.60, ply: 1),                          // 0 pp
+            eval(played: 0.54, best: 0.60, ply: 3),                          // 6 pp
+            eval(played: 0.20, best: 0.60, hadChoice: false, ply: 5),        // forced: skipped
+        ]
+        let result = GameReviewResult(evaluations: evals)
+        // No luck yet: counts 0, no dice average; the moves average is already there.
+        let none = result.summary(for: .white)
+        XCTAssertEqual(none.luckRolls, 0)
+        XCTAssertEqual(none.opponentLuckRolls, 0)
+        XCTAssertNil(none.netLuckPerRoll)
+        XCTAssertFalse(none.luckCoversBothSides)
+        XCTAssertEqual(try XCTUnwrap(none.decisionLossPerMove), 3, accuracy: 1e-3)
+        // Empty luck (the pass started, nothing in): still no dice average.
+        XCTAssertNil(result.summary(for: .white, luck: []).netLuckPerRoll)
+        // Only your rolls so far: an average, but not yet covering both sides.
+        let mineOnly = [PlyLuck(plyNumber: 1, mover: .white, die1: 6, die2: 6, luck: 0.04),
+                        PlyLuck(plyNumber: 3, mover: .white, die1: 2, die2: 1, luck: -0.02)]
+        let partial = result.summary(for: .white, luck: mineOnly)
+        XCTAssertEqual(partial.luckRolls, 2)
+        XCTAssertEqual(partial.opponentLuckRolls, 0)
+        XCTAssertFalse(partial.luckCoversBothSides)
+        XCTAssertEqual(try XCTUnwrap(partial.netLuckPerRoll), 1, accuracy: 1e-6)   // (4 − 2) / 2
+        // Both sides: your mean per roll minus the opponent's.
+        let both = mineOnly + [PlyLuck(plyNumber: 2, mover: .black, die1: 5, die2: 5, luck: 0.06)]
+        let s = result.summary(for: .white, luck: both)
+        XCTAssertTrue(s.luckCoversBothSides)
+        XCTAssertEqual(s.opponentLuckRolls, 1)
+        XCTAssertEqual(try XCTUnwrap(s.netLuckPerRoll), 1 - 6, accuracy: 1e-6)
+        // The opponent's view is the mirror image.
+        XCTAssertEqual(try XCTUnwrap(result.summary(for: .black, luck: both).netLuckPerRoll),
+                       5, accuracy: 1e-6)
+        // A side with no choice plies has no moves average.
+        XCTAssertNil(result.summary(for: .black, luck: both).decisionLossPerMove)
+    }
+
     func testLuckPointsScaleWithVariant() {
         XCTAssertEqual(PlyLuck(plyNumber: 1, mover: .white, die1: 1, die2: 1, luck: 0.05).luckPoints,
                        5, accuracy: 1e-9)

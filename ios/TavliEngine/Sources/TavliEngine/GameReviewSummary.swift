@@ -22,10 +22,15 @@ public struct GameReviewSummary: Equatable, Sendable {
     public let luck: Double?
     /// The opponent's total dice luck, or `nil` until the luck pass has run.
     public let opponentLuck: Double?
+    /// How many of `color`'s / the opponent's rolls the luck covers (#259: the luck
+    /// may be partial while the analysis runs); 0 without luck.
+    public let luckRolls: Int
+    public let opponentLuckRolls: Int
 
     public init(color: Color, accuracy: Double?, choicePlies: Int, inaccuracies: Int,
                 mistakes: Int, blunders: Int, decisionLoss: Double,
-                luck: Double?, opponentLuck: Double?) {
+                luck: Double?, opponentLuck: Double?,
+                luckRolls: Int = 0, opponentLuckRolls: Int = 0) {
         self.color = color
         self.accuracy = accuracy
         self.choicePlies = choicePlies
@@ -35,10 +40,14 @@ public struct GameReviewSummary: Equatable, Sendable {
         self.decisionLoss = decisionLoss
         self.luck = luck
         self.opponentLuck = opponentLuck
+        self.luckRolls = luckRolls
+        self.opponentLuckRolls = opponentLuckRolls
     }
 
     /// Summarize `color` from `evaluations` (any mix of both sides; only `color`'s
     /// count) and optional `luck` (both sides; `nil` leaves the luck totals `nil`).
+    /// Both may be partial (#259) — what the analysis has found so far: the averages
+    /// below are over what is in.
     public init(color: Color, evaluations: [PlyEvaluation], luck: [PlyLuck]? = nil) {
         let mine = evaluations.filter { $0.mover == color }
         let choices = mine.filter(\.hadChoice)
@@ -53,8 +62,29 @@ public struct GameReviewSummary: Equatable, Sendable {
             blunders: mine.filter { $0.severity == .blunder }.count,
             decisionLoss: choices.reduce(0.0) { $0 + $1.decisionLoss },
             luck: luck.map { Self.totalLuck($0, of: color) },
-            opponentLuck: luck.map { Self.totalLuck($0, of: color.opponent) })
+            opponentLuck: luck.map { Self.totalLuck($0, of: color.opponent) },
+            luckRolls: luck?.filter { $0.mover == color }.count ?? 0,
+            opponentLuckRolls: luck?.filter { $0.mover == color.opponent }.count ?? 0)
     }
+
+    /// `color`'s mean decision loss per ply with a choice, in percentage points
+    /// (#233/#259); `nil` while there is none.
+    public var decisionLossPerMove: Double? {
+        choicePlies > 0 ? decisionLoss / Double(choicePlies) : nil
+    }
+
+    /// `color`'s mean luck per roll minus the opponent's, in percentage points
+    /// (positive = the dice favoured `color`; a side with no rolls counts 0). `nil`
+    /// without luck, or before any roll's luck is in.
+    public var netLuckPerRoll: Double? {
+        guard let luck, let opponentLuck, luckRolls + opponentLuckRolls > 0 else { return nil }
+        func mean(_ total: Double, _ n: Int) -> Double { n > 0 ? total / Double(n) : 0 }
+        return mean(luck, luckRolls) - mean(opponentLuck, opponentLuckRolls)
+    }
+
+    /// Whether the luck covers at least one roll of each side — enough for a fair
+    /// per-roll comparison while the luck is still partial (#259).
+    public var luckCoversBothSides: Bool { luckRolls > 0 && opponentLuckRolls > 0 }
 
     /// The count of `color`'s plies at `severity` (`.none` counts the choice plies
     /// that were none of the three).

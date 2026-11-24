@@ -694,9 +694,16 @@ Per screen (compact only):
   width minus a 16 pt gutter, spacing 12, padding 16, in `FitOrScroll`; in landscape the
   vs-AI record is condensed to its overall line so the card fits a 13 mini without scrolling.
 - **OpeningRollView** — same arrangement (Back, status, manual choice, board).
-- **GameReviewView** — portrait: Close + "Drill mistakes" bar, edge-to-edge board,
-  Prev/Next pinned under it, move detail + chart in a scrollable card; landscape: board
-  + rail (bar, scrolling detail, Prev/Next). **iPad (#193) uses the same structure**:
+- **GameReviewView** — portrait (#259): two pages switched by a small "Game · Moves"
+  control (`ReviewPageSwitch`, the new-game sheet's Caramel segmented look: `trackColor`
+  track, raised `selectedSegmentColor` pill, 44 pt tall) centred on the top bar beside
+  Close (`compactTopBar`, + the fair-dice note under it); opens on **Game** (`page`,
+  `@State`): a `ScrollView` of the chart full width and taller (height = half the width,
+  150…240 pt), the summary card, a full-width "Drill mistakes" and the mistakes list
+  (`gamePage`). **Moves**: the edge-to-edge board, Prev/Next pinned under it, then the
+  move card + filter in a `ScrollView`. The paging swipe is masked off on the Game page
+  (`.gesture(_, including: .subviews)`). Landscape: board + rail (bar, scrolling detail,
+  Prev/Next), unchanged. **iPad (#193) uses the same structure**:
   landscape = board + a 320 pt rail (`topBar`, scrolling `panelInfo`, `navRow`);
   portrait (`regularPortraitMode`) = `topBar`, the board (side = full width minus
   24 pt gutters, shrunk only to keep ~250 pt of detail visible — 340 pt below 700 pt
@@ -704,11 +711,11 @@ Per screen (compact only):
   (move + filter | chart + summary). Close is laid out in `topBar` on every
   review layout — it floats only on the analysing/message screens — so it can never
   cover the chart or board. **Detail order (#233): what changes as you page comes
-  first** — `panelInfo` = `moveSection` (turn, mover, dice + level badge, played/best
-  rows, loss line) + `filterPicker` + `overviewSection` (chart, then the summary card),
-  in every rail and the one-column portraits; the two-column iPad portrait puts move +
+  first** — `panelInfo` = `moveSection` (turn, mover + level badge, played/best
+  rows, loss line; the dice are on the board, #259) + `filterPicker` + `overviewSection` (chart, then the summary card),
+  in every rail and the iPad one-column portrait; the two-column iPad portrait puts move +
   filter in the leading column and chart + summary in the other. On a 13 mini in
-  portrait the played/best rows and the loss line sit above the fold.
+  portrait (Moves page) the played/best rows, the loss line and the filter sit above the fold.
 - **DrillView** — portrait: board edge-to-edge between the prompt and the feedback/
   actions; landscape: the header moves into the card's rail (`railHeader`).
 - **Drill header (#256)** — one line, from the start of each card (before any attempt):
@@ -785,11 +792,16 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   passes `opponentName` yet; it is there so an online review reads You vs the name.
 - **Board.** Always compare (no Your move / Compare toggle): on your plies with a choice the
   best move is drawn in blue next to yours in amber (`boardBestMove`); best played = blue
-  only. Opponent and forced plies draw just the move played (amber).
+  only. Opponent and forced plies draw just the move played (amber). **Dice (#259):** the
+  ply's roll sits on the board's centre bar in every layout (`ReviewBoardDice`: the live
+  `BoardDiceView` placement — `BoardGeometry.diceCenters`/`diceSize` — roll order, four
+  dice for a pasch, none greyed, display only; VoiceOver "6 3").
 - **Move section.** "Turn N" — numbered like the Moves sheet (#190): one turn per pair of
   plies with `localColor ?? .white` first, so `turn = (ply+1)/2` when that side started,
-  else `ply/2 + 1`. Then `MoverChip` (checker-colour dot + name, neutral capsule), the small
-  refining spinner while deeper passes run (the 1-/2-/3-ply chip is gone), the dice and a
+  else `ply/2 + 1`. Then, on the same line, `MoverChip` (checker-colour dot + name, neutral
+  capsule), a `SeverityBadge` (down to the mark alone via `ViewThatFits` where the name
+  doesn't fit) and the small refining spinner while deeper passes run (the 1-/2-/3-ply chip
+  is gone; the dice row went to the board, #259). The badge:
   `SeverityBadge` ("?? Blunder", "? Mistake", "?! Inaccuracy": the `MoveSeverity` symbol,
   LTR-isolated under RTL, + `MoveSeverity.localizedName` in a neutral ink capsule, a touch
   stronger for a blunder; `showsName: false` = the mark alone, the drill header's narrow
@@ -803,32 +815,51 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   "Only move available" for a forced ply. No green, no red: amber and blue mean only your
   move / the best move.
 - **Summary card** (`summaryCard`, a `.chromeCard(padding: 14)` at the end of the detail,
-  under the chart), from `model.result.summary(for: humanColor, luck: model.luck)`:
+  under the chart; on the iPhone's Game page under the chart too), from
+  `model.result.summary(for: humanColor, luck: model.partialLuck)` — **live (#259)**: from
+  the plies analysed so far (`GameAnalysisJob.partialLuck`, the luck found so far in play
+  order), updating in place on every job revision, with a small quiet spinner
+  (`controlSize(.small)`, `inkDim(0.45)`, VoiceOver "Analysis still running") at the
+  card's trailing top while the job isn't complete:
   "**Accuracy 91%** · 2 mistakes · 1 blunder" (one `Text` concatenation; counts only
   when > 0, plural variations in the catalog with a non-breaking space after the number;
   #257: no inaccuracy count — the filter, chart marks and drill cover only ? / ??, so
   nothing would let you find them; their "?!" badge still shows when paging); "No mistakes —
-  nicely played!" under it once the analysis is finished with no ? / ??. Then one line,
-  once the luck pass is in, as **per-move averages** (sums grow with game length and
+  nicely played!" under it once the analysis is finished with no ? / ?? (the only part
+  that waits). Then one line as **per-move averages** (sums grow with game length and
   can pass 100 %): "Dice: +0.5% per roll for you · Your moves: −2.1% per move". Dice =
-  your mean `PlyLuck.luckPoints` over your rolls (passes included) minus the opponent's
-  mean over theirs; moves = `decisionLoss / choicePlies` (your mean loss over plies with
-  a choice). Both via `EvalScale.points(_:signed:decimals: 1)`: win-chance pp to one
+  `GameReviewSummary.netLuckPerRoll` (your mean `PlyLuck.luckPoints` over your measured
+  rolls, passes included, minus the opponent's mean over theirs), shown once both sides
+  have a measured roll (`luckCoversBothSides`) or the analysis is done; moves =
+  `decisionLossPerMove` (`decisionLoss / choicePlies`, your mean loss over evaluated plies
+  with a choice), shown from your first evaluated choice. Either part alone while the
+  other isn't there yet. Both via `EvalScale.points(_:signed:decimals: 1)`: win-chance pp to one
   decimal ("2.1%"), or expected points = pp / 50 with three decimals ("0.042") for a 2-point
   variant; locale digits. Wording: "Dice: even" when |net| < 0.05 pp, "Dice: x per roll
   for %@" when it favoured the other side, "Moves by %@: x per move" in a two-player game.
-  While the luck pass runs (only when there is an agent): a mini spinner + "Measuring dice
-  luck…". The separator is " · ", or the Persian comma "، " under RTL (a "·" next to a
-  Persian digit reads like a zero). The card is omitted when there is neither accuracy (no
-  choice plies) nor luck.
+  The separator is " · ", or the Persian comma "، " under RTL (a "·" next to a
+  Persian digit reads like a zero). The card is omitted once the analysis is finished when
+  there is neither accuracy (no choice plies) nor a line.
+- **Mistakes list** (#259, iPhone portrait Game page, `mistakeList`): caption "Mistakes",
+  then one 44 pt row per ? / ?? of yours in play order on a card surface (`cardColor` +
+  `cardEdge`, hairline dividers): "Turn 14" (bold, numbered like the move card) +
+  `SeverityBadge` + the loss right-aligned (`EvalScale.lossLabel`: "−12% win chance" /
+  "−0.48 points") + a `DirectionalSymbol` chevron. Where a row doesn't fit the **whole
+  list** steps down together (`ViewThatFits` over the list): the loss without its unit
+  ("−12%" / "−0.48"), then the badge's mark alone — so the rows always match. A row opens
+  Moves on that ply (`openMoves(at:)` sets `selectedPly`); VoiceOver reads "Turn 14,
+  Blunder, −12% win chance" as one button. Hidden while you have none.
 - **Chart** (`WinProbabilityChart`): every ply, `topColor` = `localColor ?? .white` up
   (your side up; White in a two-player game), labelled with the names (You / Computer).
   Band, trace and labels take the checker colour of the side they belong to. Markers by
   size + symbol in the board's ivory (`CaramelPalette.triangleFill`, not amber/blue): your
   ? = ring r 5 + "?", your ?? = heavier ring r 7 + "??" (the mark above the ring, below
   near the top edge); the opponent's ? / ?? = a small faint ring, only when it can err.
-  Inaccuracies are not marked. Selected-move dot as before. Scrub → the filter's nearest
-  move.
+  Inaccuracies are not marked. Selected-move dot as before (none on the Game page until a
+  move was opened). Scrub → the filter's nearest move. `height` 96 beside the board; on the
+  iPhone's Game page taller and `tapOnly` (#259): a tap (`onTapGesture` location) picks the
+  filter's nearest move and opens Moves there, a drag scrolls the page (the drag scrub
+  stays everywhere else).
 - **Filter** (`filterPicker`, segmented, right under the move): **My moves** (default; your plies
   with a choice, forced skipped) · **Mistakes** (your ? and ??; the segment shows only while
   you have one, and the filter falls back to My moves if they vanish) · **All moves**. The
@@ -837,10 +868,13 @@ Full-screen, board-centric review reached from the game-over card ("Review game"
   within the filter (`navigable`); switching filter snaps to its nearest move. When the
   filter holds nothing yet (early streaming) every ply is navigable.
 - **Chrome.** Close = a neutral 44 pt circle on `ChromeKit.secondaryFill`; Prev/Next =
-  `ChromeButton(.secondary, fullWidth)`; "Drill mistakes" = `ChromeButton(.secondary)`,
-  shown when you have any ? / ?? move; the drill covers exactly those (`severity >= .mistake`).
-- **Debug.** `-debugReviewSample` (+ `-debugReviewAs red`, `-debugReviewLevel N`), see
-  RootView.
+  `ChromeButton(.secondary, fullWidth)`; "Drill mistakes" = `ChromeButton(.secondary)`
+  in the top bar (full width on the iPhone's Game page instead, #259), shown when you have
+  any ? / ?? move; the drill covers exactly those (`severity >= .mistake`).
+- **Debug.** `-debugReviewSample` (+ `-debugReviewAs red`, `-debugReviewLevel N`,
+  `-debugReviewVariant <id>`), see RootView. Its analysis runs live, so it also shows the
+  live rating + spinner. The App Store scene `-screenshotReview` opens complete, on the
+  Game page on an iPhone in portrait (`-screenshotReviewMoves` for Moves).
 
 ## DebugOverlay.swift (T11 — debug eval overlay)
 
@@ -1011,8 +1045,8 @@ too), and `match.recordGame(winner:points:)`.
       logged or counted (`isDebugSeededGame`).
     - `-screenshotReview`: `GameReviewView` on the fixture's review game, opening on your worst move (or
       `-screenshotReviewPly N`); `GameReviewModel` shows the fixture's analysis + luck as is (no
-      background job, so no spinner). On the phone the detail scroll view opens scrolled to the
-      chart (extra bottom padding lets it reach the top), so the chart + summary sit under the board.
+      background job, so no spinner). On a phone in portrait it opens on the Game page (chart, summary,
+      mistakes, #259); add `-screenshotReviewMoves` for the Moves page (board + move card) on that move.
     - `-screenshotDrill` (+ `-screenshotDrillSolution`): `DrillView` on the fixture's mistakes, opened on
       its last card (so not the review scene's position); with the second flag on its solution (your move
       amber vs best blue).

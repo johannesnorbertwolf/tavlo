@@ -12,7 +12,7 @@ import TavliEngine
 /// | Argument | Scene |
 /// |---|---|
 /// | `-screenshotGame` | the game vs the computer at a mid-game position, your turn, dice rolled; `-screenshotGamePly N` picks the position (before ply N; default `ScreenshotFixture.gamePly`, or `darkGamePly` in dark appearance) |
-/// | `-screenshotReview` | the post-game review on your worst move; `-screenshotReviewPly N` picks another ply |
+/// | `-screenshotReview` | the post-game review on your worst move (on an iPhone in portrait its Game page, #259; add `-screenshotReviewMoves` for the Moves page); `-screenshotReviewPly N` picks another ply |
 /// | `-screenshotDrill` | the drill on its last card (your last mistake, so not the review's position); add `-screenshotDrillSolution` to show the solution (your move amber vs best blue) |
 /// | `-screenshotHandicap` | the handicap builder sheet over the start screen, with a preset handicap |
 /// | `-screenshotNewGame` | the new-game sheet over the start screen |
@@ -24,6 +24,8 @@ enum ScreenshotScenes {
 
     static var isGame: Bool { args.contains("-screenshotGame") }
     static var isReview: Bool { args.contains("-screenshotReview") }
+    /// iPhone portrait review (#259): open on the Moves page instead of Game.
+    static var isReviewMoves: Bool { args.contains("-screenshotReviewMoves") }
     static var isDrill: Bool { args.contains("-screenshotDrill") }
     static var drillSolution: Bool { args.contains("-screenshotDrillSolution") }
     static var isHandicap: Bool { args.contains("-screenshotHandicap") }
@@ -39,9 +41,6 @@ enum ScreenshotScenes {
                    outcome: ScreenshotFixture.youWon ? .white : .black, gameId: gameId,
                    variantID: GameVariants.plakoto.id, aiLevel: AILevel.max)
     }
-
-    /// Scroll target of the phone review scene: the win-chance chart.
-    static let chartAnchor = "screenshotChart"
 
     /// The fixture's precomputed analysis for `id`, or `nil` for any other game. Read by
     /// `GameReviewModel` in place of the game log, so the review opens complete.

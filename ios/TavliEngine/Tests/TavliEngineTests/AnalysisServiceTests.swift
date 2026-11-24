@@ -455,6 +455,31 @@ final class AnalysisServiceTests: XCTestCase {
         XCTAssertEqual(job.entries, complete.entries)
     }
 
+    /// #259: the luck found so far is readable before it is complete (`partialLuck`,
+    /// in play order), while `luck` stays `nil`; once complete the two agree.
+    func testPartialLuckBeforeTheLuckIsComplete() async throws {
+        let agent = try agent()
+        var rng = LCG(43)
+        let two = GameSession(startingPlayer: .white, aiColor: nil, animationTimings: .off)
+        driveTwoPlayer(two, rng: &rng, maxPlies: 10)
+        let full = makeService()
+        let complete = full.job(for: two.record, agent: agent)
+        await settle(full)
+        let half = complete.entries.filter { $0.plyNumber <= 5 }
+        let again = makeService()
+        again.isSuspended = true   // nothing runs: only the seeded half is in
+        let job = again.job(for: two.record, agent: agent, seed: half)
+        XCTAssertNil(job.luck, "luck incomplete")
+        XCTAssertEqual(job.partialLuck.map(\.plyNumber), Array(1...5))
+        let s = job.result.summary(for: .white, luck: job.partialLuck)
+        XCTAssertEqual(s.luckRolls + s.opponentLuckRolls, 5)
+        XCTAssertNotNil(s.netLuckPerRoll)
+        again.isSuspended = false
+        await settle(again)
+        XCTAssertEqual(job.partialLuck, job.luck)
+        XCTAssertEqual(job.partialLuck.count, two.record.plies.count)
+    }
+
     /// A finished game's results go into its game-log entry; a relaunch's review job
     /// (seeded from the log) is complete without recomputing.
     func testSavesIntoTheGameLogAfterTheGame() async throws {
