@@ -8,7 +8,7 @@ import TavliEngine
 ///
 /// Defaults: play as White, opening-roll ceremony, auto-roll on, AI animation on,
 /// win-probability bar off, in-play analysis off, AI level 8 = full strength (#189),
-/// best-of-three, Plakoto, appearance = System (#191) (#174 moved the colour and auto-roll defaults). Each `@AppStorage` declaration in a view must carry
+/// best-of-three, Plakoto (standard rules; House rules off, #258), appearance = System (#191) (#174 moved the colour and auto-roll defaults). Each `@AppStorage` declaration in a view must carry
 /// the same default as the matching accessor here so view bindings and these reads
 /// agree. Manual dice entry was removed in #174; an old stored `settings.diceMode`
 /// value is simply never read. The variant, match length, AI level and Play as are
@@ -139,7 +139,15 @@ enum MatchLengthSetting: String, CaseIterable, Identifiable {
 
 /// Which Tavli variant to play (#143). The raw value is the engine's persisted
 /// `GameVariant.id`, so the stored setting, saves and online payloads share one key
-/// space. Defaults to `.plakoto` — the app's original house rules.
+/// space.
+///
+/// **#258:** the picker offers `pickerCases` — Plakoto (= `.plakotoStandard`, the
+/// standard rules) · Portes · Fevga — and defaults to Plakoto. House Plakoto (`.plakoto`)
+/// is no longer picked but switched on in Settings ("House rules",
+/// `SettingsKey.houseRules`): `playing(houseRules:)` maps the picked choice to the rules
+/// a new game is played under. Both Plakoto rule sets keep their own ids (saves, stats,
+/// game log, online payloads); in the UI both are "Plakoto", house games carrying the
+/// wolf tag (`HouseRulesTag`) or, where a tag does not fit, "Plakoto · House rules" (`name`).
 enum GameVariantSetting: String, CaseIterable, Identifiable {
     case plakoto = "plakoto"
     case plakotoStandard = "plakoto_standard"
@@ -156,6 +164,29 @@ enum GameVariantSetting: String, CaseIterable, Identifiable {
         self = GameVariantSetting(rawValue: variantID) ?? .plakoto
     }
 
+    /// The picker's choices (#258): Plakoto (standard rules), Portes, Fevga.
+    static let pickerCases: [GameVariantSetting] = VariantPreference.choiceIDs.map(GameVariantSetting.init(variantID:))
+
+    /// A stored picker choice (#258): house Plakoto or an unknown id read as Plakoto.
+    init(choiceID: String) {
+        self.init(variantID: VariantPreference.choiceID(forStored: choiceID))
+    }
+
+    /// Whether this is house Plakoto (shown with the wolf tag, #258).
+    var isHouseRules: Bool { self == .plakoto }
+
+    /// Either Plakoto rule set — the only game the House rules switch changes.
+    var isPlakoto: Bool { self == .plakoto || self == .plakotoStandard }
+
+    /// The picker entry this rule set belongs to (house Plakoto → Plakoto).
+    var pickerChoice: GameVariantSetting { self == .plakoto ? .plakotoStandard : self }
+
+    /// The rules a new game of this choice is played under with the House rules switch
+    /// `houseRules` (#258): Plakoto follows the switch, Portes and Fevga never change.
+    func playing(houseRules: Bool) -> GameVariantSetting {
+        GameVariantSetting(variantID: VariantPreference.playedVariantID(choiceID: rawValue, houseRules: houseRules))
+    }
+
     /// The engine rules for this choice.
     var variant: any GameVariant {
         GameVariants.variant(forID: rawValue) ?? GameVariants.plakoto
@@ -163,30 +194,21 @@ enum GameVariantSetting: String, CaseIterable, Identifiable {
 
     var config: GameConfig { GameConfig(variant: variant) }
 
-    /// Short name for segmented pickers.
+    /// The game's name: "Plakoto" for both rule sets (#258) — next to it a house game
+    /// shows the wolf tag (`HouseRulesTag`). Segmented pickers, the setup line, the
+    /// game chrome.
     var shortLabel: String {
         switch self {
-        case .plakoto:         return String(localized: "Plakoto")
-        case .plakotoStandard: return String(localized: "Standard")
-        case .portes:          return String(localized: "Portes")
-        case .fevga:           return String(localized: "Fevga")
+        case .plakoto, .plakotoStandard: return String(localized: "Plakoto")
+        case .portes:                    return String(localized: "Portes")
+        case .fevga:                     return String(localized: "Fevga")
         }
     }
 
-    /// Name for the play button's setup line (#189): the short label, except standard
-    /// Plakoto, whose short label ("Standard") needs the game's name beside it.
-    var setupLabel: String {
-        self == .plakotoStandard ? String(localized: "Standard Plakoto") : shortLabel
-    }
-
-    /// Full display name (game chrome, settings, saves).
+    /// Full display name for plain text where no tag fits (saves, notes, messages):
+    /// "Plakoto · House rules" for a house game (#258), else `shortLabel`.
     var name: String {
-        switch self {
-        case .plakoto:         return String(localized: "Plakoto (house rules)")
-        case .plakotoStandard: return String(localized: "Plakoto (standard rules)")
-        case .portes:          return String(localized: "Portes")
-        case .fevga:           return String(localized: "Fevga")
-        }
+        isHouseRules ? String(localized: "Plakoto · House rules") : shortLabel
     }
 
     /// One-line rules reminder, shown between the legs of a Full Tavli session (#144).
@@ -207,9 +229,9 @@ enum GameVariantSetting: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .plakoto:
-            return String(localized: "The pinning game, as the computer first learned it. Land on a lone opposing checker to pin it under yours until you leave. Bear off only with exact rolls; every win counts as one game.")
+            return String(localized: "Plakoto with House rules: land on a lone opposing checker to pin it under yours until you leave. Bear off only with exact rolls, you don't have to use both dice, pinning the mother checker wins at once, and every win counts as one game.")
         case .plakotoStandard:
-            return String(localized: "Plakoto by the standard (bkgm) rules: use both dice whenever you can (the larger one if only one fits), bear off with higher rolls from your highest point. Pinning your opponent's last checker on its start point (the mother) wins two points once your own start point is clear; if both mothers are pinned, the game is a draw. Winning before your opponent bears off any checker also scores two points.")
+            return String(localized: "The pinning game: land on a lone opposing checker to pin it under yours until you leave. Use both dice whenever you can (the larger one if only one fits) and bear off with higher rolls from your highest point. Pinning your opponent's last checker on its start point (the mother) wins two points once your own start point is clear; if both mothers are pinned, the game is a draw. Winning before your opponent bears off any checker also scores two points.")
         case .portes:
             return String(localized: "Greek backgammon without the doubling cube. A lone checker that is hit goes to the bar and must re-enter in your opponent's home before anything else moves. Winning before your opponent bears off any checker scores two points.")
         case .fevga:
@@ -257,8 +279,12 @@ enum SettingsKey {
     static let aiLevel             = AILevel.storageKey
     static let matchLength         = "settings.matchLength"
     static let onlineMatchLength   = "settings.onlineMatchLength"
-    /// The selected variant's id (#143) — the engine's `VariantPreference.key`.
+    /// The picked variant's id (#143) — the engine's `VariantPreference.key`. Since #258
+    /// one of `GameVariantSetting.pickerCases` (Plakoto = standard rules).
     static let variant             = VariantPreference.key
+    /// The House rules switch (#258, default off): every new Plakoto game is played
+    /// under the family's house rules (`GameVariantSetting.playing(houseRules:)`).
+    static let houseRules          = VariantPreference.houseRulesKey
     /// Developer tools (the ladybug debug pane) in a release build: a switch in the iOS
     /// Settings app under Tavlo (`Settings.bundle`), off by default. DEBUG builds always
     /// show them (`DeveloperTools.isEnabled`).
@@ -310,6 +336,8 @@ enum AppSettings {
     static func migrateLegacySettings() {
         AILevel.migrate()
         PlayAsPreference.migrate()
+        // #258: a picked house Plakoto becomes Plakoto with the House rules switch off.
+        VariantPreference.migrate()
         // #243: background analysis is always on (it pauses while the computer thinks,
         // so it no longer slows it down); the old switch has no meaning any more.
         UserDefaults.standard.removeObject(forKey: SettingsKey.retiredInPlayAnalysis)
@@ -325,10 +353,14 @@ enum AppSettings {
         raw(SettingsKey.onlineMatchLength).flatMap(MatchLengthSetting.init) ?? .bestOfThree
     }
 
-    /// The variant new offline games are played under (#143). Default Plakoto.
+    /// The variant new offline games are played under (#143): the picked choice with
+    /// the House rules switch applied (#258). Default Plakoto, standard rules.
     static var variant: GameVariantSetting {
         GameVariantSetting(variant: VariantPreference.load())
     }
+
+    /// The House rules switch (#258), default off.
+    static var houseRules: Bool { VariantPreference.houseRules() }
 
     /// Whether `variant`'s Core ML model is bundled, i.e. it can be played against
     /// the AI (#143). Without it the variant stays playable two-player only.
@@ -337,15 +369,15 @@ enum AppSettings {
     }
 
     /// Whether a vs-AI Full Tavli session can be played (#144): every leg's model must
-    /// be bundled — the Plakoto leg's per the current variant preference.
+    /// be bundled — the Plakoto leg's per the House rules switch (#258).
     static var fullTavliAIAvailable: Bool {
         newFullTavli(aiColor: .black).isAIAvailable()
     }
 
-    /// A fresh Full Tavli session whose Plakoto leg follows the variant preference, with
-    /// the handicap it runs through all three legs (#246; `nil` = none).
+    /// A fresh Full Tavli session whose Plakoto leg follows the House rules switch
+    /// (#258), with the handicap it runs through all three legs (#246; `nil` = none).
     static func newFullTavli(aiColor: TavliEngine.Color?, handicap: HandicapSetup? = nil) -> FullTavliSession {
-        FullTavliSession(preferredVariantID: VariantPreference.load().id, aiColor: aiColor, handicap: handicap)
+        FullTavliSession(houseRules: houseRules, aiColor: aiColor, handicap: handicap)
     }
 
     /// The animation timings a new or resumed session should use, honouring the

@@ -38,14 +38,9 @@ struct FullTavliNames {
 
 /// "Game 2 of 3 · Fevga".
 private func legCaption(index: Int, variantID: String) -> String {
-    String(localized: "Game \(index + 1) of 3 · \(GameVariantSetting(variantID: variantID).legLabel)")
-}
-
-private extension GameVariantSetting {
-    /// Short leg name: either Plakoto ruleset is simply "Plakoto" in the sequence.
-    var legLabel: String {
-        self == .plakotoStandard ? GameVariantSetting.plakoto.shortLabel : shortLabel
-    }
+    // Either Plakoto rule set is simply "Plakoto" in the sequence (the game chrome's wolf
+    // tag marks a house leg, #258).
+    String(localized: "Game \(index + 1) of 3 · \(GameVariantSetting(variantID: variantID).shortLabel)")
 }
 
 /// Compact running score shown during every leg: "You 2 – 1 Computer" and which leg is
@@ -216,9 +211,13 @@ private struct FullTavliScoreCard: View {
             Text("\(i + 1).")
                 .font(ChromeType.body.monospacedDigit())
                 .foregroundStyle(ChromeKit.inkSecondary)
-            Text(GameVariantSetting(variantID: state.legVariantIDs[i]).name)
+            let leg = GameVariantSetting(variantID: state.legVariantIDs[i])
+            Text(leg.shortLabel)
                 .font(ChromeType.body.weight(.semibold))
                 .foregroundStyle(ChromeTheme.ink)
+            if leg.isHouseRules {
+                HouseRulesTag(style: .glyph)   // #258: room for the head only
+            }
             Spacer(minLength: 12)
             Text(outcome(i))
                 .font(ChromeType.callout)
@@ -264,9 +263,12 @@ struct FullTavliTransitionView: View {
                                 .font(ChromeType.caption.weight(.semibold))
                                 .textCase(.uppercase)
                                 .foregroundStyle(ChromeKit.inkSecondary)
-                            Text(next.name)
+                            Text(next.shortLabel)
                                 .font(ChromeType.title2.bold())
                                 .foregroundStyle(ChromeTheme.ink)
+                            if next.isHouseRules {
+                                HouseRulesTag()   // #258
+                            }
                             Text(next.rulesReminder)
                                 .font(ChromeType.callout)
                                 .foregroundStyle(ChromeKit.inkSecondary)
@@ -278,7 +280,7 @@ struct FullTavliTransitionView: View {
                         Button(action: onStartNext) {
                             HStack(spacing: 8) {
                                 DirectionalSymbol("arrow.right")
-                                Text("Start \(next.legLabel)")
+                                Text("Start \(next.shortLabel)")
                             }
                         }
                         .buttonStyle(ChromeButton(role: .primary, fullWidth: true))

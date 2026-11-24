@@ -264,14 +264,77 @@ final class VariantSelectorTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
 
-        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto", "fresh install")
+        // #258: a fresh install plays Plakoto by the standard rules, House rules off.
+        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto_standard", "fresh install")
+        XCTAssertFalse(VariantPreference.houseRules(from: defaults), "fresh install")
         VariantPreference.save(GameVariants.fevga, to: defaults)
         XCTAssertEqual(defaults.string(forKey: VariantPreference.key), "fevga")
         XCTAssertEqual(VariantPreference.load(from: defaults).id, "fevga")
         // A second defaults handle on the same suite (≈ the next launch) reads it back.
         XCTAssertEqual(VariantPreference.load(from: try XCTUnwrap(UserDefaults(suiteName: suite))).id, "fevga")
         defaults.set("tavli_9000", forKey: VariantPreference.key)
-        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto", "unknown id")
+        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto_standard", "unknown id")
+    }
+
+    /// #258: the picker is Plakoto · Portes · Fevga; the switch turns Plakoto (only) into
+    /// house Plakoto.
+    func testHouseRulesSwitchSelectsPlakotoRules() throws {
+        XCTAssertEqual(VariantPreference.choiceIDs, ["plakoto_standard", "portes", "fevga"])
+        XCTAssertEqual(VariantPreference.playedVariantID(choiceID: "plakoto_standard", houseRules: false),
+                       "plakoto_standard")
+        XCTAssertEqual(VariantPreference.playedVariantID(choiceID: "plakoto_standard", houseRules: true),
+                       "plakoto")
+        // A house choice (pre-#258) without the switch is standard: the switch decides.
+        XCTAssertEqual(VariantPreference.playedVariantID(choiceID: "plakoto", houseRules: false),
+                       "plakoto_standard")
+        for id in ["portes", "fevga"] {
+            for on in [false, true] {
+                XCTAssertEqual(VariantPreference.playedVariantID(choiceID: id, houseRules: on), id,
+                               "\(id) has no house rules")
+            }
+        }
+
+        let suite = "VariantPreferenceTest-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        VariantPreference.save(GameVariants.plakotoStandard, to: defaults)
+        VariantPreference.setHouseRules(true, to: defaults)
+        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto")
+        XCTAssertEqual(VariantPreference.loadChoice(from: defaults).id, "plakoto_standard")
+        VariantPreference.save(GameVariants.portes, to: defaults)
+        XCTAssertEqual(VariantPreference.load(from: defaults).id, "portes")
+        // Saving house Plakoto stores the picker choice, never `plakoto`.
+        VariantPreference.save(GameVariants.plakoto, to: defaults)
+        XCTAssertEqual(defaults.string(forKey: VariantPreference.key), "plakoto_standard")
+    }
+
+    /// #258: a stored house `plakoto` choice migrates once to Plakoto with the switch
+    /// off; other choices and an explicit switch are left alone.
+    func testHouseVariantPreferenceMigratesToPlakotoWithSwitchOff() throws {
+        let suite = "VariantPreferenceTest-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set("plakoto", forKey: VariantPreference.key)
+        // Even before the migration runs, the house choice reads as standard + off.
+        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto_standard")
+        XCTAssertTrue(VariantPreference.migrate(defaults))
+        XCTAssertEqual(defaults.string(forKey: VariantPreference.key), "plakoto_standard")
+        XCTAssertEqual(defaults.object(forKey: VariantPreference.houseRulesKey) as? Bool, false)
+        XCTAssertFalse(VariantPreference.houseRules(from: defaults))
+        XCTAssertEqual(VariantPreference.load(from: defaults).id, "plakoto_standard")
+        XCTAssertFalse(VariantPreference.migrate(defaults), "idempotent")
+
+        // Nothing to do for a fresh install or a non-house choice.
+        defaults.removeObject(forKey: VariantPreference.key)
+        defaults.removeObject(forKey: VariantPreference.houseRulesKey)
+        XCTAssertFalse(VariantPreference.migrate(defaults))
+        XCTAssertNil(defaults.object(forKey: VariantPreference.houseRulesKey))
+        defaults.set("fevga", forKey: VariantPreference.key)
+        VariantPreference.setHouseRules(true, to: defaults)
+        XCTAssertFalse(VariantPreference.migrate(defaults))
+        XCTAssertEqual(defaults.string(forKey: VariantPreference.key), "fevga")
+        XCTAssertTrue(VariantPreference.houseRules(from: defaults))
     }
 
     // ── Equity scaling ────────────────────────────────────────────────────────

@@ -458,7 +458,19 @@ by generated parity fixtures.
   once that checkpoint exists, and any `<Name>Value.mlpackage` dropped into
   `TavliApp/Resources/` (then `setup.sh` to regenerate the project) enables it. Only
   `PlakotoValue` is required by the `project.yml` build guard (the others only warn).
-  `VariantPreference` persists the chosen id under `settings.variant` (unknown → Plakoto).
+  `VariantPreference` persists the picked id under `settings.variant` and, since #258, the
+  **House rules switch** under `settings.houseRules` (`Bool`, absent = **off**). The picker offers
+  `choiceIDs` = Plakoto (`plakoto_standard`, the standard rules) · Portes · Fevga; house `plakoto`
+  is no longer picked. `playedVariantID(choiceID:houseRules:)` gives the rules a new game is played
+  under: a Plakoto choice → house `plakoto` with the switch on, else `plakoto_standard`; Portes /
+  Fevga never change. `load()` = that played variant; `loadChoice()` = the picker choice;
+  `save(_:)` stores the choice (house → `plakoto_standard`). `choiceID(forStored:)` reads house
+  `plakoto`, unknown and missing ids as Plakoto. **Migration** (`migrate`, from
+  `AppSettings.migrateLegacySettings` at launch): a stored house `plakoto` (any pre-#258 build)
+  becomes `plakoto_standard` with the switch written **off** — house rules are opt-in for everyone,
+  existing installs included; idempotent (later builds never store `plakoto` as the choice).
+  Variant ids are unchanged everywhere else (saves, game log, stats, online payloads), so a game
+  always keeps its own rule set whatever the switch says later. Pinned by `VariantSelectorTests`.
 - **Display mapping (#143, `BoardLayout.swift`).** Views draw *display slots*: engine 0…25,
   with each colour's bar checkers split out of the end stacks into slots 26 (White) / 27
   (Black). Purely hook-driven: a checker of colour `c` at end `e` is borne off iff
@@ -474,8 +486,11 @@ by generated parity fixtures.
   unchanged); `OnlineMatchPayload.matchState` is built from `completedGameResults`.
   `reportsEquity`/`equity(fromValue:)` convert a `maxPoints > 1` value to expected points.
 - **Full Tavli (#144, `FullTavliSession.swift`).** Pure `Codable` session: the fixed legs
-  `portes`, `fevga`, `plakotoVariantID` (`plakotoLegVariantID(preferredID:)` — `plakoto_standard`
-  only when that is the saved preference, else house `plakoto`; fixed at creation), `aiColor`
+  `portes`, `fevga`, `plakotoVariantID` (#258: `init(houseRules:aiColor:handicap:)` /
+  `plakotoLegVariantID(houseRules:)` — house `plakoto` with the House rules switch on, else
+  `plakoto_standard`; fixed at creation, so a resumed session keeps its rules; a stored id is
+  normalized by `plakotoLegVariantID(preferredID:)`: anything but `plakoto_standard` is house,
+  the pre-#144 default for a missing key), `aiColor`
   (`nil` = two-player) and `results: [MatchGameResult]`. `record`/`recordGame(winner:points:)`
   appends the current leg (points clamped to the leg's `maxPoints`, so house Plakoto = 1; a
   draw = 0 and still advances; no-op once complete). `score(for:)` sums points; after three legs
@@ -806,7 +821,9 @@ rules, so they work in house Plakoto, standard Plakoto, Fevga and Portes (`Handi
 = any registered variant) and across Full Tavli. The **head start and the tier-2 rules are house
 Plakoto only** (`supportsHeadStartAndRules`, `positionAndRulesVariantID`) and off in every Full
 Tavli leg: `availability(_ item: HandicapItemKind, variantID:fullTavli:)` →
-`.available` / `.houseRulesOnly` / `.notInFullTavli` (the builder's disabled reasons), and
+`.available` / `.houseRulesOnly` / `.notInFullTavli` (the builder's disabled reasons; since #258
+house Plakoto = Plakoto with the House rules switch on, so the app words `.houseRulesOnly` as
+"Needs House rules: turn them on in Settings."), and
 `restricted(toVariantID:fullTavli:)` drops them (the `GameSession` init applies it, so a setup of
 only those items is a normal game elsewhere; `setUpInitialPosition` also leaves every other
 variant's start alone). **Off path:** with no (or an inactive) setup nothing changes

@@ -363,7 +363,8 @@ public enum HandicapItemKind: String, CaseIterable, Sendable {
 /// Whether a handicap item can be used in a kind of game (#246).
 public enum HandicapAvailability: Equatable, Sendable {
     case available
-    /// Only in house Plakoto (another variant's start position / rules).
+    /// Only in house Plakoto (another variant's start position / rules). Since #258 house
+    /// Plakoto is Plakoto with the House rules switch on (`VariantPreference`).
     case houseRulesOnly
     /// Not in Full Tavli (one setup runs through all three legs).
     case notInFullTavli

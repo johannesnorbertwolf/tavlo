@@ -55,6 +55,13 @@ enum ChromeKit {
     /// choice / unselected chip, and the raised fill of the selected segment.
     static let trackColor = SwiftUI.Color(light: 0xe6dccb, dark: 0x0e0805)
     static let selectedSegmentColor = SwiftUI.Color(light: 0xfdf9f1, dark: 0x2b1c10)
+
+    /// The wolf tag (#258, `HouseRulesTag`): an opaque light-caramel pill with a
+    /// darker caramel edge and ink — opaque so it also reads on the solid caramel play
+    /// button. Dark: a deep brown pill, caramel edge, warm caramel ink.
+    static let houseTagFill = SwiftUI.Color(light: 0xf3e1bf, dark: 0x3a2413)
+    static let houseTagEdge = SwiftUI.Color(light: 0xa87a3e, dark: 0xe09a42)
+    static let houseTagInk = SwiftUI.Color(light: 0x7a4f1e, dark: 0xf2b866)
 }
 
 // ── Cards ───────────────────────────────────────────────────────────────────

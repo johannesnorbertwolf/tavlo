@@ -8,7 +8,7 @@ private typealias SColor = SwiftUI.Color
 /// immediately and any view observing the same key updates live. Defaults are the
 /// `AppSettings` accessors' (each `@AppStorage` default here must match its accessor).
 ///
-/// Sections (#174): **Game** (play as, auto-roll), **Advanced** (first move, analyze
+/// Sections (#174): **Game** (play as, auto-roll, House rules #258), **Advanced** (first move, analyze
 /// during play), **Display** (appearance, #191). Variant, match length and the AI level live in the
 /// new-game sheet only (#189, `NewGameSheet`).
 ///
@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.aiAnimation) private var aiAnimation = true
     @AppStorage(SettingsKey.showWinProbability) private var showWinProbability = false
     @AppStorage(SettingsKey.appearance) private var appearance: AppearanceSetting = .system
+    @AppStorage(SettingsKey.houseRules) private var houseRules = false
 
     var body: some View {
         ZStack {
@@ -40,6 +41,7 @@ struct SettingsView: View {
                         toggleRow("Auto-roll",
                                   isOn: $autoRoll,
                                   caption: "Dice roll automatically at the start of your turn.")
+                        houseRulesRow
                     }
 
                     section("Advanced") {
@@ -123,6 +125,30 @@ struct SettingsView: View {
             Text(caption)
                 .font(ChromeType.caption)
                 .foregroundStyle(ChromeKit.inkSecondary)
+        }
+    }
+
+    /// The House rules switch (#258, default off): every new Plakoto game — single, Best
+    /// of 3, Full Tavli's Plakoto leg, vs the computer or two players — uses the family's
+    /// house rules. The title carries the wolf tag's head; games already started keep
+    /// their own rules.
+    private var houseRulesRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $houseRules) {
+                HStack(spacing: 8) {
+                    Text("House rules")
+                        .font(ChromeType.body.weight(.semibold))
+                        .foregroundStyle(ChromeTheme.ink)
+                    HouseRulesTag(style: .glyph)
+                        .accessibilityHidden(true)
+                }
+            }
+            .tint(ChromeTheme.doneTint)
+            .accessibilityIdentifier("houseRulesSwitch")
+            Text("Only for Plakoto: bear off with exact rolls only, you don't have to use both dice, pinning the mother checker wins at once, and every win counts one point.")
+                .font(ChromeType.caption)
+                .foregroundStyle(ChromeKit.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
