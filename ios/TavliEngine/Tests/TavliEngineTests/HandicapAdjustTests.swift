@@ -84,9 +84,11 @@ final class HandicapAdjustTests: XCTestCase {
         XCTAssertTrue(s.isHumanSide(.white))
         XCTAssertFalse(s.isHumanSide(.black))
 
-        // β snaps to the grid.
-        s.adjustHandicap(for: .black, diceTilt: 1.0)
-        XCTAssertEqual(s.handicap?.setup.black.diceTilt, 1.2)
+        // The level is clamped to the steps; any mode.
+        s.adjustHandicap(for: .black, weightedDice: WeightedDice(mode: .lean, level: 9))
+        XCTAssertEqual(s.handicap?.setup.black.weightedDice, WeightedDice(mode: .lean, level: WeightedDice.levels))
+        s.adjustHandicap(for: .black, weightedDice: WeightedDice(mode: .fixedGain, level: 2))
+        XCTAssertEqual(s.handicap?.setup.black.weightedDice, WeightedDice(mode: .fixedGain, level: 2))
         XCTAssertTrue(s.record.handicap?.altersDice == true)
 
         // A human reroll spends from the new count.
@@ -115,8 +117,8 @@ final class HandicapAdjustTests: XCTestCase {
 
     func testDiceMarkStaysWhenWeightedDiceAreSwitchedOff() {
         let s = GameSession(startingPlayer: .white, aiColor: .black, animationTimings: .off,
-                            handicap: HandicapSetup(white: HandicapItems(diceTilt: 0.6)))
-        s.adjustHandicap(for: .white, diceTilt: 0)
+                            handicap: HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .hybrid, level: 2))))
+        s.adjustHandicap(for: .white, weightedDice: .off)
         let final = try! XCTUnwrap(s.record.handicap)
         XCTAssertFalse(final.hasWeightedDice)
         XCTAssertFalse(final.isActive, "every item is off now")
@@ -128,7 +130,7 @@ final class HandicapAdjustTests: XCTestCase {
         let t = GameSession(startingPlayer: .white, aiColor: .black, animationTimings: .off,
                             handicap: HandicapSetup(white: HandicapItems(hints: 1)))
         XCTAssertFalse(t.record.handicap!.altersDice)
-        t.adjustHandicap(for: .black, diceTilt: 2.0)
+        t.adjustHandicap(for: .black, weightedDice: WeightedDice(mode: .lean, level: 3))
         XCTAssertTrue(t.record.handicap!.altersDice)
         XCTAssertFalse(t.record.handicap!.alteredDiceEarlier)
     }
@@ -141,10 +143,11 @@ final class HandicapAdjustTests: XCTestCase {
                             handicap: HandicapSetup(white: HandicapItems(headStart: 1)),
                             handicapAgent: agent)
         let values = try HandicapDice.rollValues(agent: agent, board: s.game.board, color: .white)
-        let beta = HandicapSetup.diceTiltSteps.last!
+        let dice = WeightedDice(mode: .lean, level: WeightedDice.levels)
+        let beta = HandicapDice.beta(values: values, dice: dice)
         let u = try XCTUnwrap(discriminatingUniforms(values: values, beta: beta),
                               "the tilt must change some draw")
-        s.adjustHandicap(for: .white, diceTilt: beta)
+        s.adjustHandicap(for: .white, weightedDice: dice)
         s.handicapUniform = uniforms([u.0, u.1])
         s.roll()
         XCTAssertTrue(s.preparingDice, "a weighted roll is rated first")
@@ -155,9 +158,9 @@ final class HandicapAdjustTests: XCTestCase {
 
         // Switching it off again makes the next roll fair (no rating at all).
         let t = GameSession(startingPlayer: .white, animationTimings: .off,
-                            handicap: HandicapSetup(white: HandicapItems(diceTilt: beta)),
+                            handicap: HandicapSetup(white: HandicapItems(weightedDice: dice)),
                             handicapAgent: agent)
-        t.adjustHandicap(for: .white, diceTilt: 0)
+        t.adjustHandicap(for: .white, weightedDice: .off)
         t.roll()
         XCTAssertFalse(t.preparingDice)
         XCTAssertEqual(t.phase, .picking)
@@ -169,9 +172,10 @@ final class HandicapAdjustTests: XCTestCase {
                             searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
                             handicap: HandicapSetup(white: HandicapItems(hints: 1)))
         let values = try HandicapDice.rollValues(agent: agent, board: s.game.board, color: .black)
-        let beta = HandicapSetup.diceTiltSteps.last!
+        let dice = WeightedDice(mode: .fixedGain, level: WeightedDice.levels)
+        let beta = HandicapDice.beta(values: values, dice: dice)
         let u = try XCTUnwrap(discriminatingUniforms(values: values, beta: beta))
-        s.adjustHandicap(for: .black, diceTilt: beta)
+        s.adjustHandicap(for: .black, weightedDice: dice)
         s.handicapUniform = uniforms([u.0, u.1])
         s.start()
         while s.history.isEmpty { try await Task.sleep(nanoseconds: 5_000_000) }
@@ -214,7 +218,7 @@ final class HandicapAdjustTests: XCTestCase {
         let setup = HandicapSetup(black: HandicapItems(headStart: 2, rerolls: 1))
         let s = GameSession(startingPlayer: .black, aiColor: .white, animationTimings: .off,
                             handicap: setup)
-        s.adjustHandicap(for: .black, diceTilt: 0.6, rerollsLeft: 3, hintsLeft: 2)
+        s.adjustHandicap(for: .black, weightedDice: WeightedDice(mode: .hybrid, level: 2), rerollsLeft: 3, hintsLeft: 2)
         s.adjustHandicap(for: .white, rerollsLeft: 1)
         let back = try roundTrip(s.snapshot(name: "adj"))
         XCTAssertEqual(back.handicap, s.handicap)
@@ -250,7 +254,7 @@ final class HandicapAdjustTests: XCTestCase {
             #"{"version":2,"white":{"headStart":2},"black":{}}"#.utf8))
         XCTAssertFalse(old.adjusted)
         XCTAssertFalse(old.alteredDiceEarlier)
-        XCTAssertEqual(old, plain)
+        XCTAssertEqual(old, HandicapSetup(white: HandicapItems(headStart: 2), version: 2))
 
         var marked = plain
         marked.adjusted = true
@@ -288,12 +292,12 @@ final class HandicapAdjustTests: XCTestCase {
         let s = GameSession(startingPlayer: .white, aiColor: .black, animationTimings: .off,
                             handicap: HandicapSetup(white: HandicapItems(headStart: 1, rerolls: 1)))
         s.adjustHandicap(for: .white, rerollsLeft: 3)
-        s.adjustHandicap(for: .black, diceTilt: 0.3)
+        s.adjustHandicap(for: .black, weightedDice: WeightedDice(mode: .hybrid, level: 1))
         // The best-of-three's next game (RootView.startNextMatchGame).
         let next = GameSession(startingPlayer: .black, aiColor: .black, animationTimings: .off,
                                handicap: s.record.handicap?.forNextGame)
         XCTAssertEqual(next.rerollsLeft(.white), 3)
-        XCTAssertEqual(next.handicap?.setup.black.diceTilt, 0.3)
+        XCTAssertEqual(next.handicap?.setup.black.weightedDice, WeightedDice(mode: .hybrid, level: 1))
         XCTAssertEqual(next.handicap?.setup.adjusted, false, "a fresh game is not adjusted")
         XCTAssertEqual(next.game.board.points[7].pieces.count, 1)
 
@@ -304,7 +308,7 @@ final class HandicapAdjustTests: XCTestCase {
         s.newGame(startingPlayer: .white)
         XCTAssertEqual(s.rerollsLeft(.white), 3)
         XCTAssertEqual(s.record.handicap?.adjusted, false)
-        XCTAssertEqual(s.record.handicap?.black.diceTilt, 0.3)
+        XCTAssertEqual(s.record.handicap?.black.weightedDice, WeightedDice(mode: .hybrid, level: 1))
 
         // Everything switched off: the next game is a normal one.
         let t = GameSession(startingPlayer: .white, aiColor: .black, animationTimings: .off,

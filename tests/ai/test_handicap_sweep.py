@@ -13,7 +13,7 @@ from ai.handicap_sweep import (
     REROLL_MARGIN, cell_label, cell_uses_bearoff_db, default_cells, is_estimable, parse_cell,
     play_game, play_pair, rules_for, start_estimate, summarize_cell, to_markdown, wants_reroll,
 )
-from domain.handicap import ROLLS, roll_index
+from domain.handicap import ROLLS, hybrid_beta, roll_index
 from config.config_loader import ConfigLoader
 from domain.constants import WHITE, BLACK
 from domain.dice import Dice
@@ -32,13 +32,15 @@ class TestCells(unittest.TestCase):
         self.assertEqual(default_cells(["first_mover"]), [(), (("first_mover", 1),)])
 
     def test_parse_tier1_combo(self):
-        c = parse_cell("weighted_dice:2+rerolls:1+first_mover:1")
-        self.assertEqual(c, (("weighted_dice", 2), ("rerolls", 1), ("first_mover", 1)))
-        self.assertEqual(cell_label(c), "weighted_dice:2 + rerolls:1 + first_mover:1")
-        self.assertEqual(parse_cell("weighted_dice:0.5"), (("weighted_dice", 0.5),))
+        c = parse_cell("weighted_hybrid:2+rerolls:1+first_mover:1")
+        self.assertEqual(c, (("weighted_hybrid", 2), ("rerolls", 1), ("first_mover", 1)))
+        self.assertEqual(cell_label(c), "weighted_hybrid:2 + rerolls:1 + first_mover:1")
+        self.assertEqual(parse_cell("weighted_lean:0.08"), (("weighted_lean", 0.08),))
         r = rules_for(c, WHITE)
-        self.assertEqual((r.reroll_tokens(BLACK), r.roll_beta(BLACK), r.first_mover(WHITE)),
-                         (1, 2.0, BLACK))
+        vals = [0.3 + 0.02 * k for k in range(21)]
+        self.assertEqual((r.reroll_tokens(BLACK), r.roll_beta(BLACK, vals), r.first_mover(WHITE)),
+                         (1, hybrid_beta(vals, 2), BLACK))
+        self.assertEqual(r.roll_beta(WHITE, vals), 0.0)
         self.assertTrue(is_estimable(parse_cell("pip_headstart:4+first_mover")))
         self.assertFalse(is_estimable(c))
 
@@ -126,13 +128,13 @@ class TestHarness(unittest.TestCase):
         self.assertEqual(skipped, [13, 27][:len(skipped)])
         self.assertTrue(all(t[2] != "skip" for t in trace if t[0] == WHITE))
 
-    def test_weighted_beta_zero_is_fair_game(self):
-        """β = 0 (exact fair path) and a vanishing β (the tilted-CDF path, valuer consulted
-        every favoured turn) both replay the plain game move for move."""
+    def test_weighted_strength_zero_is_fair_game(self):
+        """Strength 0 (exact fair path) and a vanishing strength (the tilted-CDF path, valuer
+        consulted every favoured turn) both replay the plain game move for move."""
         for seed in (2, 5):
             t0 = []
             g0 = play_game(self.agent, self.config, rules_for((), WHITE), seed, t0)
-            for text in ("weighted_dice:0", "weighted_dice:1e-9"):
+            for text in ("weighted_hybrid:0", "weighted_lean:1e-12", "weighted_gain:1e-12"):
                 t1 = []
                 g1 = play_game(self.agent, self.config, rules_for(parse_cell(text), WHITE),
                                seed, t1)
@@ -140,7 +142,7 @@ class TestHarness(unittest.TestCase):
                 self.assertEqual(g0, g1, text)
 
     def test_weighted_dice_deterministic_and_aligned(self):
-        cell = parse_cell("weighted_dice:8")
+        cell = parse_cell("weighted_gain:1.5")
         a = play_pair(self.agent, self.config, cell, 4)
         b = play_pair(self.agent, self.config, cell, 4)
         self.assertEqual(a, b)
@@ -161,7 +163,7 @@ class TestHarness(unittest.TestCase):
                 self.assertEqual(len(rr), g["rerolls"])
                 self.assertTrue(all(t[0] == BLACK for t in rr))  # only the favoured side
         # Policy determinism: same seed, same rerolls and game.
-        cell = parse_cell("rerolls:2+weighted_dice:2")
+        cell = parse_cell("rerolls:2+weighted_lean:0.25")
         self.assertEqual(play_pair(self.agent, self.config, cell, 8),
                          play_pair(self.agent, self.config, cell, 8))
 
@@ -190,18 +192,18 @@ class TestCliSmoke(unittest.TestCase):
             out = Path(d) / "sweep.json"
             cmd = [sys.executable, "main.py", "--config", "config-test.yml", "handicap-sweep",
                    "--model", str(GOLD), "--games", "2", "--workers", "1", "--only", "first_mover",
-                   "--combos", "weighted_dice:2+rerolls:1+first_mover:1,pip_headstart:2",
+                   "--combos", "weighted_hybrid:0.8+rerolls:1+first_mover:1,pip_headstart:2",
                    "--out", str(out)]
             subprocess.run(cmd, cwd=ROOT, check=True, capture_output=True, timeout=300)
             payload = json.loads(out.read_text())
             labels = [c["label"] for c in payload["cells"]]
             self.assertEqual(labels, ["baseline", "first_mover:1",
-                                      "weighted_dice:2 + rerolls:1 + first_mover:1",
+                                      "weighted_hybrid:0.8 + rerolls:1 + first_mover:1",
                                       "pip_headstart:2"])
             est = {c["label"]: c["net_estimate"] for c in payload["cells"]}
             self.assertEqual(est["baseline"], 0.5)
             self.assertIsNotNone(est["pip_headstart:2"])
-            self.assertIsNone(est["weighted_dice:2 + rerolls:1 + first_mover:1"])
+            self.assertIsNone(est["weighted_hybrid:0.8 + rerolls:1 + first_mover:1"])
             self.assertIn("net est. %", out.with_suffix(".md").read_text())
 
 

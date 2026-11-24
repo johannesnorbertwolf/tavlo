@@ -28,16 +28,14 @@ enum HandicapRole: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// The weighted-dice strengths offered, mapped onto `HandicapSetup.diceTiltSteps`
-/// (the engine keeps the β grid in one place).
+/// The weighted-dice strength levels offered (`WeightedDice.level`, the same names in
+/// every mode; the engine keeps each mode's κ / g grid in `WeightedDiceMode.strengths`).
 enum HandicapDiceStrength: Int, CaseIterable, Identifiable {
     case off, slight, moderate, strong, veryStrong
     var id: Int { rawValue }
 
-    var beta: Double { HandicapSetup.diceTiltSteps[min(rawValue, HandicapSetup.diceTiltSteps.count - 1)] }
-
-    init(beta: Double) {
-        self = Self.allCases.last { $0.beta <= beta } ?? .off
+    init(level: Int) {
+        self = Self(rawValue: min(max(level, 0), Self.allCases.count - 1)) ?? .off
     }
 
     var label: String {
@@ -62,6 +60,34 @@ enum HandicapDiceStrength: Int, CaseIterable, Identifiable {
     }
 }
 
+/// The weighted-dice modes as the builder and the handicap card name them (#261).
+extension WeightedDiceMode: Identifiable {
+    public var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .lean:      return String(localized: "Lean")
+        case .fixedGain: return String(localized: "Fixed gain")
+        case .hybrid:    return String(localized: "Hybrid")
+        }
+    }
+
+    /// The one-line plain explanation under the mode choice; fixed gain names its gain per
+    /// roll at `level` (the first step when off).
+    func explanation(level: Int) -> String {
+        switch self {
+        case .lean:
+            return String(localized: "Good rolls are a bit more likely, the same in every position.")
+        case .fixedGain:
+            let g = strengths[min(max(level, 1), strengths.count) - 1]
+            let pct = ChromeDigits.localized(String(format: "+%.1f%%", g))
+            return String(localized: "About \(pct) win chance per roll on average, steady through the game.")
+        case .hybrid:
+            return String(localized: "Steady gain, but never bends the dice much in quiet positions.")
+        }
+    }
+}
+
 /// The builder's persisted state.
 struct HandicapPreferences: Codable, Equatable {
     var enabled = false
@@ -69,7 +95,8 @@ struct HandicapPreferences: Codable, Equatable {
     var headStartSide: HandicapRole = .a
     var movesFirst = false
     var movesFirstSide: HandicapRole = .a
-    var dice: Int = 0                     // HandicapDiceStrength raw value
+    var dice: Int = 0                     // weighted-dice level (HandicapDiceStrength raw value)
+    var diceMode: WeightedDiceMode = .hybrid
     var diceSide: HandicapRole = .a
     var rerolls = 0
     var rerollsSide: HandicapRole = .a
@@ -87,6 +114,11 @@ struct HandicapPreferences: Codable, Equatable {
     var homeSizeSide: HandicapRole = .b
 
     static let storageKey = "settings.handicap"
+    /// The pre-#261 fixed β per slider step (Slight … Very strong), for migrating old prefs.
+    static let legacyDiceBetas: [Double] = [0.3, 0.6, 1.2, 2.0]
+
+    /// The weighted dice this builder sets (mode + level).
+    var weightedDice: WeightedDice { WeightedDice(mode: diceMode, level: dice).clamped }
 
     var diceStrength: HandicapDiceStrength {
         get { HandicapDiceStrength(rawValue: dice) ?? .off }
@@ -118,6 +150,15 @@ struct HandicapPreferences: Codable, Equatable {
         movesFirst = try c.decodeIfPresent(Bool.self, forKey: .movesFirst) ?? d.movesFirst
         movesFirstSide = try c.decodeIfPresent(HandicapRole.self, forKey: .movesFirstSide) ?? d.movesFirstSide
         dice = try c.decodeIfPresent(Int.self, forKey: .dice) ?? d.dice
+        if let mode = try? c.decodeIfPresent(WeightedDiceMode.self, forKey: .diceMode) {
+            diceMode = mode
+        } else if dice > 0 {
+            // Saved before #261: `dice` was a step of the old fixed-β grid — hybrid dice of a
+            // comparable strength (the same mapping as an old saved game).
+            let beta = Self.legacyDiceBetas[min(dice, Self.legacyDiceBetas.count) - 1]
+            dice = WeightedDice.migrating(beta: beta).level
+            diceMode = .hybrid
+        }
         diceSide = try c.decodeIfPresent(HandicapRole.self, forKey: .diceSide) ?? d.diceSide
         rerolls = try c.decodeIfPresent(Int.self, forKey: .rerolls) ?? d.rerolls
         rerollsSide = try c.decodeIfPresent(HandicapRole.self, forKey: .rerollsSide) ?? d.rerollsSide
@@ -161,7 +202,7 @@ struct HandicapPreferences: Codable, Equatable {
         var s = HandicapSetup()
         if headStart > 0 { s[color(headStartSide)].headStart = headStart }
         if movesFirst { s[color(movesFirstSide)].movesFirst = true }
-        if dice > 0 { s[color(diceSide)].diceTilt = diceStrength.beta }
+        if dice > 0 { s[color(diceSide)].weightedDice = weightedDice }
         if rerolls > 0 { s[color(rerollsSide)].rerolls = rerolls }
         if hints > 0 {
             let side = humanColor ?? color(hintsSide)   // vs the computer: always the human
@@ -271,7 +312,7 @@ enum HandicapCopy {
                                             : String(localized: "\(who): \(i.headStart) checkers start 6 points ahead"))
             }
             if i.movesFirst { out.append(String(localized: "\(who): moves first")) }
-            if adjustable && i.diceTilt > 0 { out.append(diceLine(c, beta: i.diceTilt, aiColor: aiColor)) }
+            if adjustable && i.weightedDice.isOn { out.append(diceLine(c, dice: i.weightedDice, aiColor: aiColor)) }
             if adjustable && i.rerolls > 0 {
                 out.append(i.rerolls == 1 ? String(localized: "\(who): 1 reroll per game")
                                           : String(localized: "\(who): \(i.rerolls) rerolls per game"))
@@ -296,9 +337,9 @@ enum HandicapCopy {
     }
 
     /// "Dice favour White slightly" (the disclosure for weighted dice, concept §3).
-    static func diceLine(_ c: TavliEngine.Color, beta: Double, aiColor: TavliEngine.Color?) -> String {
+    static func diceLine(_ c: TavliEngine.Color, dice: WeightedDice, aiColor: TavliEngine.Color?) -> String {
         let who = name(c, aiColor: aiColor)
-        let adverb = HandicapDiceStrength(beta: beta).adverb
+        let adverb = HandicapDiceStrength(level: dice.level).adverb
         if aiColor != nil && c != aiColor {
             return String(localized: "Dice favour you \(adverb)")
         }

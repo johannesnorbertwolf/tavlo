@@ -12,6 +12,124 @@ import Foundation
 // only consults any of this when `handicap != nil`, saves omit the key, and the
 // position/dice/turn order are exactly the unhandicapped ones.
 
+/// How weighted dice pick this turn's tilt (#261). Every mode draws from
+/// `q(r) ∝ p(r)·exp(β_t·v(r))` over the 21 rolls (`v` = the side's best 1-ply move value);
+/// they differ in β_t (μ, σ = mean and spread of `v` under fair dice; see `HandicapDice`):
+/// - `lean`: β_t = κ / max(σ, σ_floor) — the same bend in every position.
+/// - `fixedGain`: β_t solved so the expected luck E_q[v] − μ = g per roll, capped at
+///   `HandicapDice.gainCap`× fair; σ < σ_floor → fair dice.
+/// - `hybrid`: min(fixed gain's β, κ_max / max(σ, σ_floor)).
+/// Mirrors the Python kinds `weighted_lean` / `weighted_gain` / `weighted_hybrid`.
+public enum WeightedDiceMode: String, Codable, CaseIterable, Sendable {
+    case lean, fixedGain, hybrid
+
+    /// The harness kind (`domain/handicap.py`, table labels).
+    public var harnessKind: String {
+        switch self {
+        case .lean:      return "weighted_lean"
+        case .fixedGain: return "weighted_gain"
+        case .hybrid:    return "weighted_hybrid"
+        }
+    }
+
+    /// The strength per level (1…`WeightedDice.levels`): κ for lean, g in win-chance pp per
+    /// roll for fixed gain and hybrid. **The one place the grids live** (Python
+    /// `LEAN_KAPPAS` / `GAIN_STEPS_PP`). Calibrated (gold_v11 1-ply self-play,
+    /// `scripts/weighted_dice_calibration.py`) so a level is about as strong in every mode:
+    /// first-order gain per game ≈ +7 / +14 / +27 / +48 pp (lean), +8 / +16 / +30 / +50
+    /// (fixed gain), +8 / +15 / +26 / +37 (hybrid).
+    public var strengths: [Double] {
+        switch self {
+        case .lean:                return [0.04, 0.08, 0.15, 0.25]
+        case .fixedGain, .hybrid:  return [0.2, 0.4, 0.8, 1.5]
+        }
+    }
+
+    /// Each level's calibrated first-order gain per game in house Plakoto (pp; the sum over
+    /// the favoured side's rolls of E_q[v] − μ, `scripts/weighted_dice_calibration.py`). Not
+    /// a measured win rate: used only to migrate old β settings and to tell which side a
+    /// two-sided setup favours (`WeightedDice.approximateLogOddsShift`), never shown.
+    public var firstOrderGainPerGame: [Double] {
+        switch self {
+        case .lean:      return [7, 14, 27, 48]
+        case .fixedGain: return [8, 16, 30, 50]
+        case .hybrid:    return [8, 15, 26, 37]
+        }
+    }
+}
+
+/// One side's weighted dice (#261): a mode and a level (0 = off, 1…`levels` = Slight …
+/// Very strong). Every "off" value is equal whatever its mode, so an off side is still
+/// `HandicapItems.none`.
+public struct WeightedDice: Codable, Hashable, Sendable {
+    public var mode: WeightedDiceMode
+    public var level: Int
+
+    /// Strength levels per mode (Slight, Moderate, Strong, Very strong).
+    public static let levels = 4
+    public static let off = WeightedDice(mode: .hybrid, level: 0)
+
+    public init(mode: WeightedDiceMode, level: Int) {
+        self.mode = mode
+        self.level = level
+    }
+
+    public var isOn: Bool { level > 0 }
+
+    /// κ (lean) or g in win-chance pp per roll (fixed gain, hybrid); 0 when off.
+    public var strength: Double {
+        guard isOn else { return 0 }
+        let steps = mode.strengths
+        return steps[min(level, steps.count) - 1]
+    }
+
+    /// Level clamped to 0…`levels`; off normalises to `.off`.
+    public var clamped: WeightedDice {
+        let l = min(max(level, 0), Self.levels)
+        return l == 0 ? .off : WeightedDice(mode: mode, level: l)
+    }
+
+    /// An old fixed-β setting (before #261, `HandicapItems.diceTilt`) as hybrid dice of a
+    /// comparable strength: the old β's first-order gain per game (≈ 13.5 pp per unit β,
+    /// E1) matched to the nearest hybrid level (+8 / +15 / +26 / +37 pp). The old app steps
+    /// β 0.3 / 0.6 / 1.2 / 2.0 become levels 1 / 1 / 2 / 3; β ≤ 0 is off.
+    public static func migrating(beta: Double) -> WeightedDice {
+        guard beta.isFinite, beta > 0 else { return .off }
+        let gain = 13.5 * beta
+        let perLevel = WeightedDiceMode.hybrid.firstOrderGainPerGame
+        let level = perLevel.indices.min { abs(perLevel[$0] - gain) < abs(perLevel[$1] - gain) }! + 1
+        return WeightedDice(mode: .hybrid, level: level)
+    }
+
+    /// A rough log-odds shift for the favoured side, for `HandicapEstimator.favouredSide`
+    /// only (weighted dice have no measured estimate, #261): the level's first-order gain
+    /// per game × 0.8 (E1 measured ≈ 0.8–0.9× the first-order sum for the old fixed β) as
+    /// a win rate above 50 %, capped at 95 %. 0 when off.
+    public var approximateLogOddsShift: Double {
+        guard isOn else { return 0 }
+        let gains = mode.firstOrderGainPerGame
+        let p = min(0.5 + 0.8 * gains[min(level, gains.count) - 1] / 100, 0.95)
+        return log(p / (1 - p))
+    }
+
+    public static func == (a: WeightedDice, b: WeightedDice) -> Bool {
+        (!a.isOn && !b.isOn) || (a.mode == b.mode && a.level == b.level)
+    }
+
+    public func hash(into h: inout Hasher) {
+        if isOn { h.combine(mode); h.combine(level) } else { h.combine(0) }
+    }
+
+    private enum CodingKeys: String, CodingKey { case mode, level }
+
+    /// Tolerant: an unknown mode (a later build) reads as hybrid.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mode = (try? c.decodeIfPresent(WeightedDiceMode.self, forKey: .mode)) ?? .hybrid
+        level = (try? c.decodeIfPresent(Int.self, forKey: .level)) ?? 0
+    }
+}
+
 /// One side's tier-1 handicaps. All defaults = no handicap for that side.
 public struct HandicapItems: Codable, Equatable, Hashable, Sendable {
     /// Checkers that start 6 pips advanced (0…8). Mirrors `pip_headstart` in
@@ -19,10 +137,10 @@ public struct HandicapItems: Codable, Equatable, Hashable, Sendable {
     public var headStart: Int
     /// This side always starts; no opening roll-off.
     public var movesFirst: Bool
-    /// Weighted-dice strength β (0 = fair). Before this side rolls, each of the 21
-    /// distinct rolls is tilted by `exp(β · v(roll))`, `v` = the side's best 1-ply move
-    /// value. See `HandicapDice`.
-    public var diceTilt: Double
+    /// Weighted dice (#261: mode + level; `.off` = fair). Before this side rolls, each of
+    /// the 21 distinct rolls is tilted by `exp(β_t · v(roll))`, `v` = the side's best 1-ply
+    /// move value, β_t chosen per turn by the mode. See `HandicapDice`.
+    public var weightedDice: WeightedDice
     /// Rerolls per game (0…4).
     public var rerolls: Int
     /// Hints per game (0…5); only meaningful for a human side.
@@ -40,12 +158,12 @@ public struct HandicapItems: Codable, Equatable, Hashable, Sendable {
     /// This side bears off only from its last `homeSize` points (6 default, 5/4/3).
     public var homeSize: Int
 
-    public init(headStart: Int = 0, movesFirst: Bool = false, diceTilt: Double = 0,
+    public init(headStart: Int = 0, movesFirst: Bool = false, weightedDice: WeightedDice = .off,
                 rerolls: Int = 0, hints: Int = 0, overshoot: Bool = false, safePoint: Int = 0,
                 checkers: Int = HandicapSetup.normalCheckers, homeSize: Int = HandicapSetup.normalHomeSize) {
         self.headStart = headStart
         self.movesFirst = movesFirst
-        self.diceTilt = diceTilt
+        self.weightedDice = weightedDice
         self.rerolls = rerolls
         self.hints = hints
         self.overshoot = overshoot
@@ -79,15 +197,20 @@ public struct HandicapItems: Codable, Equatable, Hashable, Sendable {
 
     // Decode tolerantly: a missing key is "off" (a later version may add items, and a
     // version-1 setup has no tier-2 keys). An older build ignores the tier-2 keys.
+    // `diceTilt` is the pre-#261 fixed β: read (migrated to hybrid), never written.
     private enum CodingKeys: String, CodingKey {
-        case headStart, movesFirst, diceTilt, rerolls, hints, overshoot, safePoint, checkers, homeSize
+        case headStart, movesFirst, weightedDice, diceTilt, rerolls, hints, overshoot, safePoint, checkers, homeSize
     }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         headStart = try c.decodeIfPresent(Int.self, forKey: .headStart) ?? 0
         movesFirst = try c.decodeIfPresent(Bool.self, forKey: .movesFirst) ?? false
-        diceTilt = try c.decodeIfPresent(Double.self, forKey: .diceTilt) ?? 0
+        if let dice = try c.decodeIfPresent(WeightedDice.self, forKey: .weightedDice) {
+            weightedDice = dice.clamped
+        } else {
+            weightedDice = .migrating(beta: (try? c.decodeIfPresent(Double.self, forKey: .diceTilt)) ?? 0)
+        }
         rerolls = try c.decodeIfPresent(Int.self, forKey: .rerolls) ?? 0
         hints = try c.decodeIfPresent(Int.self, forKey: .hints) ?? 0
         overshoot = try c.decodeIfPresent(Bool.self, forKey: .overshoot) ?? false
@@ -96,11 +219,25 @@ public struct HandicapItems: Codable, Equatable, Hashable, Sendable {
         homeSize = try c.decodeIfPresent(Int.self, forKey: .homeSize) ?? HandicapSetup.normalHomeSize
     }
 
+    /// Weighted dice are written only when on (an older build reading this sees fair dice).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(headStart, forKey: .headStart)
+        try c.encode(movesFirst, forKey: .movesFirst)
+        if weightedDice.isOn { try c.encode(weightedDice, forKey: .weightedDice) }
+        try c.encode(rerolls, forKey: .rerolls)
+        try c.encode(hints, forKey: .hints)
+        try c.encode(overshoot, forKey: .overshoot)
+        try c.encode(safePoint, forKey: .safePoint)
+        try c.encode(checkers, forKey: .checkers)
+        try c.encode(homeSize, forKey: .homeSize)
+    }
+
     /// Clamped into the supported ranges (an unknown safe point is dropped).
     public var clamped: HandicapItems {
         HandicapItems(headStart: min(max(headStart, 0), HandicapSetup.maxHeadStart),
                       movesFirst: movesFirst,
-                      diceTilt: diceTilt.isFinite ? max(diceTilt, 0) : 0,
+                      weightedDice: weightedDice.clamped,
                       rerolls: min(max(rerolls, 0), HandicapSetup.maxRerolls),
                       hints: min(max(hints, 0), HandicapSetup.maxHints),
                       overshoot: overshoot,
@@ -117,8 +254,11 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     /// The schema this build writes. A newer version still decodes (unknown items are
     /// ignored), so an old reader plays the items it knows. Version 2 (#148 P3b) adds the
     /// tier-2 items (overshoot, safe point, checkers, home size); a version-1 build ignores
-    /// them and would replay such a game under the normal rules.
-    public static let currentVersion = 2
+    /// them and would replay such a game under the normal rules. Version 3 (#261) replaces the
+    /// fixed-β `diceTilt` with `weightedDice` (mode + level); an older build reads such a side
+    /// as fair dice, and this build migrates an old `diceTilt` to hybrid dice
+    /// (`WeightedDice.migrating(beta:)`).
+    public static let currentVersion = 3
 
     /// Capped at 4 by E1 (docs/handicap-e1-tier1.md): the head start's effect saturates
     /// (m = 4: +8.0 pp, 6: +9.2, 8: +7.6) and the net's start-position estimate is within
@@ -126,11 +266,6 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     public static let maxHeadStart = 4
     public static let maxRerolls = 4
     public static let maxHints = 5
-    /// The weighted-dice strengths the app offers, Off → Very strong. The **one place**
-    /// the β grid lives. Calibrated by E1 (gold_v11, 1-ply, 1 000 pairs/cell): β 0.3 / 0.6 /
-    /// 1.2 / 2.0 give the favoured side +3.7 / +6.2 / +13.6 / +22.0 pp. The first-order
-    /// estimate ΔP ≈ β·Σ Var(v) is ≈ +13.5 pp per unit β for small β.
-    public static let diceTiltSteps: [Double] = [0, 0.3, 0.6, 1.2, 2.0]
     /// Pips a head-start checker starts ahead (`pip_headstart`: 6).
     public static let headStartPips = 6
     /// Tier 2: safe-point candidates in the side's own numbering (`SAFE_POINT_CANDIDATES`:
@@ -241,7 +376,7 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
         let n = normalized
         for c in Color.allCases {
             let i = n[c]
-            if i.headStart > 0 || i.movesFirst || i.diceTilt > 0 || i.rerolls > 0 || i.hints > 0
+            if i.headStart > 0 || i.movesFirst || i.weightedDice.isOn || i.rerolls > 0 || i.hints > 0
                 || i.overshoot || i.safePoint > 0 || i.checkers > Self.normalCheckers {
                 out.insert(c)
             }
@@ -253,7 +388,7 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
     }
 
     /// Whether either side's dice are tilted.
-    public var hasWeightedDice: Bool { white.diceTilt > 0 || black.diceTilt > 0 }
+    public var hasWeightedDice: Bool { white.weightedDice.isOn || black.weightedDice.isOn }
     /// Whether either side has rerolls.
     public var hasRerolls: Bool { white.rerolls > 0 || black.rerolls > 0 }
     /// Whether the dice were not fair for the whole game (weighted dice or rerolls):

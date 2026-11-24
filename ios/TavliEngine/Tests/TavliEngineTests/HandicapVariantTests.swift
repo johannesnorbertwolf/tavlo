@@ -63,11 +63,11 @@ final class HandicapVariantTests: XCTestCase {
     }
 
     func testRestrictedKeepsTheModelFreeItemsOnly() {
-        let full = HandicapSetup(white: HandicapItems(headStart: 3, diceTilt: 0.6, rerolls: 2, hints: 1,
+        let full = HandicapSetup(white: HandicapItems(headStart: 3, weightedDice: WeightedDice(mode: .hybrid, level: 2), rerolls: 2, hints: 1,
                                                       overshoot: true, safePoint: 4, checkers: 16),
                                  black: HandicapItems(movesFirst: true, homeSize: 4))
         XCTAssertEqual(full.restricted(toVariantID: "plakoto"), full, "house Plakoto keeps everything")
-        let expected = HandicapSetup(white: HandicapItems(diceTilt: 0.6, rerolls: 2, hints: 1),
+        let expected = HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .hybrid, level: 2), rerolls: 2, hints: 1),
                                      black: HandicapItems(movesFirst: true))
         for id in ["plakoto_standard", "fevga", "portes"] {
             XCTAssertEqual(full.restricted(toVariantID: id), expected, id)
@@ -180,12 +180,16 @@ final class HandicapVariantTests: XCTestCase {
             let agent = try agent(v)
             let service = AnalysisService(gameLog: nil, saveStore: nil) { _ in agent }
             service.persistDelay = 0
+            // Each variant with another mode (the draw path is the same for all three).
+            let mode = WeightedDiceMode.allCases[Self.variants.firstIndex { $0.id == v.id }! % 3]
+            let dice = WeightedDice(mode: mode, level: WeightedDice.levels)
             let s = GameSession(startingPlayer: .white, config: config(v), animationTimings: .off,
-                                handicap: HandicapSetup(white: HandicapItems(diceTilt: 8)),
+                                handicap: HandicapSetup(white: HandicapItems(weightedDice: dice)),
                                 handicapAgent: agent)
             s.analysisService = service
             let values = try HandicapDice.rollValues(agent: agent, board: s.game.board, color: .white)
-            let expected = HandicapDice.weightedFaces(u1: 0.5, u2: 0.1, values: values, beta: 8)
+            let beta = HandicapDice.beta(values: values, dice: dice, maxPoints: v.maxPoints)
+            let expected = HandicapDice.weightedFaces(u1: 0.5, u2: 0.1, values: values, beta: beta)
             s.handicapUniform = uniforms([0.5, 0.1])
             s.roll()
             XCTAssertTrue(s.preparingDice, v.id)
@@ -195,16 +199,18 @@ final class HandicapVariantTests: XCTestCase {
             XCTAssertEqual(s.phase, .picking, v.id)
             XCTAssertEqual(s.game.dice.die1.value, expected.0, v.id)
             XCTAssertEqual(s.game.dice.die2.value, expected.1, v.id)
-            let probs = HandicapDice.tilt(values: values, beta: 8)
+            let probs = HandicapDice.probabilities(values: values, dice: dice, maxPoints: v.maxPoints)
             let tiltedEV = zip(probs, values).reduce(0.0) { $0 + $1.0 * Double($1.1) }
-            XCTAssertGreaterThan(tiltedEV, Double(HandicapDice.expectedValue(values)), v.id)
+            if beta > 0 {
+                XCTAssertGreaterThan(tiltedEV, Double(HandicapDice.expectedValue(values)), "\(v.id) \(mode)")
+            }
             // The dice are not fair: the review's note applies.
             XCTAssertTrue(try XCTUnwrap(s.record.handicap).altersDice, v.id)
         }
     }
 
-    /// The tilted distribution itself: β = 0 is fair, a larger β moves more mass to the
-    /// better rolls, in every variant.
+    /// The tilted distribution itself: off is fair, a higher level of every mode moves
+    /// at least as much mass to the better rolls (β_t grows with the level), in every variant.
     func testTiltedDistributionInEveryVariant() throws {
         for v in Self.variants {
             let agent = try agent(v)
@@ -212,13 +218,18 @@ final class HandicapVariantTests: XCTestCase {
             v.setUpInitialPosition(on: b)
             let values = try HandicapDice.rollValues(agent: agent, board: b, color: .black)
             XCTAssertEqual(HandicapDice.tilt(values: values, beta: 0), HandicapDice.outcomes.map(\.p))
-            var last = Double(HandicapDice.expectedValue(values))
-            for beta in HandicapSetup.diceTiltSteps.dropFirst() {
-                let p = HandicapDice.tilt(values: values, beta: beta)
-                XCTAssertEqual(p.reduce(0, +), 1, accuracy: 1e-9)
-                let ev = zip(p, values).reduce(0.0) { $0 + $1.0 * Double($1.1) }
-                XCTAssertGreaterThanOrEqual(ev, last - 1e-9, "\(v.id) β \(beta)")
-                last = ev
+            XCTAssertEqual(HandicapDice.probabilities(values: values, dice: .off, maxPoints: v.maxPoints),
+                           HandicapDice.outcomes.map(\.p))
+            for mode in WeightedDiceMode.allCases {
+                var last = HandicapDice.spread(values).mu
+                for level in 1...WeightedDice.levels {
+                    let p = HandicapDice.probabilities(values: values, dice: WeightedDice(mode: mode, level: level),
+                                                       maxPoints: v.maxPoints)
+                    XCTAssertEqual(p.reduce(0, +), 1, accuracy: 1e-9)
+                    let ev = zip(p, values).reduce(0.0) { $0 + $1.0 * Double($1.1) }
+                    XCTAssertGreaterThanOrEqual(ev, last - 1e-9, "\(v.id) \(mode) L\(level)")
+                    last = ev
+                }
             }
             // The 36-slot draw matches the distribution: count slots over a fine grid.
             var counts = [Double](repeating: 0, count: 21)
@@ -333,24 +344,24 @@ final class HandicapVariantTests: XCTestCase {
         for v in Self.variants {
             let s = GameSession(startingPlayer: .white, config: config(v), animationTimings: .off,
                                 handicap: HandicapSetup(white: HandicapItems(hints: 1)))
-            s.adjustHandicap(for: .black, diceTilt: 0.6, rerollsLeft: 2)
+            s.adjustHandicap(for: .black, weightedDice: WeightedDice(mode: .hybrid, level: 2), rerollsLeft: 2)
             let setup = try! XCTUnwrap(s.record.handicap, v.id)
-            XCTAssertEqual(setup.black.diceTilt, 0.6, v.id)
+            XCTAssertEqual(setup.black.weightedDice, WeightedDice(mode: .hybrid, level: 2), v.id)
             XCTAssertEqual(s.rerollsLeft(.black), 2, v.id)
             XCTAssertTrue(setup.adjusted, v.id)
         }
     }
 
     func testEstimateTableOnlyForHousePlakoto() {
-        let table = HandicapTable(cells: ["weighted_dice:0.6": .init(logOddsShift: 0.25)])
+        let table = HandicapTable(cells: ["rerolls:2": .init(logOddsShift: 0.25)])
         XCTAssertEqual(table.forVariant("plakoto"), table)
         for id in ["plakoto_standard", "fevga", "portes"] {
             XCTAssertEqual(table.forVariant(id), .unmeasured, id)
             XCTAssertFalse(HandicapEstimator.isMeasured(variantID: id), id)
             let e = HandicapEstimator.combine(positionWhite: 0.5,
-                                              setup: HandicapSetup(white: HandicapItems(diceTilt: 0.6)),
+                                              setup: HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .hybrid, level: 2))),
                                               table: table.forVariant(id))
-            XCTAssertEqual(e.unmeasured, ["weighted_dice"], id)
+            XCTAssertEqual(e.unmeasured, ["weighted_hybrid"], id)
         }
         XCTAssertTrue(HandicapEstimator.isMeasured(variantID: "plakoto"))
     }
@@ -358,12 +369,12 @@ final class HandicapVariantTests: XCTestCase {
     // MARK: - Full Tavli
 
     private let ftSetup = HandicapSetup(
-        white: HandicapItems(headStart: 2, diceTilt: 0.3, rerolls: 2, hints: 3, overshoot: true),
+        white: HandicapItems(headStart: 2, weightedDice: WeightedDice(mode: .hybrid, level: 1), rerolls: 2, hints: 3, overshoot: true),
         black: HandicapItems(movesFirst: true, homeSize: 5))
 
     func testFullTavliKeepsOneSetupThroughEveryLegAndTheFavouredSideStartsEach() throws {
         var ft = FullTavliSession(aiColor: .black, handicap: ftSetup)
-        let expected = HandicapSetup(white: HandicapItems(diceTilt: 0.3, rerolls: 2, hints: 3),
+        let expected = HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .hybrid, level: 1), rerolls: 2, hints: 3),
                                      black: HandicapItems(movesFirst: true))
         XCTAssertEqual(ft.handicap, expected, "head start and rule changes are off in Full Tavli")
         var legs: [String] = []
@@ -393,12 +404,12 @@ final class HandicapVariantTests: XCTestCase {
         var ft = FullTavliSession(aiColor: nil, handicap: ftSetup)
         let s = GameSession(startingPlayer: .black, config: config(GameVariants.portes),
                             animationTimings: .off, handicap: ft.setupForCurrentLeg)
-        s.adjustHandicap(for: .white, diceTilt: 1.2, rerollsLeft: 1)
+        s.adjustHandicap(for: .white, weightedDice: WeightedDice(mode: .fixedGain, level: 3), rerollsLeft: 1)
         s.surrender(as: .black)
         ft.carryHandicap(from: s.record)
         ft.recordGame(winner: s.record.outcome, points: s.record.points ?? 1)
         let next = try XCTUnwrap(ft.setupForCurrentLeg)
-        XCTAssertEqual(next.white.diceTilt, 1.2)
+        XCTAssertEqual(next.white.weightedDice, WeightedDice(mode: .fixedGain, level: 3))
         XCTAssertEqual(next.white.rerolls, 1)
         XCTAssertFalse(next.adjusted, "a new leg is not itself adjusted")
         XCTAssertTrue(next.black.movesFirst)

@@ -240,7 +240,7 @@ final class GameSessionResignTests: XCTestCase {
         let agent = try loadAgent()
         let s = GameSession(startingPlayer: .black, agent: agent, aiColor: .black,
                             searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
-                            handicap: HandicapSetup(black: HandicapItems(diceTilt: 4, rerolls: 2)))
+                            handicap: HandicapSetup(black: HandicapItems(weightedDice: WeightedDice(mode: .lean, level: 4), rerolls: 2)))
         let start = stacks(s)
         s.start()
         XCTAssertEqual(s.phase, .aiThinking)

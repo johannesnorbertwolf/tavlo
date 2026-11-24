@@ -3,20 +3,44 @@ import Foundation
 /// Weighted dice and the reroll policy (#148, tier 1). Pure functions over the value
 /// net; `GameSession` runs them off the main actor.
 ///
-/// **Keep in sync with the Python harness** (`domain/handicap.py` `tilted_roll_probs` /
+/// **Keep in sync with the Python harness** (`domain/handicap.py` `roll_spread` /
+/// `lean_beta` / `gain_beta` / `hybrid_beta` / `turn_beta` / `tilted_roll_probs` /
 /// `weighted_faces`, `ai/handicap_sweep.py` `wants_reroll`, `ai/agent.py` `roll_values`):
 /// the 21 rolls in `diceOutcomes` order (= Python `ROLLS`) with weights 1/36 (doubles)
 /// and 2/36; a roll's value is the mover's best 1-ply move value, a roll with no legal
 /// move is a pass valued `1 − opponent's static value`; the tilt is
-/// `p'(r) ∝ p(r)·exp(β·v(r))`, drawn by inverse CDF of `u = (int(6 u1) + u2) / 6` over
-/// the 36 ordered outcomes (β = 0 is exactly `(face(u1), face(u2))`, the fair dice); the
-/// reroll rule is `v(roll) < E_p[v] − 0.02` with `p` the side's own (tilted) distribution,
-/// repeated while tokens remain. (The Swift has no bear-off database, so its race values
-/// are the net's own.)
+/// `q(r) ∝ p(r)·exp(β_t·v(r))` with the turn's β_t from the side's `WeightedDice` mode
+/// (#261, `beta(values:dice:maxPoints:)`), drawn by inverse CDF of
+/// `u = (int(6 u1) + u2) / 6` over the 36 ordered outcomes (β_t = 0 is exactly
+/// `(face(u1), face(u2))`, the fair dice); the reroll rule is `v(roll) < E_q[v] − 0.02`
+/// with `q` the side's own (tilted, same β_t) distribution, repeated while tokens remain.
+/// (The Swift has no bear-off database, so its race values are the net's own.)
+///
+/// The modes (μ = Σ p v, σ² = Σ p (v − μ)², first-order gain E_q[v] − μ ≈ β·σ²):
+/// - lean: β_t = κ / max(σ, σ_floor) — a roll 2σ above average e^{2κ}× as likely in every
+///   position; gain ≈ κ·σ.
+/// - fixed gain: the largest β_t ≥ 0 with E_q[v] − μ ≤ g and max_r q(r)/p(r) ≤ `gainCap`
+///   (both monotone in β: one bisection over [0, `betaSpan`/σ], `bisectionSteps` halvings);
+///   σ < σ_floor → 0 (fair).
+/// - hybrid: min(fixed gain's β_t, `hybridKappaMax` / max(σ, σ_floor)).
+/// For a 2-point variant `v` is normalised equity: g and σ_floor are win-chance-equivalent
+/// pp (the review's unit) and are divided by `maxPoints`; κ, the cap and κ_max are scale-free.
 public enum HandicapDice {
     /// The AI rerolls when its roll's value is this far below a fresh fair roll's
     /// expected value (`rerolls` policy in the harness).
     public static let rerollMargin: Float = 0.02
+
+    /// σ floor in win-chance pp (÷ `maxPoints` for normalised equity): below it the rolls
+    /// differ by model noise only (Python `SIGMA_FLOOR`).
+    public static let sigmaFloor = 0.01
+    /// Fixed gain's cap: no roll more than this many times as likely as fair (`GAIN_CAP`).
+    public static let gainCap = 3.0
+    /// Hybrid's lean ceiling κ_max (`HYBRID_KAPPA_MAX`): a roll 2σ above average at most
+    /// e^{0.6} ≈ 1.8× as likely as an average one.
+    public static let hybridKappaMax = 0.3
+    /// Fixed gain's bisection: β in [0, betaSpan / σ], `bisectionSteps` halvings.
+    public static let betaSpan = 50.0
+    public static let bisectionSteps = 60
 
     /// The 21 distinct rolls (`d1 <= d2`) in the canonical order, with their fair
     /// probabilities (doubles 1/36, the rest 2/36).
@@ -44,7 +68,71 @@ public enum HandicapDice {
         return values
     }
 
-    /// The tilted roll distribution `p'(r) ∝ p(r)·exp(β·v(r))` (21 entries, sums to 1).
+    /// (μ, σ) of the 21 values under the fair roll probabilities (Python `roll_spread`).
+    public static func spread(_ values: [Float]) -> (mu: Double, sigma: Double) {
+        let fair = outcomes.map(\.p)
+        let v = values.map(Double.init)
+        let mu = zip(fair, v).reduce(0.0) { $0 + $1.0 * $1.1 }
+        let variance = zip(fair, v).reduce(0.0) { $0 + $1.0 * ($1.1 - mu) * ($1.1 - mu) }
+        return (mu, max(variance, 0).squareRoot())
+    }
+
+    /// Lean: β_t = κ / max(σ, σ_floor / maxPoints).
+    public static func leanBeta(values: [Float], kappa: Double, maxPoints: Int = 1) -> Double {
+        guard kappa > 0, values.count == diceOutcomes.count else { return 0 }
+        return kappa / max(spread(values).sigma, sigmaFloor / Double(maxPoints))
+    }
+
+    /// Fixed gain: the largest β ≥ 0 with E_q[v] − μ ≤ g (win-chance pp, ÷ `maxPoints`)
+    /// and max_r q(r)/p(r) ≤ `cap`, by bisection (Python `gain_beta`). Reachable g is hit;
+    /// otherwise the cap binds. σ < σ_floor → 0.
+    public static func gainBeta(values: [Float], gainPP: Double, maxPoints: Int = 1,
+                                cap: Double = gainCap) -> Double {
+        guard gainPP > 0, values.count == diceOutcomes.count else { return 0 }
+        let (mu, sigma) = spread(values)
+        guard sigma >= sigmaFloor / Double(maxPoints) else { return 0 }
+        let target = gainPP / 100 / Double(maxPoints)
+        let fair = outcomes.map(\.p)
+        let v = values.map(Double.init)
+        let vmax = v.max() ?? 0
+        var lo = 0.0, hi = betaSpan / sigma
+        for _ in 0..<bisectionSteps {
+            let mid = 0.5 * (lo + hi)
+            var z = 0.0, ev = 0.0
+            for (w, x) in zip(fair, v) {
+                let e = w * Foundation.exp(mid * (x - vmax))
+                z += e
+                ev += e * x
+            }
+            if ev / z - mu <= target && 1 / z <= cap { lo = mid } else { hi = mid }
+        }
+        return lo
+    }
+
+    /// Hybrid: min(fixed gain's β, κ_max / max(σ, σ_floor)).
+    public static func hybridBeta(values: [Float], gainPP: Double, maxPoints: Int = 1,
+                                  kappaMax: Double = hybridKappaMax) -> Double {
+        min(gainBeta(values: values, gainPP: gainPP, maxPoints: maxPoints),
+            leanBeta(values: values, kappa: kappaMax, maxPoints: maxPoints))
+    }
+
+    /// This turn's β_t for `dice` given the side's 21 roll values (0 when off). Python
+    /// `turn_beta`. `maxPoints` = the variant's (2-point variants: normalised equity).
+    public static func beta(values: [Float], dice: WeightedDice, maxPoints: Int = 1) -> Double {
+        guard dice.isOn else { return 0 }
+        switch dice.mode {
+        case .lean:      return leanBeta(values: values, kappa: dice.strength, maxPoints: maxPoints)
+        case .fixedGain: return gainBeta(values: values, gainPP: dice.strength, maxPoints: maxPoints)
+        case .hybrid:    return hybridBeta(values: values, gainPP: dice.strength, maxPoints: maxPoints)
+        }
+    }
+
+    /// The side's roll distribution for this turn (21 entries, sums to 1; fair when off).
+    public static func probabilities(values: [Float], dice: WeightedDice, maxPoints: Int = 1) -> [Double] {
+        tilt(values: values, beta: beta(values: values, dice: dice, maxPoints: maxPoints))
+    }
+
+    /// The tilted roll distribution `q(r) ∝ p(r)·exp(β·v(r))` (21 entries, sums to 1).
     /// `β == 0` returns the fair probabilities exactly.
     public static func tilt(values: [Float], beta: Double) -> [Double] {
         let fair = outcomes.map(\.p)
@@ -99,7 +187,7 @@ public enum HandicapDice {
 
     /// The computer's reroll rule (harness `wants_reroll`): reroll when the current
     /// roll's value is below the expectation of a fresh roll under the side's own roll
-    /// distribution (tilted by its `beta`, fair at 0) by more than `rerollMargin`.
+    /// distribution (tilted by this turn's `beta`, fair at 0) by more than `rerollMargin`.
     public static func shouldReroll(values: [Float], d1: Int, d2: Int, beta: Double = 0) -> Bool {
         guard values.count == diceOutcomes.count, let i = outcomeIndex(d1, d2) else { return false }
         let expected = expectedValue(values, probabilities: tilt(values: values, beta: beta))
@@ -118,7 +206,7 @@ public enum HandicapStartRule: Equatable, Sendable {
 }
 
 /// The measured dice-lever table (`HandicapTable.json`, concept §5): per harness cell
-/// label — `weighted_dice:4`, `rerolls:2`, combos joined with `+` as in
+/// label — `rerolls:2`, `weighted_hybrid:0.8` (none measured yet, #261), combos joined with `+` as in
 /// `docs/handicap-e1-tier1.json` — the shift in log-odds for the **favoured** side
 /// (`logit(favoured win rate)`; the harness reports the handicapped side's rate, and
 /// both dice kinds are bonus kinds, so favoured rate = 1 − rate). `nil` = not measured
@@ -153,7 +241,7 @@ public struct HandicapTable: Codable, Equatable, Sendable {
         try? JSONDecoder().decode(HandicapTable.self, from: data)
     }
 
-    /// The harness cell label for one lever (`weighted_dice:4`, `rerolls:2`).
+    /// The harness cell label for one lever (`weighted_hybrid:0.8`, `rerolls:2`).
     public static func label(_ kind: String, _ intensity: Double) -> String {
         intensity.rounded() == intensity ? "\(kind):\(Int(intensity))" : "\(kind):\(intensity)"
     }
@@ -222,8 +310,9 @@ public struct HandicapTable: Codable, Equatable, Sendable {
 public struct HandicapEstimate: Equatable, Sendable {
     /// White's estimated win chance, combining every lever that has a number.
     public var whiteWinChance: Double
-    /// Dice levers that are active but not measured yet (excluded from the number), by
-    /// harness kind: `"weighted_dice"`, `"rerolls"`.
+    /// Levers that are active but not measured yet (excluded from the number), by harness
+    /// kind: `"weighted_lean"` / `"weighted_gain"` / `"weighted_hybrid"` (none measured since
+    /// #261), `"rerolls"`, a tier-2 kind.
     public var unmeasured: [String]
     /// Hints are active (never in the number; the line says "approx.").
     public var approximate: Bool
@@ -268,7 +357,9 @@ public enum HandicapEstimator {
     /// Combine levers by adding log-odds (concept §5): the position estimate plus each
     /// measured dice lever's shift (positive for White's levers, negative for Black's),
     /// plus the tier-2 levers' measured shifts (`HandicapTable.tier2Groups`).
-    /// Unmeasured dice levers are listed, not guessed; hints only flag "approx.".
+    /// Unmeasured levers are listed, not guessed; the measured ones keep counting (#261:
+    /// weighted dice are unmeasured, so a side's rerolls still count beside them); hints
+    /// only flag "approx.".
     public static func combine(positionWhite: Double, setup: HandicapSetup,
                                table: HandicapTable) -> HandicapEstimate {
         let s = setup.normalized
@@ -279,27 +370,24 @@ public enum HandicapEstimator {
             let sign: Double = color == .white ? 1 : -1
             let items = s[color]
             var labels: [String] = []
-            if items.diceTilt > 0 { labels.append(HandicapTable.label("weighted_dice", items.diceTilt)) }
+            if items.weightedDice.isOn {
+                labels.append(HandicapTable.label(items.weightedDice.mode.harnessKind,
+                                                  items.weightedDice.strength))
+            }
             if items.rerolls > 0 { labels.append(HandicapTable.label("rerolls", Double(items.rerolls))) }
             let (shift, missing) = table.shift(for: labels)
-            if missing.isEmpty {
-                // E1: a head start amplifies the same side's dice levers (combos with
-                // m = 4 measured 1.36–1.52× the dice shift on top of the head start).
-                logit += sign * shift * (1 + headStartDiceInteraction * Double(items.headStart))
-            } else {
-                for kind in missing where !unmeasured.contains(kind) { unmeasured.append(kind) }
-            }
+            // E1: a head start amplifies the same side's dice levers (combos with
+            // m = 4 measured 1.36–1.52× the dice shift on top of the head start).
+            logit += sign * shift * (1 + headStartDiceInteraction * Double(items.headStart))
+            for kind in missing where !unmeasured.contains(kind) { unmeasured.append(kind) }
         }
         // Tier 2 (#148 E3): one exact measured cell per handicapped colour when the
         // whole group was measured as a combo (any order), else the sum of the singles.
         // Each group shifts toward the spec side's opponent.
         for (specSide, labels) in HandicapTable.tier2Groups(s) {
             let (shift, missing) = table.shift(for: labels)
-            if missing.isEmpty {
-                logit += (specSide == .black ? 1 : -1) * shift
-            } else {
-                for kind in missing where !unmeasured.contains(kind) { unmeasured.append(kind) }
-            }
+            logit += (specSide == .black ? 1 : -1) * shift
+            for kind in missing where !unmeasured.contains(kind) { unmeasured.append(kind) }
         }
         let p = 1 / (1 + exp(-logit))
         return HandicapEstimate(whiteWinChance: p, unmeasured: unmeasured,
@@ -313,13 +401,19 @@ public enum HandicapEstimator {
     /// favours nobody. When the items help one side only (`beneficiaries`) that side —
     /// no estimate needed. When they help both, the net favourite: `estimate` (the net's
     /// position estimate combined with the table) when known, else the table alone from an
-    /// even position (head start / moves first then count for nothing); `nil` within
-    /// `balancedMargin` of 50 %.
+    /// even position (head start / moves first then count for nothing), plus each side's
+    /// weighted dice at their rough calibrated strength (#261: unmeasured, so not in the
+    /// estimate; `WeightedDice.approximateLogOddsShift`); `nil` within `balancedMargin` of 50 %.
     public static func favouredSide(setup: HandicapSetup, estimate: HandicapEstimate?,
                                     table: HandicapTable) -> Color? {
         let sides = setup.beneficiaries
         if sides.count < 2 { return sides.first }
-        let p = (estimate ?? combine(positionWhite: 0.5, setup: setup, table: table)).whiteWinChance
+        let s = setup.normalized
+        let p0 = (estimate ?? combine(positionWhite: 0.5, setup: s, table: table)).whiteWinChance
+        let q = max(min(p0, 1 - 1e-6), 1e-6)
+        let logit = log(q / (1 - q)) + s.white.weightedDice.approximateLogOddsShift
+            - s.black.weightedDice.approximateLogOddsShift
+        let p = 1 / (1 + exp(-logit))
         if abs(p - 0.5) < balancedMargin { return nil }
         return p > 0.5 ? .white : .black
     }

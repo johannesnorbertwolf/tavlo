@@ -22,14 +22,25 @@ x + int((7 - x) u) (uniform on x..6). Mapping the SAME uniform keeps the paired
 (duplicate-dice) harness aligned under modified dice. q1/q2 are per-turn uniforms for
 the probabilistic kinds (forced low roll, no doubles).
 
-Weighted dice (tier 1, #148): before the favoured side rolls, a `roll_valuer(board, color)`
-(injected by the caller; the harness passes the agent's 1-ply `Agent.roll_values`) rates the
-21 distinct rolls (`ROLLS` order) by the value of that side's best move. The roll distribution
-is tilted to p'(r) ∝ p(r)·exp(β·v(r)) and drawn by inverse CDF from ONE uniform per turn,
+Weighted dice (tier 1, #148; three modes since #261): before the favoured side rolls, a
+`roll_valuer(board, color)` (injected by the caller; the harness passes the agent's 1-ply
+`Agent.roll_values`) rates the 21 distinct rolls (`ROLLS` order) by the value v(r) of that side's
+best move. The roll distribution is tilted to q(r) ∝ p(r)·exp(β_t·v(r)) with a PER-TURN β_t
+chosen by the mode (`turn_beta`; μ = Σ p v, σ² = Σ p (v − μ)², σ floor `SIGMA_FLOOR`):
+- `weighted_lean:κ`   β_t = κ / max(σ, σ_floor): the same bend every turn (a roll 2σ above the
+                      average is e^{2κ}× as likely as an average one); expected gain ≈ κ·σ.
+- `weighted_gain:g`   β_t ≥ 0 solved by bisection so the expected luck E_q[v] − μ = g pp per roll
+                      (E_q[v] is monotone in β), capped so no roll is more than `GAIN_CAP`× its fair
+                      probability; σ < σ_floor → fair dice.
+- `weighted_hybrid:g` β_t = min(β_gain(g), `HYBRID_KAPPA_MAX` / max(σ, σ_floor)).
+(First order the gain is β·σ², which is why a fixed β barely helped early and swamped endgames.)
+For a 2-point variant v is normalised equity: g and σ_floor are win-chance-equivalent pp and are
+divided by `max_points` (κ, the cap and κ_max are scale-free).
+The roll is drawn by inverse CDF from ONE uniform per turn,
 u = (int(6 u1) + u2) / 6, over the 36 *ordered* outcomes in lexicographic order (each ordered
 pair carries its unordered roll's tilt, so the distribution over the 21 rolls is exactly the
 tilted one). For a fair die that inverse CDF is (1 + int(6 u1), 1 + int(6 u2)) — the same dice,
-in the same order, as the fair path — so β = 0 reproduces fair dice exactly and the paired
+in the same order, as the fair path — so β_t = 0 reproduces fair dice exactly and the paired
 harness stays aligned (a tilt only moves the CDF boundaries; the uniform is the same).
 Rerolls are a per-game token count (`reroll_tokens`); deciding *when* to reroll is a player
 policy and lives in the game loop (ai/handicap_sweep.py).
@@ -67,6 +78,30 @@ from domain.plakoto_rules import PlakotoRules
 from domain.ruleset import get_ruleset
 
 
+#: Weighted-dice modes (#261), each a handicap kind whose intensity is the mode's strength:
+#: `weighted_lean` κ (scale-free bend), `weighted_gain` / `weighted_hybrid` g (win-chance pp per roll).
+WEIGHTED_KINDS: Tuple[str, ...] = ("weighted_lean", "weighted_gain", "weighted_hybrid")
+#: The app's strength steps (Slight → Very strong), the same for either side. Calibrated so a step
+#: is about as strong in every mode: first-order gain per game (Σ over the favoured side's rolls of
+#: E_q[v] − μ, gold_v11 1-ply self-play, 120 games, `scripts/weighted_dice_calibration.py`) ≈
+#: lean +7 / +14 / +27 / +48 pp, fixed gain +8 / +16 / +30 / +50, hybrid +8 / +15 / +26 / +37
+#: (the old fixed β 0.3 / 0.6 / 1.2 / 2.0: +3.7 / +7.5 / +15.5 / +27.1, measured by E1 at
+#: +3.7 / +6.2 / +13.6 / +22.0 — the first-order sum overstates strong tilts a little).
+LEAN_KAPPAS: Tuple[float, ...] = (0.04, 0.08, 0.15, 0.25)
+GAIN_STEPS_PP: Tuple[float, ...] = (0.2, 0.4, 0.8, 1.5)
+#: σ floor (win-chance pp, ÷ max_points for normalised equity): below it the 21 values differ by
+#: model noise only — lean bends no harder than at σ = floor, fixed gain / hybrid roll fair dice.
+SIGMA_FLOOR = 0.01
+#: Fixed gain's cap: no roll more than this many times as likely as with fair dice.
+GAIN_CAP = 3.0
+#: Hybrid's lean ceiling κ_max (β_t ≤ κ_max / σ): a roll 2σ above average at most e^{0.6} ≈ 1.8×
+#: as likely as an average one (fixed gain's cap allows 3×).
+HYBRID_KAPPA_MAX = 0.3
+#: Bisection for fixed gain: β searched in [0, BETA_SPAN / σ] in BISECTION_STEPS halvings.
+BETA_SPAN = 50.0
+BISECTION_STEPS = 60
+
+
 class KindInfo(NamedTuple):
     category: str            # "dice" | "tempo" | "position" | "geometry"
     bonus: bool              # True: applied to the opponent of the handicapped side
@@ -84,8 +119,12 @@ KINDS: Dict[str, KindInfo] = {
                            "one of your dice is a 1 ({x:.0%} of rolls)"),
     "dice_floor": KindInfo("dice", True, (2, 3), True,
                            "opponent's dice never show less than {x}"),
-    "weighted_dice": KindInfo("dice", True, (1, 2, 4, 8, 16), True,
-                              "dice favour {side} (strength {x})"),
+    "weighted_lean": KindInfo("dice", True, LEAN_KAPPAS, True,
+                              "dice lean towards {side} (bend {x})"),
+    "weighted_gain": KindInfo("dice", True, GAIN_STEPS_PP, True,
+                              "dice give {side} about +{x} pp per roll"),
+    "weighted_hybrid": KindInfo("dice", True, GAIN_STEPS_PP, True,
+                                "dice give {side} up to +{x} pp per roll, gently in quiet positions"),
     "rerolls": KindInfo("dice", True, (1, 2, 3, 4), True,
                         "{x} rerolls per game"),
     "first_mover": KindInfo("tempo", False, (1,), True,
@@ -132,7 +171,7 @@ _ROLL_INDEX = {(i, j): k for k, (i, j, _) in enumerate(ROLLS)}
 #: (board, color) -> 21 values in ROLLS order (win prob of `color`'s best move per roll).
 RollValuer = Callable[[Board, int], Sequence[float]]
 
-#: Kinds that change the favoured side's die faces; weighted dice replaces the face mapping,
+#: Kinds that change the favoured side's die faces; weighted dice replace the face mapping,
 #: so it cannot share a side with them.
 _FACE_KINDS = ("dice_ceiling", "dice_floor", "forced_low", "no_doubles")
 
@@ -175,7 +214,9 @@ def _validate(kind: str, x) -> None:
         "dice_floor": lambda: 1 <= x <= 6 and float(x).is_integer(),
         "no_doubles": lambda: 0.0 <= x <= 1.0,
         "forced_low": lambda: 0.0 <= x <= 1.0,
-        "weighted_dice": lambda: 0 <= x <= 100,
+        "weighted_lean": lambda: 0 <= x <= 5,
+        "weighted_gain": lambda: 0 <= x <= 50,
+        "weighted_hybrid": lambda: 0 <= x <= 50,
         "rerolls": lambda: 0 <= x <= 20 and float(x).is_integer(),
         "first_mover": lambda: x in (0, 1),
         "pass_turns": lambda: 0 <= x <= PASS_SCHEDULE_TURNS and float(x).is_integer(),
@@ -225,6 +266,73 @@ def tilted_roll_probs(values: Sequence[float], beta: float) -> List[float]:
     raw = [w * math.exp(beta * (v - vmax)) for (_, _, w), v in zip(ROLLS, values)]
     z = sum(raw)
     return [r / z for r in raw]
+
+
+def roll_spread(values: Sequence[float]) -> Tuple[float, float]:
+    """(μ, σ) of the 21 per-roll values under the fair roll probabilities."""
+    mu = sum(w * v for (_, _, w), v in zip(ROLLS, values))
+    var = sum(w * (v - mu) ** 2 for (_, _, w), v in zip(ROLLS, values))
+    return mu, math.sqrt(max(var, 0.0))
+
+
+def _tilt_moments(values: Sequence[float], beta: float, vmax: float) -> Tuple[float, float]:
+    """(E_q[v], max_r q(r)/p(r)) of the tilt q ∝ p·exp(β·v)."""
+    z = 0.0
+    ev = 0.0
+    for (_, _, w), v in zip(ROLLS, values):
+        e = w * math.exp(beta * (v - vmax))
+        z += e
+        ev += e * v
+    return ev / z, 1.0 / z
+
+
+def lean_beta(values: Sequence[float], kappa: float, max_points: int = 1) -> float:
+    """Lean: β_t = κ / max(σ, σ_floor) — a roll 2σ above average is e^{2κ}× as likely."""
+    if kappa <= 0:
+        return 0.0
+    _, sigma = roll_spread(values)
+    return kappa / max(sigma, SIGMA_FLOOR / max_points)
+
+
+def gain_beta(values: Sequence[float], gain_pp: float, max_points: int = 1,
+              cap: float = GAIN_CAP) -> float:
+    """Fixed gain: the largest β ≥ 0 with E_q[v] − μ ≤ g (g in win-chance pp; ÷ max_points for
+    normalised equity) and max_r q(r)/p(r) ≤ cap — both monotone in β, so one bisection over
+    [0, BETA_SPAN/σ]. Reachable g is hit (to bisection precision); otherwise the cap (or the
+    span) binds. σ < σ_floor (or g ≤ 0) → 0, fair dice."""
+    if gain_pp <= 0:
+        return 0.0
+    mu, sigma = roll_spread(values)
+    if sigma < SIGMA_FLOOR / max_points:
+        return 0.0
+    target = gain_pp / 100.0 / max_points
+    vmax = max(values)
+    lo, hi = 0.0, BETA_SPAN / sigma
+    for _ in range(BISECTION_STEPS):
+        mid = 0.5 * (lo + hi)
+        ev, ratio = _tilt_moments(values, mid, vmax)
+        if ev - mu <= target and ratio <= cap:
+            lo = mid
+        else:
+            hi = mid
+    return lo
+
+
+def hybrid_beta(values: Sequence[float], gain_pp: float, max_points: int = 1,
+                kappa_max: float = HYBRID_KAPPA_MAX) -> float:
+    """Hybrid: min(fixed gain's β, κ_max / max(σ, σ_floor))."""
+    return min(gain_beta(values, gain_pp, max_points), lean_beta(values, kappa_max, max_points))
+
+
+def turn_beta(values: Sequence[float], kind: str, strength: float, max_points: int = 1) -> float:
+    """This turn's β_t for a weighted-dice kind (`WEIGHTED_KINDS`) at `strength`."""
+    if kind == "weighted_lean":
+        return lean_beta(values, strength, max_points)
+    if kind == "weighted_gain":
+        return gain_beta(values, strength, max_points)
+    if kind == "weighted_hybrid":
+        return hybrid_beta(values, strength, max_points)
+    raise ValueError(f"not a weighted-dice kind: {kind!r}")
 
 
 def roll_uniform(u1: float, u2: float) -> float:
@@ -403,11 +511,18 @@ class HandicappedPlakotoRules(PlakotoRules):
         for c in (WHITE, BLACK):
             if self._dice_lo[c] > self._dice_hi[c]:
                 raise ValueError("dice floor above dice ceiling")
-        self._beta = {c: float(self._by_target[c].get("weighted_dice", 0.0)) for c in (WHITE, BLACK)}
+        #: Per colour: (weighted-dice kind, strength) or None (fair dice).
+        self._weighting: Dict[int, Optional[Tuple[str, float]]] = {}
+        for c in (WHITE, BLACK):
+            on = [(k, float(self._by_target[c][k])) for k in WEIGHTED_KINDS
+                  if self._by_target[c].get(k)]
+            if len(on) > 1:
+                raise ValueError("one weighted-dice mode per side: " + ", ".join(k for k, _ in on))
+            self._weighting[c] = on[0] if on else None
         self._rerolls = {c: int(self._by_target[c].get("rerolls", 0)) for c in (WHITE, BLACK)}
         for c in (WHITE, BLACK):
-            if self._beta[c] and any(k in self._by_target[c] for k in _FACE_KINDS):
-                raise ValueError("weighted_dice cannot share a side with "
+            if self._weighting[c] and any(k in self._by_target[c] for k in _FACE_KINDS):
+                raise ValueError("weighted dice cannot share a side with "
                                  + "/".join(_FACE_KINDS))
         self._skip = {c: pass_schedule(self._by_target[c]["pass_turns"])
                       if "pass_turns" in self._by_target[c] else frozenset()
@@ -465,10 +580,14 @@ class HandicappedPlakotoRules(PlakotoRules):
 
     def needs_roll_values(self, color: int) -> bool:
         """True when `roll` for `color` needs the 21 per-roll values (weighted dice)."""
-        return bool(self._beta[color])
+        return self._weighting[color] is not None
 
-    def roll_beta(self, color: int) -> float:
-        return self._beta[color]
+    def roll_beta(self, color: int, values: Optional[Sequence[float]]) -> float:
+        """This turn's tilt β_t for `color` given its 21 roll values (0 = fair dice)."""
+        w = self._weighting[color]
+        if w is None or values is None:
+            return 0.0
+        return turn_beta(values, w[0], w[1], self.max_points)
 
     def reroll_tokens(self, color: int) -> int:
         """Rerolls `color` may spend per game."""
@@ -479,14 +598,13 @@ class HandicappedPlakotoRules(PlakotoRules):
         """Dice for `color` from the turn's uniforms. Weighted dice need `values` (21, ROLLS
         order) or a `board` for `self.roll_valuer`; other kinds ignore both."""
         mods = self._by_target[color]
-        beta = self._beta[color]
-        if beta:
+        if self._weighting[color] is not None:
             if values is None:
                 if self.roll_valuer is None or board is None:
-                    raise ValueError("weighted_dice needs roll values (roll_valuer + board)")
+                    raise ValueError("weighted dice need roll values (roll_valuer + board)")
                 values = self.roll_valuer(board, color)
             dice = Dice()
-            dice.set(*weighted_faces(u1, u2, values, beta))
+            dice.set(*weighted_faces(u1, u2, values, self.roll_beta(color, values)))
             return dice
         lo, hi = self._dice_lo[color], self._dice_hi[color]
         d1, d2 = face(u1, lo, hi), face(u2, lo, hi)

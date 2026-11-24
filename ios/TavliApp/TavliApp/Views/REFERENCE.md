@@ -1249,8 +1249,12 @@ only when a handicap is active / exists.
 
 - **Settings (`HandicapPreferences`, target root).** One JSON value under `settings.handicap`
   (`@AppStorage` string): `enabled` + per item a value and a favoured **role** (`HandicapRole.a` =
-  "You"/"White", `.b` = "Computer"/"Red"); weighted dice as a `HandicapDiceStrength` step mapped
-  onto the engine's `HandicapSetup.diceTiltSteps`. `setup(humanColor:)` resolves roles into a
+  "You"/"White", `.b` = "Computer"/"Red"); weighted dice as `diceMode` (`WeightedDiceMode`,
+  default hybrid) + `dice` (the level, a `HandicapDiceStrength` step Off … Very strong, the same names
+  in every mode) → `weightedDice`; the engine keeps each mode's κ / g grid
+  (`WeightedDiceMode.strengths`). Prefs saved before #261 (no `diceMode`, `dice` = a step of the old
+  β grid 0.3 / 0.6 / 1.2 / 2.0) migrate on decode to hybrid via `WeightedDice.migrating(beta:)`
+  (Slight/Moderate → level 1, Strong → 2, Very strong → 3). `setup(humanColor:)` resolves roles into a
   per-colour `HandicapSetup` (vs the computer `.a` = the human, hints always the human's; two
   players `.a` = White). **Per variant (#246):** offline, vs the computer or two players, in every
   variant — `setupForNewGame(humanColor:variant:)` (a single game or every game of a
@@ -1299,7 +1303,8 @@ only when a handicap is active / exists.
   shows the table-only favourite meanwhile. It opens `HandicapInfoSheet` as a **card**
   (`.presentationDetents([.medium, .large])` on a phone; the iPad keeps its `.large` sheet): header "Handicap" + "● Favours You" / "Evenly
   balanced" + Done; one card per side (You first vs the computer, White first for two players) with
-  the weighted-dice slider (Off → Very strong, `HandicapDiceStrength`), a "Rerolls left" stepper
+  the weighted dice (`WeightedDiceEditor`, below; a mode picked while off is held in the sheet's
+  `offModes` until a strength is set, since an off setup has no mode), a "Rerolls left" stepper
   (0…4) and, for a human side only, a "Hints left" stepper (0…5) — each change calls
   `session.adjustHandicap` (from the next roll; dice/hints disabled without a `handicapAgent`, all
   disabled once the game is over); the caption "Changes count from the next roll and carry over to
@@ -1316,6 +1321,21 @@ only when a handicap is active / exists.
   `session.hint` as a blue `MoveHighlightView` over the checkers. `GameView` autosaves on a token
   change, hides the vs-Computer record in the win overlay of a handicap game, and passes
   `record.handicap` to the history notation.
+- **Weighted dice modes (#261).** `WeightedDiceEditor(mode:level:)` (in `HandicapViews.swift`,
+  used by the builder's "Weighted dice" card and by each side of the handicap card): the
+  `WeightedDiceModePicker` (Lean · Fixed gain · Hybrid — the new-game sheet's Caramel segmented look
+  a size smaller: `trackColor` track, `selectedSegmentColor` raised pill, `ChromeType.subheadline`,
+  min height 34, `minimumScaleFactor(0.7)`; ids `weightedDiceMode.<mode>`), the strength slider with
+  its label (Off → Very strong) and one caption line from `WeightedDiceMode.explanation(level:)`:
+  Lean "Good rolls are a bit more likely, the same in every position."; Fixed gain "About +0.4% win
+  chance per roll on average, steady through the game." (the level's g, first step when off; a
+  win-chance-equivalent pp in 2-point variants too); Hybrid "Steady gain, but never bends the dice
+  much in quiet positions." The builder keeps its general caption under it. Checked on an iPhone 13
+  mini (en/de, light/dark): nothing cut off. **Estimate:** weighted dice are never in the number
+  (no mode is measured): in house Plakoto the estimate keeps the other levers and adds "Weighted
+  dice: not measured yet, so not in the number." (`unmeasuredLine` maps every `weighted_*` kind to
+  "Weighted dice"); elsewhere the whole estimate already says "not measured yet". The favoured-side
+  dot still counts weighted dice roughly (`WeightedDice.approximateLogOddsShift`).
 - **Tier 2 (P3b).** `HandicapPreferences` adds `overshoot`/`overshootSide`, `safePoint`/
   `safePointSide`, `checkersA`/`checkersB` (a count per role, neutral: more is the advantage) and
   `homeSize`/`homeSizeSide` (default side `.b`); `hasTier2`; summary parts "Overshoot bear-off · Safe

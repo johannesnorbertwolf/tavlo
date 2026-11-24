@@ -51,7 +51,7 @@ retraining (E3).
 |---|---|---|---|---|
 | **Head start** | m checkers of the favoured side start further ahead (6 or 12 pips, E1 decides) | Slider | Net + measured | Phase 1: up to 7.2 pp at m=4; E1 extends the range |
 | **Moves first** | The favoured side always rolls first | Toggle | Measured (2.8 pp) | |
-| **Weighted dice** *(user idea)* | Before each roll, the net rates all 21 rolls for the favoured side by the value of its best move. Each roll's probability is tilted by `exp(β · value)` and renormalised. β = 0 means fair dice | Slider (β) | Measured curve | Continuous, so it's the finest knob. It adapts to the position: in an exact-die bear-off a *low* roll can be the good one. No rules change, any variant. The AI plans as if the dice were fair, so it's slightly off under tilt; the measurement absorbs that. **Disclosed via the in-game Handicap tag** ("Dice favour White slightly"), never per roll |
+| **Weighted dice** *(user idea)* | Before each roll, the net rates all 21 rolls for the favoured side by the value of its best move. Each roll's probability is tilted by `exp(β · value)` and renormalised. β = 0 means fair dice. **#261:** β is chosen per turn by one of three modes — Lean, Fixed gain, Hybrid (§9 "Weighted dice") | Mode + slider (4 steps) | Not measured yet (#261) | Continuous, so it's the finest knob. It adapts to the position: in an exact-die bear-off a *low* roll can be the good one. No rules change, any variant. The AI plans as if the dice were fair, so it's slightly off under tilt; the measurement absorbs that. **Disclosed via the in-game Handicap tag** ("Dice favour White slightly"), never per roll |
 | **Rerolls** | The favoured side may reroll N times per game, choosing when | Slider 0…N | Measured | AI policy for self-play: reroll when the rolled position's value is below the expected value of a fresh roll by more than a threshold. Simple and close to what a human would do |
 | **Hints** | The favoured side may ask for the best move N times per game | Slider 0…N | **Rough** (simulated with a weaker AI level getting N best moves), labelled "approx." | Value depends on the human; it also teaches |
 
@@ -179,7 +179,8 @@ no new labels in the game, no new sections in the statistics.
 Engine detail: `ios/REFERENCE.md` ("Handicaps, tier 1"); views: `ios/TavliApp/TavliApp/Views/REFERENCE.md`
 ("Handicap views").
 
-- **Data.** `HandicapSetup` (versioned, per side: head start 0…8, moves first, weighted-dice β,
+- **Data.** `HandicapSetup` (versioned, per side: head start 0…4, moves first, weighted dice
+  (mode + level, #261),
   rerolls 0…4, hints 0…5) is stored with the game as the optional `GameSave.handicap` (setup +
   tokens left). No schema bump: an old build ignores the key and loads the game unhandicapped; a
   normal game's save is unchanged. Finished handicap games go to the stats log with their setup and
@@ -187,13 +188,28 @@ Engine detail: `ios/REFERENCE.md` ("Handicaps, tier 1"); views: `ios/TavliApp/Ta
 - **Head start** reproduces `pip_headstart` (6 pips; White 1 → 7, Black 24 → 18), pinned against
   Python-generated boards. 12-pip advances are not offered (E1 decides).
 - **Weighted dice** follow the harness exactly: 1-ply roll values (pass = 1 − opponent's static
-  value), `p' ∝ p·exp(β·v)`, `weighted_faces` inverse-CDF draw; β = 0 is the fair die. App steps
-  Off / Slight / Moderate / Strong / Very strong = β 0 / 2 / 4 / 8 / 16, in one place
-  (`HandicapSetup.diceTiltSteps`) so they can be retuned after E1. The tilt is disclosed only in the
-  Handicap tag ("Dice favour Red moderately"), never per roll.
+  value), `q ∝ p·exp(β_t·v)`, `weighted_faces` inverse-CDF draw; β_t = 0 is the fair die.
+  **#261 replaced the fixed β with three modes**, because a turn's expected luck is ≈ β·σ²
+  (σ = the spread of the 21 roll values: ~1 pp in quiet positions, ~8 pp in tense ones), so a
+  fixed β did almost nothing early and swamped endgames. With μ = Σ p v, σ² = Σ p (v − μ)² and a
+  σ floor of 1 pp:
+  - **Lean** — β_t = κ / max(σ, σ_floor): the same bend every turn (a roll 2σ above average is
+    e^{2κ}× as likely); gain ≈ κ·σ. Steps κ 0.04 / 0.08 / 0.15 / 0.25.
+  - **Fixed gain** — β_t solved by bisection so E_q[v] − μ = g per roll, but no roll more than 3×
+    its fair probability (the cap binds where g is out of reach); σ < 1 pp → fair. Steps g 0.2 /
+    0.4 / 0.8 / 1.5 pp per roll.
+  - **Hybrid** — min(fixed gain's β_t, 0.3 / max(σ, σ_floor)): fixed gain in tense positions, a
+    gentle lean in quiet ones. Same g steps.
+  The steps (Slight → Very strong, either side) are calibrated so a step is about equally strong in
+  every mode: first-order gain per game ≈ +7–8 / +14–16 / +26–30 / +37–50 pp
+  (`scripts/weighted_dice_calibration.py`, gold_v11 self-play). For 2-point variants g and the σ
+  floor are win-chance-equivalent pp (÷ max points in normalised equity). Old saves and settings
+  (a fixed β) load as hybrid dice of comparable strength. The tilt is disclosed only in the
+  Handicap tag ("Dice favour Red moderately"), never per roll; the estimate says "not measured
+  yet" for weighted dice until a sweep measures the modes (the old E1 β cells are retired).
 - **Rerolls.** Human: a "Reroll (n left)" button while picking (built half-moves are taken back).
-  Computer: the harness rule — reroll while tokens remain and v(roll) < E_p[v] − 0.02 with p its own
-  (tilted) distribution; the human sees "Computer used a reroll (n left)". A human reroll tumbles
+  Computer: the harness rule — reroll while tokens remain and v(roll) < E_q[v] − 0.02 with q its own
+  (tilted, same β_t) distribution; the human sees "Computer used a reroll (n left)". A human reroll tumbles
   the dice like a normal roll; a computer roll restored from a save gets the same reroll decision;
   undoing a move across a reroll replays the same (rerolled) dice, without refunding tokens. Not
   offered on a roll with no legal move (the turn passes at once) — a known limitation, kept.
@@ -202,7 +218,8 @@ Engine detail: `ios/REFERENCE.md` ("Handicaps, tier 1"); views: `ios/TavliApp/Ta
 - **Estimate.** Position levers on device from the net (the starter's mean 1-ply value over its 21
   rolls from the handicap start; the roll-off averages both starters, matching the app's opening
   roll; "moves first" or a forced first move fixes the starter). Dice levers from the bundled
-  `HandicapTable.json` (keyed like the E1 cells, `weighted_dice:4`, `rerolls:2`, `+` combos;
+  `HandicapTable.json` (keyed like the E1 cells, `rerolls:2`, `+` combos; weighted dice since #261
+  `weighted_lean:0.15` etc., none measured yet;
   regenerate with `ios/scripts/make_handicap_table.py`), combined by adding log-odds. Until E1
   lands every dice cell is `null`: the line shows the position estimate plus "Weighted dice and
   rerolls: not measured yet". Hints mark it "approx." and are left out.
@@ -224,7 +241,7 @@ cell). Gains are percentage points for the favoured side.
 |---|---|
 | Moves first | +3.0 |
 | Head start (m checkers) | 1: +2.1 · 2: +4.1 · 4: +8.0 · 6: +9.2 · 8: +7.6 (saturates, so the app caps at 4) |
-| Weighted dice β | 0.3: +3.7 · 0.6: +6.2 · 1.2: +13.6 · 2.0: +22.0 (the app's steps) |
+| Weighted dice β | 0.3: +3.7 · 0.6: +6.2 · 1.2: +13.6 · 2.0: +22.0 (the app's steps until #261 replaced the fixed β with three modes) |
 | Rerolls | 1: +4.9 · 2: +8.0 · 3: +11.4 · 4: +14.7 |
 
 **Analytic check.**

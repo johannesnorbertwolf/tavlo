@@ -161,18 +161,19 @@ final class HandicapTests: XCTestCase {
     // MARK: - Setup / persistence
 
     func testSetupNormalisesAndRoundTrips() throws {
-        let raw = HandicapSetup(white: HandicapItems(headStart: 12, movesFirst: true, diceTilt: -1,
+        let raw = HandicapSetup(white: HandicapItems(headStart: 12, movesFirst: true,
+                                                     weightedDice: WeightedDice(mode: .lean, level: -1),
                                                      rerolls: 9, hints: 9),
                                 black: HandicapItems(movesFirst: true))
         let n = raw.normalized
         XCTAssertEqual(n.white.headStart, HandicapSetup.maxHeadStart)
         XCTAssertEqual(n.white.rerolls, 4)
         XCTAssertEqual(n.white.hints, 5)
-        XCTAssertEqual(n.white.diceTilt, 0)
+        XCTAssertEqual(n.white.weightedDice, .off)
         XCTAssertFalse(n.white.movesFirst)   // both sides cancel out
         XCTAssertNil(n.forcedStarter)
 
-        let s = HandicapSetup(black: HandicapItems(headStart: 2, movesFirst: true, diceTilt: 2,
+        let s = HandicapSetup(black: HandicapItems(headStart: 2, movesFirst: true, weightedDice: WeightedDice(mode: .lean, level: 3),
                                                    rerolls: 3, hints: 1))
         let data = try JSONEncoder().encode(s)
         XCTAssertEqual(try JSONDecoder().decode(HandicapSetup.self, from: data), s)
@@ -340,13 +341,17 @@ final class HandicapTests: XCTestCase {
 
     func testWeightedRollDrawsFromTiltedDistribution() async throws {
         let agent = try loadAgent()
+        for mode in WeightedDiceMode.allCases {
+        let dice = WeightedDice(mode: mode, level: WeightedDice.levels)
         let s = GameSession(startingPlayer: .white, animationTimings: .off,
-                            handicap: HandicapSetup(white: HandicapItems(diceTilt: 8)),
+                            handicap: HandicapSetup(white: HandicapItems(weightedDice: dice)),
                             handicapAgent: agent)
-        // Expected roll for u = 0.5 under the same tilt, computed independently.
+        // Expected roll for u = 0.5 under the same mode's β_t, computed independently.
         let values = try HandicapDice.rollValues(agent: agent, board: s.game.board, color: .white)
-        let probs = HandicapDice.tilt(values: values, beta: 8)
-        let expected = HandicapDice.weightedFaces(u1: 0.5, u2: 0.1, values: values, beta: 8)
+        let probs = HandicapDice.probabilities(values: values, dice: dice)
+        let beta = HandicapDice.beta(values: values, dice: dice)
+        XCTAssertGreaterThan(beta, 0, "\(mode)")
+        let expected = HandicapDice.weightedFaces(u1: 0.5, u2: 0.1, values: values, beta: beta)
         s.handicapUniform = uniforms([0.5, 0.1])
         s.roll()
         XCTAssertTrue(s.preparingDice)
@@ -358,6 +363,7 @@ final class HandicapTests: XCTestCase {
         let fairEV = HandicapDice.expectedValue(values)
         let tiltedEV = zip(probs, values).reduce(0.0) { $0 + $1.0 * Double($1.1) }
         XCTAssertGreaterThan(tiltedEV, Double(fairEV))
+        }
     }
 
     func testComputerRerollsBadRollsWithinItsTokens() async throws {
@@ -410,43 +416,41 @@ final class HandicapTests: XCTestCase {
     }
 
     func testCombineAddsLogOddsAndFlagsUnmeasured() {
-        let setup = HandicapSetup(white: HandicapItems(diceTilt: 2, hints: 1),
+        let setup = HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .hybrid, level: 3), hints: 1),
                                   black: HandicapItems(rerolls: 2))
         let none = HandicapEstimator.combine(positionWhite: 0.6, setup: setup, table: .unmeasured)
         XCTAssertEqual(none.whiteWinChance, 0.6, accuracy: 1e-9)
-        XCTAssertEqual(none.unmeasured, ["weighted_dice", "rerolls"])
+        XCTAssertEqual(none.unmeasured, ["weighted_hybrid", "rerolls"])
         XCTAssertTrue(none.approximate)
 
-        let table = HandicapTable(cells: ["weighted_dice:2": .init(logOddsShift: 0.5),
+        let table = HandicapTable(cells: ["weighted_hybrid:0.8": .init(logOddsShift: 0.5),
                                           "rerolls:2": .init(logOddsShift: 0.2)])
         let both = HandicapEstimator.combine(positionWhite: 0.5, setup: setup, table: table)
         XCTAssertEqual(both.whiteWinChance, 1 / (1 + exp(-(0.5 - 0.2))), accuracy: 1e-9)
         XCTAssertTrue(both.unmeasured.isEmpty)
 
         // A measured combo cell on one side wins over the sum of its singles.
-        let one = HandicapSetup(white: HandicapItems(diceTilt: 4, rerolls: 1))
-        let combo = HandicapTable(cells: ["weighted_dice:4": .init(logOddsShift: 0.3),
+        let one = HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .lean, level: 4), rerolls: 1))
+        let combo = HandicapTable(cells: ["weighted_lean:0.25": .init(logOddsShift: 0.3),
                                           "rerolls:1": .init(logOddsShift: 0.1),
-                                          "rerolls:1+weighted_dice:4": .init(logOddsShift: 0.35)])
+                                          "rerolls:1+weighted_lean:0.25": .init(logOddsShift: 0.35)])
         XCTAssertEqual(HandicapEstimator.combine(positionWhite: 0.5, setup: one, table: combo).whiteWinChance,
                        1 / (1 + exp(-0.35)), accuracy: 1e-9)
     }
 
-    /// Every step the app offers has a measured, positive and monotone shift (E1).
+    /// Every reroll step the app offers has a measured, positive and monotone shift (E1);
+    /// no weighted-dice mode is measured yet (#261: "not measured yet").
     func testBundledTableCoversEveryAppStep() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("TavliApp/TavliApp/Resources/HandicapTable.json")
         let table = try XCTUnwrap(HandicapTable.decode(try Data(contentsOf: url)))
-        var last = 0.0
-        for beta in HandicapSetup.diceTiltSteps where beta > 0 {
-            let cell = try XCTUnwrap(table.cells[HandicapTable.label("weighted_dice", beta)])
-            let shift = try XCTUnwrap(cell.logOddsShift)
-            XCTAssertGreaterThan(shift, last, "weighted dice β \(beta)")
-            last = shift
+        XCTAssertFalse(table.cells.keys.contains { $0.contains("weighted") }, "old fixed-β cells are gone")
+        for mode in WeightedDiceMode.allCases {
+            for x in mode.strengths { XCTAssertNil(table.cells[HandicapTable.label(mode.harnessKind, x)]) }
         }
-        last = 0
+        var last = 0.0
         for n in 1...HandicapSetup.maxRerolls {
             let cell = try XCTUnwrap(table.cells[HandicapTable.label("rerolls", Double(n))])
             let shift = try XCTUnwrap(cell.logOddsShift)

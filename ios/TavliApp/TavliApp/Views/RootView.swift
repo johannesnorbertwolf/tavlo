@@ -594,14 +594,15 @@ struct RootView: View {
     #if DEBUG
     /// `-debugHandicapBearOff` (#236): you (White) vs the computer in a house-Plakoto
     /// handicap game — you: 2 rerolls, 3 hints, a 2-checker head start; the computer:
-    /// moderate weighted dice — seeded straight into a bear-off with 12 White and 10 Red
+    /// moderate hybrid weighted dice — seeded straight into a bear-off with 12 White and 10 Red
     /// checkers off, White to roll. For screenshots of the two-digit counters and the
     /// handicap card; `nil` without the argument.
     @MainActor
     private static func debugHandicapSession() -> GameSession? {
         guard ProcessInfo.processInfo.arguments.contains("-debugHandicapBearOff") else { return nil }
         let setup = HandicapSetup(white: HandicapItems(headStart: 2, rerolls: 2, hints: 3),
-                                  black: HandicapItems(diceTilt: HandicapDiceStrength.moderate.beta))
+                                  black: HandicapItems(weightedDice: WeightedDice(mode: .hybrid,
+                                                                                  level: HandicapDiceStrength.moderate.rawValue)))
         let config = GameVariantSetting.plakoto.config
         let session = GameSession(startingPlayer: .white, config: config,
                                   agent: GameSession.makeAgent(config: config), aiColor: .black,

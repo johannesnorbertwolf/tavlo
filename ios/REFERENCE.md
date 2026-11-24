@@ -831,14 +831,21 @@ variant's start alone). **Off path:** with no (or an inactive) setup nothing cha
 `testNoHandicapLeavesSessionSaveAndPositionUnchanged`).
 
 **Types.**
-- `HandicapItems` — one side: `headStart` (0…8 checkers 6 pips ahead), `movesFirst`, `diceTilt`
-  (β, 0 = fair), `rerolls` (0…4 per game), `hints` (0…5 per game). Tolerant decode (missing = off),
-  `clamped`.
-- `HandicapSetup` — `version` (1) + `white`/`black` items, `subscript(color)`, `isActive`,
+- `HandicapItems` — one side: `headStart` (0…4 checkers 6 pips ahead), `movesFirst`,
+  `weightedDice` (#261: `WeightedDice` = `mode` lean / fixedGain / hybrid + `level` 0…4, 0 = off =
+  fair), `rerolls` (0…4 per game), `hints` (0…5 per game). Tolerant decode (missing = off),
+  `clamped`; `weightedDice` is written only when on. **Migration:** a pre-#261 `diceTilt` (fixed β)
+  decodes as hybrid dice of comparable strength (`WeightedDice.migrating(beta:)`: the old β's
+  first-order gain per game ≈ 13.5 pp × β matched to the nearest hybrid level, so the old app steps
+  β 0.3 / 0.6 / 1.2 / 2.0 → levels 1 / 1 / 2 / 3) and is never written again.
+- `WeightedDice` — `mode` + `level`; every off value is equal (and hashes alike) whatever its mode,
+  so an off side is still `HandicapItems.none`; `strength` = the level's κ or g
+  (`WeightedDiceMode.strengths`, **the one place the grids live**), `clamped`, `migrating(beta:)`,
+  `approximateLogOddsShift` (only for the favoured-side dot, see below). Unknown mode → hybrid.
+- `HandicapSetup` — `version` (3 since #261) + `white`/`black` items, `subscript(color)`, `isActive`,
   `normalized` (clamped; "moves first" on both sides cancels), `forcedStarter`, `altersDice`
   (weighted dice or rerolls: the review notes fair-dice win chances), `needsEvaluator`,
-  `diceTiltSteps = [0, 2, 4, 8, 16]` (**the one β grid**, Off/Slight/Moderate/Strong/Very strong;
-  harness grid 1…16, β≈1 barely registers), `setUpInitialPosition(on:)`.
+  `setUpInitialPosition(on:)`.
 - `HandicapGameState` — setup + `rerollsLeft`/`hintsLeft` (`SideCounts`). Persisted as the
   optional **`GameSave.handicap`** (written only when present, never bumps `schemaVersion`; an old
   reader ignores it and loads the game unhandicapped; malformed → `nil`). `GameRecord.handicap`
@@ -859,16 +866,19 @@ for m = 0…8 both sides. Every replay from the start goes through
   the session's `agent`) is the net for dice/rerolls/hints — a two-player game passes one.
   `resume(from:..., handicapAgent:)` restores setup + tokens; `newGame` keeps the setup with
   fresh tokens.
-- **Weighted dice** — when the side on move has β > 0 (and no undo-replay is queued), `roll()`,
-  auto-roll and the AI turn rate the 21 rolls off the main actor (`HandicapDice.rollValues` on a
-  board copy; `preparingDice` blocks input meanwhile, epoch-guarded) and draw with
-  `HandicapDice.weightedFaces(u1, u2, values, β)` from `handicapUniform` (injectable for tests).
+- **Weighted dice** — when the side on move has weighted dice on (and no undo-replay is queued),
+  `roll()`, auto-roll and the AI turn rate the 21 rolls off the main actor (`HandicapDice.rollValues`
+  on a board copy; `preparingDice` blocks input meanwhile, epoch-guarded), turn them into this
+  turn's β_t (`handicapBeta(for:values:)` → `HandicapDice.beta(values:dice:maxPoints:)` with the
+  variant's `maxPoints`) and draw with `HandicapDice.weightedFaces(u1, u2, values, β_t)` from
+  `handicapUniform` (injectable for tests).
 - **Rerolls** — human: `canReroll` / `reroll()` (picking/moving; built half-moves are taken back;
-  the new roll is weighted if that side has β, else fair from `handicapUniform`; with animation on
+  the new roll is weighted if that side has weighted dice, else fair from `handicapUniform`; with animation on
   the new dice tumble like an auto-roll — `humanDiceRolling` for `aiDiceRollDuration` — before the
   turn resumes, epoch-guarded). Computer: `takeHandicappedAITurn` draws, then
   `applyComputerRerolls` rerolls **while tokens remain and**
-  `HandicapDice.shouldReroll(values, d1, d2, beta:)` (`lastComputerReroll` drives the UI note). A
+  `HandicapDice.shouldReroll(values, d1, d2, beta: β_t)` — the same β_t as the draw, so the rule's
+  expectation is over the side's own tilted roll (`lastComputerReroll` drives the UI note). A
   restored pending roll (#171) for a computer with tokens goes through `resumeHandicappedAIRoll`:
   the same reroll decision, tumbling only if the dice changed. A roll with **no legal move** is
   never rerollable: the turn passes at once (known limitation, kept on purpose).
@@ -885,15 +895,15 @@ for m = 0…8 both sides. Every replay from the start goes through
   charged only when it arrives; cleared on the next checker move / new turn (`hintEpoch`).
 - Tokens publish through `handicap` (Equatable) so the app autosaves on a spend.
 
-**Mid-game changes (#236).** `GameSession.adjustHandicap(for:diceTilt:rerollsLeft:hintsLeft:)`
-changes, for either side (the computer's too), the weighted-dice β (snapped to `diceTiltSteps`),
+**Mid-game changes (#236).** `GameSession.adjustHandicap(for:weightedDice:rerollsLeft:hintsLeft:)`
+changes, for either side (the computer's too), the weighted dice (mode + level, clamped; #261),
 the rerolls left (0…4) and the hints left (0…5, a human side only — `isHumanSide(_:)`). Head start,
 moves first and the tier-2 rules never change mid-game: replays, notation and the review rebuild
 the game from the start position and rules, which therefore stay valid.
 - **From the next roll.** Nothing is cached: `roll()`, auto-roll and `takeAITurn` read
-  `weightedTiltForCurrentPlayer` / `computerMayReroll` from the live `handicap` at each roll,
-  `drawHandicapRoll` reads β when it draws, and `applyComputerRerolls` reads tokens and β per
-  reroll. A roll already being rated draws with the β in force when it lands.
+  `weightedDiceForCurrentPlayer` / `computerMayReroll` from the live `handicap` at each roll,
+  `drawHandicapRoll` computes β_t when it draws, and `applyComputerRerolls` reads tokens and β_t.
+  A roll already being rated draws with the dice in force when it lands.
 - **Allowance = new count.** A new rerolls / hints count is both the tokens left and the setup's
   per-game allowance (so the decode clamp `left ≤ allowance` holds and later games start with it).
   A hint arriving after its count was set to 0 is shown, never charged below 0.
@@ -914,37 +924,80 @@ the game from the start position and rules, which therefore stay valid.
   moves first, weighted dice, rerolls, hints, overshoot, safe point or extra checkers help it;
   fewer checkers or a smaller home help its opponent. `HandicapEstimator.favouredSide(setup:
   estimate:table:)`: one beneficiary → that side; both → the estimate's favourite (the net position
-  estimate + table when known, else the table alone from 0.5), `nil` within `balancedMargin` (1 pp).
-- Tests: `HandicapAdjustTests` (next human / computer roll uses the new β, computer rerolls with
+  estimate + table when known, else the table alone from 0.5) plus each side's weighted dice at
+  `WeightedDice.approximateLogOddsShift` (#261: unmeasured, so never in the shown number; here a
+  rough logit(0.5 + 0.8 × the level's first-order gain per game), capped at 95 %), `nil` within
+  `balancedMargin` (1 pp).
+- Tests: `HandicapAdjustTests` (next human / computer roll uses the new dice, computer rerolls with
   tokens added mid-game, tokens + marks, save/resume and game-log round trips, old JSON, My Record
   count, next game, favoured side).
 
 **Dice maths (`HandicapDice`) — keep in sync with the Python** (`domain/handicap.py`
-`tilted_roll_probs`/`weighted_faces`, `ai/agent.py` `roll_values`, `ai/handicap_sweep.py`
-`wants_reroll`): rolls in `diceOutcomes` order (= `ROLLS`), p = 1/36 doubles, 2/36 others;
-`rollValues` = best 1-ply move value per roll, a no-move roll = `1 − value(opponent to move)`;
-`tilt` = `p'(r) ∝ p(r)·exp(β·v(r))` (β = 0 returns the fair p exactly); `weightedFaces` = inverse
-CDF of `u = (int(6u1)+u2)/6` over the 36 ordered outcomes (β = 0 is `(face(u1), face(u2))`);
-`shouldReroll` = `v(roll) < E_p[v] − 0.02` with p the side's own (tilted) distribution. Pinned by
-Python-generated cases. Differences: no bear-off DB in Swift (race values are the net's).
+`roll_spread`/`lean_beta`/`gain_beta`/`hybrid_beta`/`turn_beta`/`tilted_roll_probs`/`weighted_faces`,
+`ai/agent.py` `roll_values`, `ai/handicap_sweep.py` `wants_reroll`): rolls in `diceOutcomes` order
+(= `ROLLS`), p = 1/36 doubles, 2/36 others; `rollValues` = best 1-ply move value per roll, a no-move
+roll = `1 − value(opponent to move)`; `tilt` = `q(r) ∝ p(r)·exp(β·v(r))` (β = 0 returns the fair p
+exactly); `weightedFaces` = inverse CDF of `u = (int(6u1)+u2)/6` over the 36 ordered outcomes (β = 0
+is `(face(u1), face(u2))`, so one uniform pair per turn, deterministic, and the Python harness's
+paired draw are unchanged); `shouldReroll` = `v(roll) < E_q[v] − 0.02` with q the side's own (tilted)
+distribution. Pinned by Python-generated cases (`WeightedDiceModesTests.parity`: β_t and the drawn
+faces per mode × level × maxPoints on float32-exact values). Differences: no bear-off DB in Swift
+(race values are the net's).
+
+**Weighted-dice modes (#261).** All three draw from `q(r) ∝ p(r)·e^{β_t·v(r)}` with a per-turn β_t
+(`beta(values:dice:maxPoints:)`). With μ = Σ p v and σ² = Σ p (v − μ)² (`spread`), the expected luck
+of a turn is E_q[v] − μ, which to first order is **β·σ²** (d/dβ E_q[v] = Var_q(v)). The old fixed β
+therefore gave almost nothing in quiet positions (σ ≈ 1 pp) and a lot in tense ones (σ ≈ 8 pp): the
+three modes choose β_t per turn instead.
+- **Lean** (`leanBeta`): β_t = κ / max(σ, σ_floor). A roll z standard deviations above another is
+  e^{κ z}× as likely relative to fair, in every position (2σ above average: e^{2κ}×); gain ≈ κ·σ.
+- **Fixed gain** (`gainBeta`): the largest β_t ≥ 0 with E_q[v] − μ ≤ g and max_r q(r)/p(r) ≤ M
+  (`gainCap` = 3). Both are monotone in β (d/dβ of log(q_top/p_top) = v_max − E_q[v] ≥ 0), so one
+  bisection over [0, `betaSpan`/σ] (50/σ, 60 halvings, keeping the lower end) finds it: g is hit
+  where reachable, otherwise the cap binds (or, when the best value already carries ≥ 1/M of the
+  mass, the span). σ < σ_floor → β_t = 0, fair dice (the rolls then differ by model noise).
+- **Hybrid** (`hybridBeta`): β_t = min(fixed gain's β_t, κ_max / max(σ, σ_floor)), κ_max =
+  `hybridKappaMax` = 0.3 — fixed gain in tense positions, at most a lean of 0.3 (2σ: ≈ 1.8×) in
+  quiet ones.
+- **Constants**: σ_floor = `sigmaFloor` = 0.01 (1 pp), M = 3, κ_max = 0.3. **Steps** (Slight →
+  Very strong, the same for either side, `WeightedDiceMode.strengths`): lean κ 0.04 / 0.08 / 0.15 /
+  0.25; fixed gain and hybrid g 0.2 / 0.4 / 0.8 / 1.5 pp per roll. Calibrated with
+  `scripts/weighted_dice_calibration.py` (gold_v11, 1-ply self-play, 120 games; σ median 2.2 pp,
+  28 % of turns under 1 pp) so a level is about as strong in every mode — first-order gain per game
+  (Σ over the favoured side's rolls of E_q[v] − μ) ≈ lean +7 / +14 / +27 / +48 pp, fixed gain +8 /
+  +16 / +30 / +50, hybrid +8 / +15 / +26 / +37 (`firstOrderGainPerGame`). For scale: the old β 0.3 /
+  0.6 / 1.2 / 2.0 sum to +3.7 / +7.5 / +15.5 / +27.1 and measured +3.7 / +6.2 / +13.6 / +22.0 in
+  E1, so the first-order sum overstates strong tilts by ~10–20 %. (The issue's example grids — κ up
+  to 0.8, g up to 5 pp — would sum to +100 pp and more: a near-certain win from the first step.)
+- **2-point variants** (Portes, Fevga, standard Plakoto): v is normalised equity
+  (0.5 + points / (2 · maxPoints)), so g and σ_floor are **win-chance-equivalent pp** — the review's
+  per-roll luck unit (normalised Δ × maxPoints) — and divided by `maxPoints` in value units; κ, M and
+  κ_max are scale-free. Portes measured ≈ the same per-game gains (σ is larger, games shorter).
+- **Estimate**: no mode is measured, so weighted dice are "not measured yet" (listed in
+  `HandicapEstimate.unmeasured` as `weighted_lean` / `weighted_gain` / `weighted_hybrid`); the
+  other levers keep their measured numbers (since #261 `combine` adds the measured singles of a side
+  even when one of its levers is unmeasured). The review's dice-luck measure is unchanged.
 
 **Estimate (`HandicapEstimator`, concept §5).** `positionWhiteWinChance(setup, agent, rule)`:
 from the handicap start, the starter's fair mean of `rollValues` (= harness `start_estimate`);
 "moves first" fixes the starter, else `HandicapStartRule` — `.rollOff` (the app's opening roll: a
 fair coin, the starter then rolls fresh) averages both starters (exactly 0.5 with no handicap),
 `.fixed(c)`. `combine(positionWhite:setup:table:)` adds log-odds: per side, the measured shift of
-its dice-lever cell (`weighted_dice:β`, `rerolls:N`, or an exact `+` combo) from `HandicapTable`
+its dice-lever cell (`rerolls:N`, `weighted_<mode>:<strength>` once measured, or an exact `+` combo)
+from `HandicapTable`
 (`HandicapTable.json` in the app bundle, keyed like `docs/handicap-e1-tier1.json`, generated by
 `ios/scripts/make_handicap_table.py`; shift = `logit(favoured win rate)`). Unmeasured levers are
-listed in `unmeasured` and left out of the number; hints only set `approximate`.
+listed in `unmeasured` and left out of the number, the measured ones still count; hints only
+set `approximate`. The old E1 `weighted_dice:β` cells were dropped from the table in #261.
 **Per variant (#246):** the table was measured in house Plakoto only (`HandicapTable.measuredVariantIDs`,
 `forVariant(_:)` → `.unmeasured` elsewhere) and `HandicapEstimator.isMeasured(variantID:)` is
 house Plakoto only — the 2-point variants' net values are normalized equity, not a win chance —
 so the app shows "not measured yet" for the other variants and Full Tavli instead of a number.
 The per-roll values (`rollValues`) are variant-generic: the variant's `legalMoves` (Portes bar
 entry first, hits; Fevga no hitting + the lock rule) and its `terminalValue`, a moveless roll (e.g.
-a blocked Portes entry) a pass, identical to `DiceLuck.rollValues` (pinned per variant). β keeps
-the one grid; in a 2-point variant the same β tilts a little less (values span half the range).
+a blocked Portes entry) a pass, identical to `DiceLuck.rollValues` (pinned per variant). The
+weighted-dice modes scale g and σ_floor by `maxPoints` (above), so a level means the same
+win-chance-equivalent luck per roll in every variant.
 
 ## Handicaps, tier 2 (#148 P3b)
 
