@@ -1614,7 +1614,7 @@ enum ChromeType {
     static var wordmark: Font { .custom("Cormorant Garamond", size: pt(96)) }
     /// The wordmark size for a *localized* display line ("Play Online", "Full Tavli"):
     /// the display serif, or the system serif where it lacks the UI script (#225).
-    /// The "Tavlo" brand wordmark itself always keeps `wordmark`.
+    /// The "Tavtav" brand wordmark itself always keeps `wordmark`.
     static var localizedWordmark: Font {
         // The system fallback (Persian, #229) has taller, heavier glyphs and long titles
         // ("بازی آنلاین"): 96 pt filled the whole phone width, so it runs smaller there.

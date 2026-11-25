@@ -47,7 +47,7 @@ DEVICES="iphone ipad"
 BUILD=1
 IPHONE_UDID="${IPHONE_UDID:-5065195B-B000-40D6-8E99-F14EDDFA0991}"
 IPAD_UDID="${IPAD_UDID:-5DD9979A-94BA-4A1C-8E47-323E3E433441}"
-DERIVED_DATA="${DERIVED_DATA:-${TMPDIR:-/tmp}/tavlo-screenshots-dd}"
+DERIVED_DATA="${DERIVED_DATA:-${TMPDIR:-/tmp}/tavtav-screenshots-dd}"
 BUNDLE_ID="com.plakoto.TavliApp"
 SETTLE="${SETTLE:-6}"   # seconds between launch and capture
 

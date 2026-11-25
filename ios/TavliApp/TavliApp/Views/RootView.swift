@@ -657,7 +657,7 @@ private enum FullTavliScreen: Equatable {
 }
 
 /// Caramel start screen (#101, slimmed down in #174, quick play in #189). Top to bottom:
-/// an icon bar (My Record · Saved games · Settings), the "Tavlo" wordmark, a "Continue
+/// an icon bar (My Record · Saved games · Settings), the "Tavtav" wordmark, a "Continue
 /// last game" card (only while an autosave exists), the play pair — a big "Play the
 /// computer" button that starts the remembered setup at once (subtitle "Level 6 ·
 /// Plakoto · Best of 3") beside a small square adjust button opening `NewGameSheet` —

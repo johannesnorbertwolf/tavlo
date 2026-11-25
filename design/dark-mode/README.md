@@ -54,7 +54,7 @@ A true-black screen with neutral near-black surfaces. The board itself turns wal
 with a caramel edge, a near-black play surface, and saturated cream-gold points (#ead09a, deliberately
 *not* a beige that would go dusty). The checkers become the brightest objects, so contrast for play
 is the best of all four. It is the least glare at night, but the board is a second palette to maintain
-and is less "the Tavlo board".
+and is less "the Tavtav board".
 
 ### D · Kafeneio felt: something unexpected
 Deep bottle-green chrome with a **green felt play surface** inside the caramel frame: the café-table

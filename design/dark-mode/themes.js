@@ -1,4 +1,4 @@
-// Dark-mode sketch tokens for Tavlo (#191). One object per direction; `light` is
+// Dark-mode sketch tokens for Tavtav (#191). One object per direction; `light` is
 // today's app (CaramelPalette / ChromeTheme / ChromeKit) as the reference.
 // Shared by mock.html (rendering) and contrast.js (WCAG checks).
 (function (root) {

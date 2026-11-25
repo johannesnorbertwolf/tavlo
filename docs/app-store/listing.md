@@ -1,4 +1,4 @@
-# App Store listing — Tavlo v1 (#184)
+# App Store listing — Tavtav v1 (#184)
 
 Draft texts for App Store Connect, one section per locale. Limits (App Store Connect): name ≤ 30,
 subtitle ≤ 30, promotional text ≤ 170, keywords ≤ 100 (comma-separated, no spaces after commas),
@@ -14,10 +14,10 @@ Greek needs a native-speaker check, like the in-app texts.
 - Handicaps stay out of the listing while they are experimental.
 - The drill leads the LEARN list.
 - Language order: English, Greek, German, Dutch.
-- **No Persian/Iran references and no Persian (fa) App Store localization** until Tavlo fully
+- **No Persian/Iran references and no Persian (fa) App Store localization** until Tavtav fully
   supports the Iranian (takhteh) rules (see `docs/playing-communities.md`, #248). The app itself
   keeps Persian, and the privacy page keeps its Persian section.
-- "Tavlo" alone is taken on the App Store (another developer's app), hence "Tavlo: …".
+- Store name is "Tavtav: Tavli & Backgammon" (decided 2026-11-25).
 
 ## Shared fields (all locales)
 
@@ -35,7 +35,7 @@ Greek needs a native-speaker check, like the in-app texts.
 
 **Notes for App Review** (English only):
 
-> Tavlo is a free backgammon app for the three Greek variants (Plakoto, Fevga, Portes). No account
+> Tavtav is a free backgammon app for the three Greek variants (Plakoto, Fevga, Portes). No account
 > or login is needed. Everything except "Play Online" works offline against an on-device neural
 > network. "Play Online" uses Game Center turn-based matches: sign in to Game Center, tap
 > "Invite a friend" and send the invite to a second Game Center account, or use auto-match. The
@@ -45,7 +45,7 @@ Greek needs a native-speaker check, like the in-app texts.
 
 ## English (en-US, primary)
 
-**Name:** Tavlo: Tavli & Backgammon
+**Name:** Tavtav: Tavli & Backgammon
 
 **Subtitle:** Plakoto, Fevga & Portes
 
@@ -58,7 +58,7 @@ tavla,τάβλι,tawla,narde,mahbusa,tapa,long nardy,board game,dice,strategy,tw
 **Description:**
 
 ```
-Tavlo is free, open-source tavli. No ads, no tracking, no account, nothing to buy. Play online or offline, on iPhone and iPad.
+Tavtav is free, open-source tavli. No ads, no tracking, no account, nothing to buy. Play online or offline, on iPhone and iPad.
 
 Three games: Plakoto, Fevga and Portes. You may know them by other names: Portes is close to backgammon (tavla), Plakoto to tapa and mahbusa, Fevga to long nardy.
 
@@ -82,7 +82,7 @@ Dark mode. English, Greek, German and Dutch.
 
 ## Greek (el) — needs a native-speaker check
 
-**Name:** Tavlo: Τάβλι & Backgammon
+**Name:** Tavtav: Τάβλι & Backgammon
 
 **Subtitle:** Πλακωτό, Φεύγα και Πόρτες
 
@@ -95,7 +95,7 @@ tavli,ταβλι,πλακωτο,φευγα,πορτες,επιτραπέζιο,�
 **Description:**
 
 ```
-Το Tavlo είναι δωρεάν τάβλι ανοιχτού κώδικα. Χωρίς διαφημίσεις, χωρίς παρακολούθηση, χωρίς λογαριασμό, χωρίς αγορές. Παίξε online ή offline, σε iPhone και iPad.
+Το Tavtav είναι δωρεάν τάβλι ανοιχτού κώδικα. Χωρίς διαφημίσεις, χωρίς παρακολούθηση, χωρίς λογαριασμό, χωρίς αγορές. Παίξε online ή offline, σε iPhone και iPad.
 
 Τρία παιχνίδια: Πλακωτό, Φεύγα και Πόρτες. Ίσως τα ξέρεις και με άλλα ονόματα: οι Πόρτες μοιάζουν με το backgammon (tavla), το Πλακωτό με το tapa και το mahbusa, η Φεύγα με το long nardy.
 
@@ -119,7 +119,7 @@ tavli,ταβλι,πλακωτο,φευγα,πορτες,επιτραπέζιο,�
 
 ## German (de-DE)
 
-**Name:** Tavlo: Tavli & Backgammon
+**Name:** Tavtav: Tavli & Backgammon
 
 **Subtitle:** Plakoto, Fevga und Portes
 
@@ -132,7 +132,7 @@ tavla,τάβλι,puff,brettspiel,würfelspiel,strategie,zwei spieler,offline,mah
 **Description:**
 
 ```
-Tavlo ist kostenloses Open-Source-Tavli. Keine Werbung, kein Tracking, kein Konto, nichts zu kaufen. Spiele online oder offline, auf iPhone und iPad.
+Tavtav ist kostenloses Open-Source-Tavli. Keine Werbung, kein Tracking, kein Konto, nichts zu kaufen. Spiele online oder offline, auf iPhone und iPad.
 
 Drei Spiele: Plakoto, Fevga und Portes. Vielleicht kennst du sie unter anderen Namen: Portes ähnelt Backgammon (Tavla), Plakoto Tapa und Mahbusa, Fevga Long Nardy.
 
@@ -156,7 +156,7 @@ Dark Mode. Auf Englisch, Griechisch, Deutsch und Niederländisch.
 
 ## Dutch (nl-NL)
 
-**Name:** Tavlo: Tavli & Backgammon
+**Name:** Tavtav: Tavli & Backgammon
 
 **Subtitle:** Plakoto, Fevga en Portes
 
@@ -169,7 +169,7 @@ tavla,τάβλι,bordspel,dobbelstenen,strategie,twee spelers,offline,klassiek,t
 **Description:**
 
 ```
-Tavlo is gratis, opensource tavli. Geen advertenties, geen tracking, geen account, niets te koop. Speel online of offline, op iPhone en iPad.
+Tavtav is gratis, opensource tavli. Geen advertenties, geen tracking, geen account, niets te koop. Speel online of offline, op iPhone en iPad.
 
 Drie spellen: Plakoto, Fevga en Portes. Misschien ken je ze onder andere namen: Portes lijkt op backgammon (tavla), Plakoto op tapa en mahbusa, Fevga op long nardy.
 
