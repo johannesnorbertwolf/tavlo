@@ -6,7 +6,7 @@ focus is the Greek set (tavli). Nothing here is planned work yet.**
 
 ## Summary
 
-Tavlo plays the three Greek games of **tavli**: Portes, Plakoto and Fevga. Each has close
+Tavtav plays the three Greek games of **tavli**: Portes, Plakoto and Fevga. Each has close
 relatives elsewhere, played under other names and with small rule differences:
 
 | Our game | Same or very close game | Where | Known rule differences (vs ours) |

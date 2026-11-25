@@ -286,7 +286,7 @@ enum SettingsKey {
     /// under the family's house rules (`GameVariantSetting.playing(houseRules:)`).
     static let houseRules          = VariantPreference.houseRulesKey
     /// Developer tools (the ladybug debug pane) in a release build: a switch in the iOS
-    /// Settings app under Tavlo (`Settings.bundle`), off by default. DEBUG builds always
+    /// Settings app under Tavtav (`Settings.bundle`), off by default. DEBUG builds always
     /// show them (`DeveloperTools.isEnabled`).
     static let developerTools      = "settings.developerTools"
     /// Light / dark / follow-the-system appearance (#191, default `.system`).

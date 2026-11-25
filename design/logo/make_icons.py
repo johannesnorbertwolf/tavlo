@@ -1,4 +1,4 @@
-"""Generate the Tavlo logo / app-icon SVGs (logo A: three alternating points).
+"""Generate the Tavtav logo / app-icon SVGs (logo A: three alternating points).
 
 Run: python3 design/logo/make_icons.py
 The middle (light) point's apex sits 8 units lower than its neighbours: optical

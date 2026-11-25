@@ -8,7 +8,7 @@ file and run this again. Output formatting matches Xcode's (`indent=2`, `" : "`)
 diff only adds lines.
 
 Checks before writing: every key exists in the catalog; every key that has a German
-translation has a Greek one (the 8 untranslated keys -- "%@", "—", "Tavlo", ... -- are
+translation has a Greek one (the 8 untranslated keys -- "%@", "—", "Tavtav", ... -- are
 skipped like in de/nl); and each value has the same format specifiers as its source
 (positions ignored, so `%1$@ %2$@` matches `%@ %@`).
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Archive Tavlo for the App Store, and with --upload send it to App Store Connect
+# Archive Tavtav for the App Store, and with --upload send it to App Store Connect
 # (it then appears in TestFlight after Apple's processing, ~15–30 min).
 #
 #   bash ios/scripts/release_archive.sh            # archive + export a signed .ipa (no upload)
@@ -44,11 +44,11 @@ if [ "$ALLOW_DIRTY" != true ] && [ -n "$(git status --porcelain -- "$IOS")" ]; t
 fi
 BUILD="$(git rev-list --count HEAD)"
 VERSION="$(sed -n 's/^ *MARKETING_VERSION: *"\(.*\)"/\1/p' project.yml)"
-echo "→ Tavlo $VERSION ($BUILD), team $TEAM, commit $(git rev-parse --short HEAD)"
+echo "→ Tavtav $VERSION ($BUILD), team $TEAM, commit $(git rev-parse --short HEAD)"
 
 # 3. Archive.
 xcodegen generate --quiet
-ARCHIVE="$OUT/Tavlo-$VERSION-$BUILD.xcarchive"
+ARCHIVE="$OUT/Tavtav-$VERSION-$BUILD.xcarchive"
 rm -rf "$ARCHIVE"
 xcodebuild -project TavliApp.xcodeproj -scheme TavliApp -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
@@ -84,7 +84,7 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportOptionsPlist "$PLIST" \
   -exportPath "$OUT/export-$BUILD" -allowProvisioningUpdates -quiet
 
 if [ "$UPLOAD" = true ]; then
-  echo "✓ Uploaded Tavlo $VERSION ($BUILD). It shows up in App Store Connect → TestFlight after processing."
+  echo "✓ Uploaded Tavtav $VERSION ($BUILD). It shows up in App Store Connect → TestFlight after processing."
 else
   echo "✓ Exported $OUT/export-$BUILD/TavliApp.ipa (not uploaded; pass --upload to send it)."
 fi
