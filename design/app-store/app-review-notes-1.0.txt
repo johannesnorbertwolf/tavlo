@@ -1,0 +1,23 @@
+1. SCREEN RECORDING
+Attached to this submission (App Review Information > Attachment). Recorded on an iPhone 13 mini (iOS 27) with the submitted build; the device language is Dutch, so the app appears in Dutch. It starts at launch from the Home Screen and shows the new-game options, a game against the computer, resigning, the post-game review, a second game (Portes), and the drill that replays your mistakes. The app has no account registration or login, no user-generated content, and no paid content, so none of those flows exist.
+
+2. PURPOSE AND AUDIENCE
+Tavtav is a free, open-source app for tavli, the Greek family of backgammon games: Plakoto, Fevga and Portes. It is for people who grew up with these games and want to keep playing them, including with family far away, and for anyone learning them. Most backgammon apps only offer the international rules. Tavtav plays all three Greek variants, with a strong computer opponent and tools to learn from your own games. No ads, no tracking, no account, no purchases.
+
+3. HOW TO USE THE MAIN FEATURES (no login needed)
+- Play against the computer: on the start screen choose a game (Plakoto, Fevga or Portes) and tap Play. Roll the dice by tapping, then move checkers by tapping or dragging. The computer moves automatically. Strength and options are in Settings.
+- Two players on one device: tap the two-player option on the start screen.
+- Match formats: a single game, best of three, or Full Tavli (all three games in a row).
+- Optional variations in Settings: family house rules for Plakoto, and handicaps (for example a head start or weighted dice) so players of different strength can have an even game. All are off by default.
+- Learn: after a game (or after resigning via the menu), the game-over screen offers Review: a win-chance graph, your moves next to the best moves, and an accuracy score. The drill replays positions where you made a mistake until you find the better move.
+- Play Online: tap Play Online. The app asks you to sign in to Game Center (the Apple account already on the device). Then invite a Game Center friend or use auto-match. Testing an online match needs two devices with two different Game Center accounts. Online games are turn-based. Only game moves are exchanged: there is no chat or other free text.
+
+4. EXTERNAL SERVICES
+- Apple Game Center (GameKit turn-based matches): only for the optional Play Online feature.
+- Nothing else. The computer opponent and the game analysis run entirely on the device (Core ML models trained by the developer and bundled with the app). No third-party SDKs, servers, analytics, AI services, authentication or payment providers.
+
+5. REGIONAL DIFFERENCES
+None. The app works the same in all regions where it is offered. It is localized into English, Greek, German and Dutch. Only the language changes.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Not applicable. Tavli and its variants are traditional public-domain board games. All code, artwork and the AI models are the developer's own (open source, AGPL-3.0, public repository). The fonts are open-licensed (SIL Open Font License). There is no gambling and no betting: the dice only decide moves in the game.
