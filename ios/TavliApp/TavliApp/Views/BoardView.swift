@@ -12,12 +12,18 @@ import BoardGeometry
 /// `docs/design/tavli/project/Tavli Board.html` and are scaled by `geo.scale`.
 public struct BoardView: View {
     var flipped: Bool = false
+    /// Fevga (#270): the two trays sit beside their own homes (`BoardGeometry.splitTrays`).
+    var splitTrays: Bool = false
 
-    public init(flipped: Bool = false) { self.flipped = flipped }
+    public init(flipped: Bool = false, splitTrays: Bool = false) {
+        self.flipped = flipped
+        self.splitTrays = splitTrays
+    }
 
     public var body: some View {
         Canvas { context, size in
-            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped)
+            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped,
+                                    splitTrays: splitTrays)
             draw(in: &context, geo: geo)
         }
         .aspectRatio(1, contentMode: .fit)

@@ -90,6 +90,12 @@ placed by bearing direction (refined now that #31 renders borne-off checkers):
 - **Slot 0** (Black; home 1–6/BR) occupies the **bottom half**, `y ∈ [450, 860]`.
 - `center` is the tray's midpoint, `tip == center`, `quadrant == nil`,
   `isTop == (index == 25)`.
+- **Split trays (#270, Fevga).** Both colours run counter-clockwise, so the homes are
+  diagonal (White TR, Black BL = points 7–12). `BoardGeometry(rect:flipped:splitTrays:)`
+  with `splitTrays == true` (callers: `BoardLayout.splitTrays(variant:)`, i.e. Fevga only)
+  puts **slot 0 (Black) on the left strip** `x ∈ [0, 40]` bottom half, slot 25 stays
+  top-right; `flipped` rotates the pair 180° (White bottom-left, Black top-right).
+  Checker centres, `hitRect`, gold target box all follow the tray. Plakoto/Portes: unchanged.
 
 ## Bar slots (26 and 27, #143)
 

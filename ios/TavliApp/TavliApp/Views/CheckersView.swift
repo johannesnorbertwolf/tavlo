@@ -26,17 +26,21 @@ struct CheckersView: View {
     /// stacks (`BoardLayout.slotCount` entries, slots 26/27 = White/Black bar).
     let stacks: [[TavliEngine.Color]]
     var flipped: Bool = false
+    /// Fevga (#270): trays beside each side's own home (`BoardGeometry.splitTrays`).
+    private let splitTrays: Bool
 
     init(stacks: [[TavliEngine.Color]], flipped: Bool = false,
          variant: any GameVariant = GameVariants.plakoto) {
         self.stacks = stacks.count == BoardLayout.slotCount
             ? stacks : BoardLayout.displayStacks(stacks, variant: variant)
         self.flipped = flipped
+        self.splitTrays = BoardLayout.splitTrays(variant: variant)
     }
 
     var body: some View {
         Canvas { context, size in
-            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped)
+            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped,
+                                    splitTrays: splitTrays)
             draw(in: &context, geo: geo)
         }
         .aspectRatio(1, contentMode: .fit)

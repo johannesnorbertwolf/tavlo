@@ -65,6 +65,15 @@ struct RootView: View {
             _autosaveName = State(initialValue: RootView.newAutosaveName())
             return
         }
+        if let seeded = RootView.debugFevgaBearOffSession() {
+            // `-debugFevgaBearOff[Black]` (#270, DEBUG only): a two-player Fevga bear-off
+            // with checkers off on both sides, for checking the split trays.
+            let color: EngineColor = ProcessInfo.processInfo.arguments.contains("-debugFevgaBearOffBlack") ? .black : .white
+            _session = State(initialValue: seeded)
+            _humanColor = State(initialValue: color)
+            _autosaveName = State(initialValue: RootView.newAutosaveName())
+            return
+        }
         #endif
         if ProcessInfo.processInfo.arguments.contains("-uiTestGame") {
             let s = RootView.makeSession(humanColor: .black, startingPlayer: .black)
@@ -585,6 +594,8 @@ struct RootView: View {
     private static var isDebugSeededGame: Bool {
         #if DEBUG
         return ProcessInfo.processInfo.arguments.contains("-debugHandicapBearOff")
+            || ProcessInfo.processInfo.arguments.contains("-debugFevgaBearOff")
+            || ProcessInfo.processInfo.arguments.contains("-debugFevgaBearOffBlack")
             || ScreenshotScenes.isGame
         #else
         return false
@@ -592,6 +603,36 @@ struct RootView: View {
     }
 
     #if DEBUG
+    /// `-debugFevgaBearOff` / `-debugFevgaBearOffBlack` (#270): a two-player Fevga game in a
+    /// bear-off, 6 White and 4 Black checkers off, the side named by the argument to move
+    /// with a 5 + 3 that bears off. For screenshots of the trays beside each home.
+    @MainActor
+    private static func debugFevgaBearOffSession() -> GameSession? {
+        let args = ProcessInfo.processInfo.arguments
+        let black = args.contains("-debugFevgaBearOffBlack")
+        guard black || args.contains("-debugFevgaBearOff") else { return nil }
+        let config = GameVariantSetting.fevga.config
+        let session = GameSession(startingPlayer: black ? .black : .white, config: config,
+                                  agent: nil, aiColor: nil,
+                                  searchConfig: AppSettings.searchConfig,
+                                  animationTimings: AppSettings.animationTimings,
+                                  autoRoll: false)
+        let board = session.game.board
+        for i in board.points.indices { board.setPoint(i, pieces: []) }
+        board.setPoint(25, pieces: Array(repeating: .white, count: 6))
+        board.setPoint(20, pieces: [.white, .white])
+        board.setPoint(22, pieces: [.white])
+        board.setPoint(24, pieces: [.white, .white, .white, .white, .white, .white])
+        board.setPoint(0, pieces: Array(repeating: .black, count: 4))
+        board.setPoint(8, pieces: [.black, .black])
+        board.setPoint(10, pieces: [.black, .black, .black])
+        board.setPoint(12, pieces: [.black, .black, .black, .black, .black, .black])
+        session.start()
+        session.setDice(5, 3)
+        if args.contains("-debugFevgaSelect") { session.selectPoint(black ? 8 : 20) }   // shows the tray target
+        return session
+    }
+
     /// `-debugHandicapBearOff` (#236): you (White) vs the computer in a house-Plakoto
     /// handicap game — you: 2 rerolls, 3 hints, a 2-checker head start; the computer:
     /// moderate hybrid weighted dice — seeded straight into a bear-off with 12 White and 10 Red

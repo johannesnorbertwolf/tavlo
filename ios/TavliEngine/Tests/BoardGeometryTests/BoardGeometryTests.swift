@@ -275,4 +275,33 @@ final class BoardGeometryTests: XCTestCase {
         let flipped = BoardGeometry(rect: CGRect(x: 0, y: 0, width: 900, height: 900), flipped: true)
         XCTAssertEqual(flipped.checkerCenter(point: lower, slot: 0), geom.checkerCenter(point: upper, slot: 0))
     }
+
+    // Fevga (#270): split trays sit beside each side's own home.
+    func testSplitTraysUnflipped() {
+        let g = BoardGeometry(rect: CGRect(x: 0, y: 0, width: 900, height: 900), splitTrays: true)
+        // White (25): top-right strip; Black (0): bottom-left strip.
+        XCTAssertEqual(g.point(25).hitRect.minX, 860, accuracy: eps)
+        XCTAssertLessThan(g.point(25).hitRect.maxY, 450 + eps)
+        XCTAssertEqual(g.point(0).hitRect.minX, 0, accuracy: eps)
+        XCTAssertGreaterThan(g.point(0).hitRect.minY, 450 - eps)
+        XCTAssertLessThan(g.checkerCenter(point: 0, slot: 0).x, 40 + eps + 40)
+        XCTAssertGreaterThan(g.checkerCenter(point: 25, slot: 0).x, 860)
+        XCTAssertEqual(g.hitTest(g.point(0).center, candidates: [0, 25]), 0)
+    }
+
+    func testSplitTraysFlippedRotates180() {
+        let g = BoardGeometry(rect: CGRect(x: 0, y: 0, width: 900, height: 900),
+                              flipped: true, splitTrays: true)
+        // Black's view: White's tray is bottom-left, Black's top-right.
+        XCTAssertEqual(g.point(25).hitRect.minX, 0, accuracy: eps)
+        XCTAssertGreaterThan(g.point(25).hitRect.minY, 450 - eps)
+        XCTAssertEqual(g.point(0).hitRect.minX, 860, accuracy: eps)
+        XCTAssertLessThan(g.point(0).hitRect.maxY, 450 + eps)
+    }
+
+    func testSharedTraysUnchangedWithoutSplit() {
+        let g = BoardGeometry(rect: CGRect(x: 0, y: 0, width: 900, height: 900))
+        XCTAssertEqual(g.point(0).hitRect.minX, 860, accuracy: eps)
+        XCTAssertEqual(g.point(25).hitRect.minX, 860, accuracy: eps)
+    }
 }
