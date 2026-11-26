@@ -99,6 +99,31 @@ public enum OnlineMatchStatus: Equatable, Sendable {
     case error(String)
 }
 
+/// How the live turn (#269) is shared: the mover writes its turn in progress with
+/// `saveTurn` (GameKit `saveCurrentTurn`, which raises a turn event on the other
+/// participant's device), coalesced so a burst of half-moves costs one write. The roll
+/// goes out at once; half-moves / undos after `debounce`, never two writes closer than
+/// `minInterval`, at most one write in flight, always the latest state. The waiting
+/// side applies every update it gets and, as a fallback for a missed event, reloads
+/// the match every `pollInterval` while the opponent is on turn (doubling up to
+/// `maxPollInterval` while nothing changes; `nil` = events only).
+public struct LiveTurnTiming: Equatable, Sendable {
+    public var debounce: TimeInterval
+    public var minInterval: TimeInterval
+    public var pollInterval: TimeInterval?
+    public var maxPollInterval: TimeInterval
+
+    public init(debounce: TimeInterval = 0.6, minInterval: TimeInterval = 1.0,
+                pollInterval: TimeInterval? = 5, maxPollInterval: TimeInterval = 60) {
+        self.debounce = debounce
+        self.minInterval = minInterval
+        self.pollInterval = pollInterval
+        self.maxPollInterval = maxPollInterval
+    }
+
+    public static let standard = LiveTurnTiming()
+}
+
 // ── The controller ──────────────────────────────────────────────────────────────
 
 /// Drives one online (Game Center turn-based) match at a time on top of an
@@ -123,6 +148,11 @@ public enum OnlineMatchStatus: Equatable, Sendable {
 ///   local win.
 /// - A turn that fails to send is kept: the board is not rolled back, and a stale
 ///   server snapshot never overwrites it; `refresh()` / the retry resends it.
+/// - **Live turn (#269):** the local turn in progress (roll, half-moves, undos) is
+///   written as the payload's optional `liveTurn` (see `LiveTurnTiming`); the other
+///   device shows it read-only via `GameSession.showRemoteTurn` and the finished ply
+///   continues from it. A live write never blocks or replaces a real turn: `endTurn`
+///   waits for an in-flight live write, and a failed live write is just dropped.
 @MainActor
 public final class OnlineMatchController: ObservableObject {
 
@@ -168,6 +198,28 @@ public final class OnlineMatchController: ObservableObject {
     private var recordCancellable: AnyCancellable?
     private var pendingOp: PendingOp?
     private var currentPlayerID: String?
+    /// A real turn write (`endTurn` / `saveTurn` / `endMatch`) is with the service.
+    private var realOpInFlight = false
+
+    // Live turn (#269), mover side.
+    private let liveTiming: LiveTurnTiming?
+    private var sessionChangeCancellable: AnyCancellable?
+    private var liveSendTask: Task<Void, Never>?
+    private var liveSaveInFlight = false
+    /// The last live state the service confirmed.
+    private var lastSentLive: LiveTurn?
+    private var lastLiveSendAt = Date.distantPast
+    private var liveSeq = 0
+    private var liveFailures = 0
+    /// A real op that waits for the live write in flight (GameKit rejects overlapping
+    /// writes to one match with a game-state-version error).
+    private var deferredOp: (op: PendingOp, matchID: String)?
+
+    // Live turn (#269), waiting side.
+    private var shownLive: LiveTurn?
+    private var pollTask: Task<Void, Never>?
+    private var pollDelay: TimeInterval = 0
+    private var lastSnapshotData: Data?
 
     private enum PendingOp {
         case endTurn(Data), saveTurn(Data), endMatch(Data, localWon: Bool)
@@ -175,11 +227,14 @@ public final class OnlineMatchController: ObservableObject {
 
     private var localPlayerID: String { service.localPlayerID }
 
+    /// `liveTurns`: how the turn in progress is shared (#269); `nil` turns it off (only
+    /// finished turns are sent, as before).
     public init(service: OnlineMatchService, animationTimings: AnimationTimings = .standard,
-                retryDelay: TimeInterval? = 10) {
+                retryDelay: TimeInterval? = 10, liveTurns: LiveTurnTiming? = .standard) {
         self.service = service
         self.animationTimings = animationTimings
         self.retryDelay = retryDelay
+        self.liveTiming = liveTurns
     }
 
     // ── Entry points ────────────────────────────────────────────────────────────
@@ -224,11 +279,18 @@ public final class OnlineMatchController: ObservableObject {
     /// Reload the open match from the service (app returned to the foreground, or a
     /// send failed) and apply it — resending an unsent local turn if still needed.
     public func refresh() {
+        refresh(quiet: false)
+    }
+
+    /// `quiet`: the live-turn poll (#269) — a failed load is not reported (the next
+    /// poll or event catches up).
+    private func refresh(quiet: Bool) {
         guard let id = activeMatchID else { return }
         service.load(matchID: id) { [weak self] snapshot, error in
             guard let self, self.activeMatchID == id else { return }
             if let snapshot { self.apply(snapshot) }
-            else if let error { self.status = .error(error.localizedDescription) }
+            else if let error, !quiet { self.status = .error(error.localizedDescription) }
+            else if quiet { self.schedulePoll(changed: false) }
         }
     }
 
@@ -259,6 +321,9 @@ public final class OnlineMatchController: ObservableObject {
                        newMatchVariantID: String = GameVariants.defaultID) {
         currentPlayerID = snapshot.currentPlayerID
         if let name = opponent(in: snapshot)?.displayName { opponentName = name }
+        let changed = snapshot.data != lastSnapshotData
+        lastSnapshotData = snapshot.data
+        defer { schedulePoll(changed: changed) }
 
         guard let payload = snapshot.payload else {
             // No state yet: the creator (holding the opening turn) writes it; anyone
@@ -295,6 +360,45 @@ public final class OnlineMatchController: ObservableObject {
         handleEnd(of: snapshot)
         if status == .waitingForOpponentToStart || status == .sendFailed, pendingOp == nil {
             status = nil
+        }
+        if let seq = payload.liveTurn?.seq { liveSeq = max(liveSeq, seq) }
+        showLiveTurn(payload.liveTurn)
+    }
+
+    // ── Live turn, waiting side (#269) ──────────────────────────────────────────
+
+    /// Show the opponent's turn in progress when the payload carries one for the ply
+    /// the board is waiting for and it is newer than what is shown; take a preview off
+    /// once the match is over.
+    private func showLiveTurn(_ live: LiveTurn?) {
+        guard let session else { return }
+        if isMatchOver { session.clearRemoteTurn(); return }
+        guard let live, live.gameIndex == syncedGameIndex,
+              live.plyIndex == syncedPlyCount, live.plyIndex == session.record.plies.count,
+              let mover = live.playerColor, mover != localColor,
+              session.currentPlayer == mover else { return }
+        if let shown = shownLive, shown.gameIndex == live.gameIndex,
+           shown.plyIndex == live.plyIndex, live.seq <= shown.seq { return }
+        if session.showRemoteTurn(plyIndex: live.plyIndex, die1: live.die1, die2: live.die2,
+                                  halfMoves: live.halfMoves) {
+            shownLive = live
+        }
+    }
+
+    /// The fallback poll while the opponent is on turn (`LiveTurnTiming.pollInterval`):
+    /// back to the base interval after a change, doubling while nothing changes.
+    private func schedulePoll(changed: Bool) {
+        pollTask?.cancel()
+        pollTask = nil
+        guard let timing = liveTiming, let base = timing.pollInterval, let id = activeMatchID,
+              session != nil, !isMatchOver, !isLocalTurn,
+              currentPlayerID != localPlayerID, pendingOp == nil else { pollDelay = 0; return }
+        pollDelay = (changed || pollDelay == 0) ? base : min(timing.maxPollInterval, pollDelay * 2)
+        let delay = pollDelay
+        pollTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled, self.activeMatchID == id else { return }
+            self.refresh(quiet: true)
         }
     }
 
@@ -355,6 +459,7 @@ public final class OnlineMatchController: ObservableObject {
         session = next
         syncedGameIndex = index
         syncedPlyCount = next.record.plies.count
+        shownLive = nil
         next.start()
         observeLocalTurns(of: next)
     }
@@ -434,6 +539,87 @@ public final class OnlineMatchController: ObservableObject {
                 guard let self, let session, session === self.session else { return }
                 self.handleRecordChange(session.record)
             }
+        // Any other change (roll, half-move, undo) may move the live turn on (#269).
+        // `objectWillChange` fires before the change lands; read it a turn later.
+        sessionChangeCancellable = session.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self, weak session] _ in
+                guard let self, let session, session === self.session else { return }
+                self.localTurnStateChanged()
+            }
+    }
+
+    // ── Live turn, mover side (#269) ────────────────────────────────────────────
+
+    /// The local turn in progress (dice rolled, half-moves so far), or `nil` when there
+    /// is none to share.
+    private func currentLocalLiveTurn() -> LiveTurn? {
+        guard liveTiming != nil, let session, isLocalTurn, !session.humanDiceRolling,
+              session.phase == .picking || session.phase == .moving else { return nil }
+        return LiveTurn(gameIndex: syncedGameIndex, plyIndex: session.record.plies.count,
+                        player: localColor,
+                        die1: session.game.dice.die1.value, die2: session.game.dice.die2.value,
+                        halfMoves: session.moveBuilder.built.map { [$0.from.position, $0.to.position] },
+                        seq: 0)
+    }
+
+    private func localTurnStateChanged() {
+        guard let timing = liveTiming, let live = currentLocalLiveTurn(),
+              !live.sameState(as: lastSentLive) else { return }
+        // A new roll goes out at once; half-moves / undos are coalesced.
+        let isNewRoll = lastSentLive.map {
+            $0.gameIndex != live.gameIndex || $0.plyIndex != live.plyIndex
+                || $0.die1 != live.die1 || $0.die2 != live.die2
+        } ?? true
+        scheduleLiveSend(after: isNewRoll ? 0 : timing.debounce)
+    }
+
+    /// Arm the live write. A write already scheduled is kept (it sends whatever the
+    /// state is when it fires) unless this one is due sooner (a new roll).
+    private func scheduleLiveSend(after delay: TimeInterval) {
+        guard let timing = liveTiming else { return }
+        if liveSendTask != nil, delay > 0 { return }
+        liveSendTask?.cancel()
+        let spacing = lastLiveSendAt.addingTimeInterval(timing.minInterval).timeIntervalSinceNow
+        let wait = max(delay, spacing)
+        liveSendTask = Task { @MainActor [weak self] in
+            if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
+            guard let self, !Task.isCancelled else { return }
+            self.liveSendTask = nil
+            self.flushLiveTurn()
+        }
+    }
+
+    /// Write the latest live state, unless it is already on the service or another
+    /// write is busy (its completion comes back here).
+    private func flushLiveTurn() {
+        guard let id = activeMatchID, let session, var live = currentLocalLiveTurn(),
+              !live.sameState(as: lastSentLive),
+              !liveSaveInFlight, !realOpInFlight, pendingOp == nil else { return }
+        liveSeq += 1
+        live.seq = liveSeq
+        let current = GameLog(plies: session.record.plies, result: nil)
+        guard let data = try? payload(games: completedGameLogs + [current], liveTurn: live).encoded()
+        else { return }
+        liveSaveInFlight = true
+        lastLiveSendAt = Date()
+        service.saveTurn(matchID: id, data: data) { [weak self] error in
+            guard let self else { return }
+            self.liveSaveInFlight = false
+            guard self.activeMatchID == id else { return }
+            if error == nil {
+                self.lastSentLive = live
+                self.liveFailures = 0
+            } else {
+                self.liveFailures += 1   // a preview only: dropped, never retried as a turn
+            }
+            if let deferred = self.deferredOp {
+                self.deferredOp = nil
+                self.performSend(deferred.op, matchID: deferred.matchID)
+                return
+            }
+            if self.liveFailures < 3 { self.localTurnStateChanged() }
+        }
     }
 
     private func handleRecordChange(_ record: GameRecord) {
@@ -476,8 +662,23 @@ public final class OnlineMatchController: ObservableObject {
     private func send(_ op: PendingOp, matchID: String) {
         pendingOp = op
         hasUnsentTurn = true
+        // The real turn supersedes any live write still waiting (#269); one in flight
+        // is let finish first so the two writes never overlap.
+        liveSendTask?.cancel()
+        liveSendTask = nil
+        if liveSaveInFlight {
+            deferredOp = (op, matchID)
+            return
+        }
+        performSend(op, matchID: matchID)
+    }
+
+    private func performSend(_ op: PendingOp, matchID: String) {
+        realOpInFlight = true
         let done: OnlineCompletion = { [weak self] error in
-            guard let self, self.activeMatchID == matchID else { return }
+            guard let self else { return }
+            self.realOpInFlight = false
+            guard self.activeMatchID == matchID else { return }
             if error != nil {
                 self.status = .sendFailed
                 self.scheduleRetry()
@@ -487,6 +688,8 @@ public final class OnlineMatchController: ObservableObject {
                 self.consecutiveFailures = 0
                 self.retryTask?.cancel()
                 if self.status == .sendFailed { self.status = nil }
+                self.localTurnStateChanged()   // a roll made meanwhile can go out now
+                self.schedulePoll(changed: true)
             }
         }
         switch op {
@@ -527,12 +730,13 @@ public final class OnlineMatchController: ObservableObject {
         return payload(games: completedGameLogs + [current])
     }
 
-    private func payload(games: [GameLog]) -> OnlineMatchPayload {
+    private func payload(games: [GameLog], liveTurn: LiveTurn? = nil) -> OnlineMatchPayload {
         OnlineMatchPayload(targetWins: matchState.targetWins,
                            startingPlayer: matchState.baseStartingPlayer,
                            colorByPlayerID: colorByPlayerID,
                            games: games,
-                           variant: variantID)
+                           variant: variantID,
+                           liveTurn: liveTurn)
     }
 
     /// (games, plies in the last game) — how far a log has got.
@@ -567,6 +771,20 @@ public final class OnlineMatchController: ObservableObject {
         retryTask = nil
         consecutiveFailures = 0
         recordCancellable = nil
+        sessionChangeCancellable = nil
+        liveSendTask?.cancel()
+        liveSendTask = nil
+        pollTask?.cancel()
+        pollTask = nil
+        pollDelay = 0
+        lastSnapshotData = nil
+        // An in-flight live write's completion ignores a closed match (`activeMatchID`).
+        liveSaveInFlight = false
+        realOpInFlight = false
+        deferredOp = nil
+        lastSentLive = nil
+        liveFailures = 0
+        shownLive = nil
         session = nil
         activeMatchID = nil
         opponentName = nil

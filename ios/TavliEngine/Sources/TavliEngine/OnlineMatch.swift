@@ -47,6 +47,47 @@ public struct GameLog: Codable, Equatable, Sendable {
     }
 }
 
+/// The mover's **turn in progress** (#269), written with `saveCurrentTurn` after the
+/// roll and after each half-move / undo so the waiting player sees it live. Purely a
+/// preview: the authoritative ply still arrives in `games` with `endTurn`, whose payload
+/// carries no `liveTurn`. Older builds ignore the key.
+public struct LiveTurn: Codable, Equatable, Sendable {
+    /// Index of the game (into `games`) and of the ply in it that this turn will become
+    /// (= that game's `plies.count` when written).
+    public var gameIndex: Int
+    public var plyIndex: Int
+    /// Raw `Color` ("W"/"B") of the side on move.
+    public var player: String
+    public var die1: Int
+    public var die2: Int
+    /// The half-moves played so far, `[from, to]` single-die hops in play order.
+    public var halfMoves: [[Int]]
+    /// Increases with every update the mover writes, so a late (stale) update for the
+    /// same ply never replaces a newer one.
+    public var seq: Int
+
+    public init(gameIndex: Int, plyIndex: Int, player: Color, die1: Int, die2: Int,
+                halfMoves: [[Int]], seq: Int) {
+        self.gameIndex = gameIndex
+        self.plyIndex = plyIndex
+        self.player = player.rawValue
+        self.die1 = die1
+        self.die2 = die2
+        self.halfMoves = halfMoves
+        self.seq = seq
+    }
+
+    public var playerColor: Color? { Color(rawValue: player) }
+
+    /// Same turn state, ignoring `seq` (what the mover compares to skip no-op writes).
+    public func sameState(as other: LiveTurn?) -> Bool {
+        guard let other else { return false }
+        return gameIndex == other.gameIndex && plyIndex == other.plyIndex
+            && player == other.player && die1 == other.die1 && die2 == other.die2
+            && halfMoves == other.halfMoves
+    }
+}
+
 /// The wire payload stored in a Game Center turn-based match's `matchData` (#134, #145).
 ///
 /// The authoritative state of an online match is simply the **list of its games'
@@ -88,15 +129,22 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
     /// Absent in older payloads, which decode as `"plakoto"`; the key is additive, so
     /// the schema version is unchanged.
     public var variant: String
+    /// The mover's turn in progress (#269), only in `saveCurrentTurn` writes; `nil`
+    /// otherwise. An optional, additive key (no schema bump): older builds ignore it,
+    /// and an unreadable one decodes as `nil` instead of failing the payload. New
+    /// optional match-wide keys (e.g. a shared handicap, #272) follow the same pattern.
+    public var liveTurn: LiveTurn?
 
     public init(schemaVersion: Int = OnlineMatchPayload.currentSchemaVersion,
                 targetWins: Int = 1,
                 startingPlayer: Color,
                 colorByPlayerID: [String: Color],
                 games: [GameLog] = [GameLog()],
-                variant: String = GameVariants.defaultID) {
+                variant: String = GameVariants.defaultID,
+                liveTurn: LiveTurn? = nil) {
         self.schemaVersion = schemaVersion
         self.variant = variant
+        self.liveTurn = liveTurn
         self.targetWins = max(1, targetWins)
         self.startingPlayer = startingPlayer.rawValue
         self.colorByPlayerID = colorByPlayerID.mapValues(\.rawValue)
@@ -116,7 +164,7 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
     // ── Codable (back-compatible with the v1 flat-`plies` shape) ──────────────────
 
     private enum CodingKeys: String, CodingKey {
-        case schemaVersion, targetWins, startingPlayer, colorByPlayerID, games, plies, variant
+        case schemaVersion, targetWins, startingPlayer, colorByPlayerID, games, plies, variant, liveTurn
     }
 
     public init(from decoder: Decoder) throws {
@@ -125,6 +173,7 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
         startingPlayer = try c.decode(String.self, forKey: .startingPlayer)
         colorByPlayerID = try c.decode([String: String].self, forKey: .colorByPlayerID)
         variant = try c.decodeIfPresent(String.self, forKey: .variant) ?? GameVariants.defaultID
+        liveTurn = (try? c.decodeIfPresent(LiveTurn.self, forKey: .liveTurn)) ?? nil
         if let games = try c.decodeIfPresent([GameLog].self, forKey: .games) {
             self.games = games.isEmpty ? [GameLog()] : games
             self.targetWins = max(1, try c.decodeIfPresent(Int.self, forKey: .targetWins) ?? 1)
@@ -144,6 +193,7 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
         try c.encode(colorByPlayerID, forKey: .colorByPlayerID)
         try c.encode(games, forKey: .games)
         try c.encode(variant, forKey: .variant)
+        try c.encodeIfPresent(liveTurn, forKey: .liveTurn)
     }
 }
 

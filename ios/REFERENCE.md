@@ -752,7 +752,59 @@ are all "decode + replay", with no board state to reconcile.
   sign-in sheet is held until Play Online opens). `wantsToQuitMatch` = the *local* player quit from
   Game Center's own UI → forfeit in turn. Foreground (`didBecomeActive`) reloads the list and the open
   match. Lobby: your-turn first, then their turn, then finished (context menu "Remove"). **Dice** stay
-  local-roll-and-broadcast; there is no shared RNG.
+  local-roll-and-broadcast; there is no shared RNG. Events for the open match reload the lobby list
+  only when the turn passes to us or the match ends (live-turn events arrive several times a turn).
+
+- **Live turn (#269): the waiting player sees the roll and every half-move / undo.** GameKit's
+  `saveCurrentTurn(withMatch:)` keeps the turn but stores new match data, and Apple documents it as a
+  turn event for the others (`player(_:receivedTurnEventFor:didBecomeActive:)` fires when "a
+  participant saves match data", `didBecomeActive == false` while the app is open). So the mover
+  writes its turn in progress as an extra payload key and the receiver reloads it like any event —
+  no new channel. (Rejected: turn-based **exchanges** — capped per player, meant for out-of-turn
+  trades, each one needs a reply/merge; a real-time `GKMatch` — needs both players connected
+  peer-to-peer, the opposite of an async turn-based match.)
+  - **Wire:** `OnlineMatchPayload.liveTurn: LiveTurn?` = `{ gameIndex, plyIndex (= that game's
+    plies.count), player ("W"/"B"), die1, die2, halfMoves: [[from, to]] (single-die hops in play
+    order = the mover's `MoveBuilder.built`), seq }`. Optional and additive: **no schema bump**
+    (stays v2), so older builds accept the payload and ignore the key; absent from every `endTurn` /
+    `endMatch` / quit payload (they are rebuilt from the ply log), so the authoritative state is still
+    just the plies; an unreadable `liveTurn` decodes as `nil` rather than failing the payload. Further
+    match-wide optional keys (the shared handicap, #272) follow the same pattern.
+  - **Mover (`OnlineMatchController`):** observes the session (`objectWillChange`, read a main-queue
+    turn later); its live state exists while it is the local turn in `.picking`/`.moving` (dice
+    revealed). Rate limits — Apple documents no numbers, and rapid back-to-back `saveCurrentTurn`
+    calls are reported to fail with a game-state-version error (5002) — so writes are **coalesced**
+    (`LiveTurnTiming`, default): a new roll goes out at once, half-moves/undos after `debounce` 0.6 s,
+    never two writes within `minInterval` 1 s, **at most one write in flight**, and a write always
+    sends the state *at send time* (a burst = one write). A typical turn costs 2–4 writes. A failed
+    live write is just dropped (no `sendFailed`, no retry as a turn; the next change carries the
+    whole state, up to 3 consecutive failures). A real op (`endTurn` …) cancels a waiting live write
+    and, if one is in flight, waits for its completion (`deferredOp`) so the two never overlap; live
+    writes hold off while a real op is in flight or unsent. `seq` grows per write and is seeded from
+    the payload on open, so it keeps growing across a relaunch.
+  - **Receiver:** after applying a snapshot, a `liveTurn` for exactly the ply the board waits for
+    (same game, `plyIndex == plies.count`, mover = the opponent, on turn) and newer than the shown one
+    (`seq`) goes to `GameSession.showRemoteTurn`; late/stale ones are ignored, a match that is over
+    clears the preview (`clearRemoteTurn`), and a rebuild/reopen shows the stored live turn at once.
+    **Fallback poll:** while the opponent is on turn the controller reloads the match every
+    `pollInterval` 5 s, doubling up to 60 s while nothing changes (back to 5 s after any change), in
+    case an event is lost; failures are silent.
+  - **Session (`GameSession.showRemoteTurn(plyIndex:die1:die2:halfMoves:)`):** read-only preview on
+    the live board, phase `.animating` (every input guard holds; `isShowingRemoteTurn` published).
+    The driver chases the latest target: reveal (dice set, short tumble, fresh `MoveBuilder`), then
+    one hop at a time through the computer-move flight (`aiHopInFlight`, used dice grey as usual), an
+    undo snaps the hop back; new dice restart from the turn's start. Each hop is validated with the
+    builder (`routeOptions` single hop), so a bad state stops the preview and never corrupts the
+    board; `record` is never touched. When the real ply arrives `applyRemoteMove` takes the preview
+    back synchronously, validates from the turn's start, and — if the ply extends the previewed hops
+    on the same dice — puts them straight back and animates only the rest (`alreadyApplied`).
+  - Tests: `OnlineLiveTurnTests` (roll → dice on the other device; half-move + undo mirrored; end of
+    turn continues from the preview and the next turn works the other way; coalescing; `endTurn`
+    waits for a live write in flight; failed live write dropped; stale update ignored; reopen
+    mid-turn; poll catches a missed event; forfeit clears; live turns off; old payload decodes,
+    round trip keeps v2, unreadable key tolerated) and `GameSessionRemoteTurnPreviewTests` (animated
+    preview + final ply = replay, a different final ply, illegal/stale states, new dice). **Not
+    covered:** real GameKit delivery/latency and throttling — needs two devices.
 
 - **Best-of-three flow (#145).** When a local move wins the current game, the coordinator appends the
   winner to `matchState` and the finished `GameLog` to its history. If the **match** is now decided it

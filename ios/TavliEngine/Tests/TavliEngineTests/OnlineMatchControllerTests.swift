@@ -72,7 +72,7 @@ final class FakeGameCenter {
 
     /// Notify every device other than `except` (a turn notification).
     func notify(_ id: String, except player: String) {
-        for (pid, device) in devices where pid != player && device.online {
+        for (pid, device) in devices where pid != player && device.online && !device.muted {
             if matches[id]!.seats.contains(where: { $0.playerID == pid }) {
                 device.controller.receive(snapshot(id))
             }
@@ -90,12 +90,30 @@ final class FakeDevice: OnlineMatchService {
     var failNextWrites = 0
     var acceptedInvites: [String] = []
     var quitCalls = 0
+    /// Turn notifications are lost (the device still loads and writes) — #269 poll.
+    var muted = false
+    /// Every write, in order ("save" / "end" / "endMatch" / "quit").
+    var writes: [String] = []
+    /// Hold `saveTurn` writes in flight until `releaseSaves()` (#269).
+    var holdSaves = false
+    private var heldSaves: [() -> Void] = []
 
-    init(_ id: String, server: FakeGameCenter) {
+    /// Live turns (#269) without delays or polling, so tests only wait a main-queue turn.
+    static let instantLive = LiveTurnTiming(debounce: 0, minInterval: 0, pollInterval: nil)
+
+    init(_ id: String, server: FakeGameCenter, liveTurns: LiveTurnTiming? = FakeDevice.instantLive,
+         animationTimings: AnimationTimings = .off) {
         localPlayerID = id
         self.server = server
-        controller = OnlineMatchController(service: self, animationTimings: .off, retryDelay: nil)
         server.devices[id] = self
+        controller = OnlineMatchController(service: self, animationTimings: animationTimings,
+                                           retryDelay: nil, liveTurns: liveTurns)
+    }
+
+    func releaseSaves() {
+        let held = heldSaves
+        heldSaves = []
+        held.forEach { $0() }
     }
 
     struct Offline: Error {}
@@ -112,6 +130,7 @@ final class FakeDevice: OnlineMatchService {
     }
 
     func endTurn(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
+        writes.append("end")
         write(completion, {
             XCTAssertEqual(server.snapshot(matchID).currentPlayerID, localPlayerID, "endTurn out of turn")
             server.matches[matchID]!.data = data
@@ -120,13 +139,19 @@ final class FakeDevice: OnlineMatchService {
     }
 
     func saveTurn(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
-        write(completion, {
-            XCTAssertEqual(server.snapshot(matchID).currentPlayerID, localPlayerID, "saveTurn out of turn")
-            server.matches[matchID]!.data = data
-        }, notify: matchID)
+        writes.append("save")
+        let perform = { [unowned self] in
+            self.write(completion, {
+                XCTAssertEqual(self.server.snapshot(matchID).currentPlayerID, self.localPlayerID,
+                               "saveTurn out of turn")
+                self.server.matches[matchID]!.data = data
+            }, notify: matchID)
+        }
+        if holdSaves { heldSaves.append(perform) } else { perform() }
     }
 
     func endMatch(matchID: String, data: Data, localWon: Bool, completion: @escaping OnlineCompletion) {
+        writes.append("endMatch")
         write(completion, {
             XCTAssertEqual(server.snapshot(matchID).currentPlayerID, localPlayerID, "endMatch out of turn")
             var m = server.matches[matchID]!
@@ -182,6 +207,13 @@ final class OnlineMatchControllerTests: XCTestCase {
         server = FakeGameCenter()
         alice = FakeDevice("alice", server: server)
         bob = FakeDevice("bob", server: server)
+    }
+
+    override func tearDown() async throws {
+        // Device ↔ controller retain each other; closing cancels any timer task so
+        // nothing fires into a later test.
+        alice.controller.close()
+        bob.controller.close()
     }
 
     /// Let deferred record observers (main queue) run.
@@ -398,7 +430,10 @@ final class OnlineMatchControllerTests: XCTestCase {
         let server = FakeGameCenter()
         let a = FakeDevice("alice", server: server)
         let b = FakeDevice("bob", server: server)
-        b.controller = OnlineMatchController(service: b, animationTimings: .off, retryDelay: 0.01)
+        b.controller = OnlineMatchController(service: b, animationTimings: .off, retryDelay: 0.01,
+                                             liveTurns: FakeDevice.instantLive)
+        // Device ↔ controller retain each other: close so no task outlives the test.
+        defer { a.controller.close(); b.controller.close() }
         let id = server.createMatch(creator: "alice", opponent: "bob", opponentKnown: false)
         a.controller.open(server.snapshot(id))
         var rng = LCG(state: 10)

@@ -183,8 +183,28 @@ public final class GameSession: ObservableObject {
     /// board mutates only as each one lands.
     @Published public private(set) var aiHopInFlight: AIAnimatedHop? = nil
 
-    /// The in-progress AI turn animation, kept so `newGame()` can cancel it.
+    /// The in-progress AI turn animation, kept so `newGame()` can cancel it. Also
+    /// drives the online opponent's live-turn preview (#269).
     private var aiAnimationTask: Task<Void, Never>? = nil
+
+    /// True while the board shows a networked opponent's **turn in progress** (#269):
+    /// their dice and the half-moves they have played so far, read-only. The phase is
+    /// `.animating` meanwhile (every input guard holds); `applyRemoteMove` takes over
+    /// from the previewed position when the finished ply arrives.
+    @Published public private(set) var isShowingRemoteTurn = false
+    /// The latest live-turn state to show (#269); the preview driver chases it.
+    private var remoteTurnTarget: RemoteTurnTarget?
+    /// The preview driver's animated loop is running (it re-reads `remoteTurnTarget`
+    /// after every step, so a newer update just replaces the target).
+    private var remoteDriverRunning = false
+    /// Flight ids for preview hops, kept clear of a turn's own 0…3 hop ids.
+    private var remoteHopCounter = 1000
+
+    private struct RemoteTurnTarget: Equatable {
+        let plyIndex: Int
+        let die1: Int, die2: Int
+        let halfMoves: [[Int]]
+    }
 
     /// The pending auto-roll or auto-roll forced-pass task (#116).
     private var autoRollTask: Task<Void, Never>? = nil
@@ -636,6 +656,9 @@ public final class GameSession: ObservableObject {
         autoRollTask = nil
         autoRollPassing = false
         humanDiceRolling = false
+        remoteTurnTarget = nil
+        remoteDriverRunning = false
+        isShowingRemoteTurn = false
     }
 
     /// Reset to a fresh game, current player rolling first. Interrupts any
@@ -1030,7 +1053,8 @@ public final class GameSession: ObservableObject {
     /// are already on screen, #171).
     private func animateAITurn(move: Move?, score: Float?,
                                diceRollStarted: Date,
-                               rollDuration: TimeInterval, epoch: Int) {
+                               rollDuration: TimeInterval, epoch: Int,
+                               alreadyApplied: Int = 0) {
         phase = .animating
         let timings = animationTimings
         let beat = passBeat
@@ -1057,7 +1081,9 @@ public final class GameSession: ObservableObject {
                 return
             }
 
-            for (i, hop) in move.halfMoves.enumerated() {
+            // `alreadyApplied` (#269): the first hops are on the board already (the
+            // opponent's live-turn preview showed them), so only the rest fly.
+            for (i, hop) in move.halfMoves.enumerated() where i >= alreadyApplied {
                 guard let s = live() else { return }
                 s.aiHopInFlight = AIAnimatedHop(id: i,
                                                 from: hop.from.position,
@@ -1435,8 +1461,16 @@ public final class GameSession: ObservableObject {
     /// or arrives outside `.awaitingRoll` (a desync); the caller should then rebuild
     /// from the authoritative match log via `resume`. An empty `halfMoves` is a
     /// forced pass, legal only when there are no legal moves.
+    ///
+    /// **After a live-turn preview (#269).** If the board shows the opponent's turn in
+    /// progress (`showRemoteTurn`), the preview is taken back first (synchronously, so
+    /// nothing flickers), the ply is validated from the turn's start as usual, and —
+    /// when it begins with the previewed half-moves on the same dice — those go
+    /// straight back on the board and only the remaining hops animate. (A rejected ply
+    /// leaves the board at the turn's start, ready for the caller's rebuild.)
     @discardableResult
     public func applyRemoteMove(_ ply: PlyRecord) -> Bool {
+        let previewed = endRemoteTurnPreview()
         guard phase == .awaitingRoll else { return false }
 
         game.dice.set(ply.die1, ply.die2)
@@ -1463,8 +1497,20 @@ public final class GameSession: ObservableObject {
         moveBuilder = MoveBuilder(legalMoves: legal, board: game.board,
                                   die1: ply.die1, die2: ply.die2)
         if animationTimings.isAnimated {
+            // Continue from the preview when the ply extends it on the same dice.
+            var shown = 0
+            if let previewed, previewed.die1 == ply.die1, previewed.die2 == ply.die2,
+               !previewed.halfMoves.isEmpty,
+               previewed.halfMoves.count <= ply.halfMoves.count,
+               Array(ply.halfMoves.prefix(previewed.halfMoves.count)) == previewed.halfMoves {
+                shown = previewed.halfMoves.count
+                for hop in move.halfMoves.prefix(shown) {
+                    game.variant.applyHalfMove(hop, on: game.board)
+                    moveBuilder.commit(halfMove: hop)
+                }
+            }
             animateAITurn(move: move, score: nil, diceRollStarted: Date(),
-                          rollDuration: 0, epoch: aiTurnEpoch)
+                          rollDuration: 0, epoch: aiTurnEpoch, alreadyApplied: shown)
         } else {
             game.variant.apply(move, on: game.board)
             recordTurn(mover: mover, move: move)
@@ -1506,6 +1552,175 @@ public final class GameSession: ObservableObject {
             if outcome == target { return true }
         }
         return false
+    }
+
+    // ── Live turn preview (online multiplayer, #269) ────────────────────────────
+
+    /// Show a networked opponent's **turn in progress** read-only (#269): their roll and
+    /// the half-moves they have played so far (`[from, to]` single-die hops in play
+    /// order — what their `MoveBuilder` holds). Call again with every newer state; the
+    /// board chases the latest one: the dice appear (a short tumble when animated), new
+    /// hops fly in one at a time like the computer's, hops the opponent took back are
+    /// undone, and different dice restart the preview from the turn's start.
+    ///
+    /// `plyIndex` is the ply the turn will become (`record.plies.count`); a state for any
+    /// other ply is stale and ignored. Only in a human-vs-human session in
+    /// `.awaitingRoll` (or already previewing). Purely presentational: `record` is never
+    /// touched, so nothing is saved or sent; the finished ply still arrives through
+    /// `applyRemoteMove`, which continues from the previewed position. A hop that is not
+    /// legal here ends the preview at the last legal one (the board never corrupts).
+    /// Returns whether the state was accepted.
+    @discardableResult
+    public func showRemoteTurn(plyIndex: Int, die1: Int, die2: Int, halfMoves: [[Int]]) -> Bool {
+        guard aiColor == nil, onMoveAttempt == nil, handicap == nil,
+              plyIndex == record.plies.count,
+              (1...6).contains(die1), (1...6).contains(die2),
+              phase == .awaitingRoll || isShowingRemoteTurn else { return false }
+        remoteTurnTarget = RemoteTurnTarget(plyIndex: plyIndex, die1: die1, die2: die2,
+                                            halfMoves: halfMoves)
+        driveRemoteTurn()
+        return true
+    }
+
+    /// Take a live-turn preview back off the board (the opponent left, the match
+    /// ended): the position returns to the turn's start in `.awaitingRoll`. No-op when
+    /// nothing is previewed.
+    public func clearRemoteTurn() {
+        endRemoteTurnPreview()
+    }
+
+    /// The previewed half-moves on the board now (`[from, to]` pairs), empty when none.
+    public var remoteTurnHalfMoves: [[Int]] {
+        isShowingRemoteTurn ? moveBuilder.built.map { [$0.from.position, $0.to.position] } : []
+    }
+
+    /// Stop the preview driver (also one queued but not yet started) and undo every
+    /// previewed hop: back to `.awaitingRoll` at the turn's start. Returns what had been
+    /// shown (dice + hops on the board), or `nil` when the board showed nothing yet.
+    @discardableResult
+    private func endRemoteTurnPreview() -> RemoteTurnTarget? {
+        guard isShowingRemoteTurn || remoteDriverRunning || remoteTurnTarget != nil else { return nil }
+        let wasShowing = isShowingRemoteTurn
+        let shown = RemoteTurnTarget(plyIndex: record.plies.count,
+                                     die1: game.dice.die1.value, die2: game.dice.die2.value,
+                                     halfMoves: remoteTurnHalfMoves)
+        aiTurnEpoch += 1
+        aiAnimationTask?.cancel()
+        aiAnimationTask = nil
+        aiHopInFlight = nil
+        aiDiceRolling = false
+        remoteDriverRunning = false
+        remoteTurnTarget = nil
+        guard wasShowing else { return nil }
+        // Only previewed hops are in the builder while showing (the reveal made it fresh).
+        for hm in moveBuilder.built.reversed() { game.variant.undoHalfMove(hm, on: game.board) }
+        moveBuilder = MoveBuilder(legalMoves: [], board: game.board)
+        legalMoves = []
+        isShowingRemoteTurn = false
+        phase = .awaitingRoll
+        return shown
+    }
+
+    /// One step of the preview towards `remoteTurnTarget`.
+    private enum RemoteTurnStep {
+        case reveal(die1: Int, die2: Int)   // (re)start the turn with these dice
+        case undo                           // take back the last shown hop
+        case play(HalfMove)                 // show the next hop
+    }
+
+    /// The next step towards the target, or `nil` when the board shows it (or its next
+    /// hop is not legal here, which ends the preview where it is).
+    private func nextRemoteTurnStep() -> RemoteTurnStep? {
+        guard let target = remoteTurnTarget else { return nil }
+        if !isShowingRemoteTurn
+            || game.dice.die1.value != target.die1 || game.dice.die2.value != target.die2 {
+            return .reveal(die1: target.die1, die2: target.die2)
+        }
+        let shown = remoteTurnHalfMoves
+        var common = 0
+        while common < shown.count, common < target.halfMoves.count,
+              shown[common] == target.halfMoves[common] { common += 1 }
+        if shown.count > common { return .undo }
+        guard shown.count < target.halfMoves.count else { return nil }
+        let pair = target.halfMoves[shown.count]
+        let upper = game.board.boardSize + 1
+        guard pair.count == 2, (0...upper).contains(pair[0]), (0...upper).contains(pair[1]),
+              let route = moveBuilder.routeOptions(from: pair[0], to: pair[1]).first,
+              route.count == 1 else { return nil }
+        return .play(HalfMove(from: game.board.points[pair[0]], to: game.board.points[pair[1]],
+                              color: game.currentPlayer))
+    }
+
+    /// Run the preview up to the target: synchronously with `.off` timings, otherwise as
+    /// an animated loop (dice tumble, one hop in flight at a time) that re-reads the
+    /// target after every step — a newer state just replaces the target.
+    private func driveRemoteTurn() {
+        guard !remoteDriverRunning else { return }
+        let timings = animationTimings
+        guard timings.isAnimated else {
+            while let step = nextRemoteTurnStep() { performRemoteTurnStep(step) }
+            return
+        }
+        remoteDriverRunning = true
+        let epoch = aiTurnEpoch
+        aiAnimationTask = Task { @MainActor [weak self] in
+            @MainActor func live() -> GameSession? {
+                guard let self, !Task.isCancelled, self.aiTurnEpoch == epoch else { return nil }
+                return self
+            }
+            while let s = live(), let step = s.nextRemoteTurnStep() {
+                switch step {
+                case .reveal:
+                    s.performRemoteTurnStep(step)
+                    s.aiDiceRolling = timings.aiDiceRollDuration > 0
+                    await Self.sleep(timings.aiDiceRollDuration)
+                    live()?.aiDiceRolling = false
+                case .undo:
+                    s.performRemoteTurnStep(step)
+                    await Self.sleep(timings.aiMoveAnimationDuration / 2)
+                case .play(let hop):
+                    // A running id: a hop replayed after an undo restarts its flight.
+                    s.remoteHopCounter += 1
+                    s.aiHopInFlight = AIAnimatedHop(id: s.remoteHopCounter,
+                                                    from: hop.from.position, to: hop.to.position,
+                                                    color: hop.color,
+                                                    duration: timings.aiMoveAnimationDuration)
+                    await Self.sleep(timings.aiMoveAnimationDuration)
+                    guard let landed = live() else { return }
+                    landed.aiHopInFlight = nil
+                    landed.performRemoteTurnStep(step)
+                }
+            }
+            live()?.remoteDriverRunning = false
+        }
+    }
+
+    private func performRemoteTurnStep(_ step: RemoteTurnStep) {
+        switch step {
+        case .reveal(let d1, let d2):
+            // A fresh start of the turn (or new dice): back to the turn's start. Before
+            // the first reveal the builder still holds the previous turn's hops — they
+            // are on the board for good, so only previewed hops are taken back.
+            if isShowingRemoteTurn {
+                for hm in moveBuilder.built.reversed() { game.variant.undoHalfMove(hm, on: game.board) }
+            }
+            game.dice.set(d1, d2)
+            legalMoves = game.variant.legalMoves(on: game.board, color: game.currentPlayer, dice: game.dice)
+            moveBuilder = MoveBuilder(legalMoves: legalMoves, board: game.board, die1: d1, die2: d2)
+            clearSelection()
+            selectableSources = []
+            isShowingRemoteTurn = true
+            phase = .animating
+        case .undo:
+            let gesture = moveBuilder.lastGesture
+            for hm in gesture.reversed() { game.variant.undoHalfMove(hm, on: game.board) }
+            moveBuilder.undoGesture()
+            objectWillChange.send()
+        case .play(let hop):
+            game.variant.applyHalfMove(hop, on: game.board)
+            moveBuilder.commit(halfMove: hop)
+            objectWillChange.send()
+        }
     }
 
     // ── Dice rolling ─────────────────────────────────────────────────────────
