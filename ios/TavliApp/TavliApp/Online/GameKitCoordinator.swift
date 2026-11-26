@@ -18,6 +18,12 @@ import TavliEngine
 /// - Anything else only refreshes the lobby list (and notes "your turn" elsewhere) —
 ///   it never replaces the game on screen.
 ///
+/// **Live turn (#269).** The controller also writes the local turn in progress with
+/// `saveCurrentTurn` (roll at once, half-moves coalesced, one write in flight); GameKit
+/// raises `receivedTurnEventFor` on the opponent's device for each ("a participant saves
+/// match data"), which routes here like any event; the controller's poll covers missed
+/// ones.
+///
 /// Sign-in starts at launch without UI (`authenticate(presentUI: false)`) so the
 /// listener is registered before a notification is tapped; the Game Center sign-in
 /// sheet is shown only when the player opens Play Online. Returning to the foreground
@@ -166,9 +172,15 @@ final class GameKitCoordinator: NSObject, ObservableObject {
     private func handleEvent(_ match: GKTurnBasedMatch, didBecomeActive: Bool) {
         liveMatches[match.matchID] = match
         let snap = snapshot(of: match)
-        defer { refreshMatches() }
 
-        if controller.receive(snap) { return }
+        if controller.receive(snap) {
+            // The opponent's live-turn writes (#269, `saveCurrentTurn` mid-turn) arrive
+            // here several times a turn; the lobby list only changes when the turn
+            // passes or the match ends.
+            if snap.currentPlayerID == localPlayerID || snap.isEnded { refreshMatches() }
+            return
+        }
+        defer { refreshMatches() }
 
         // A match this device just created through the matchmaker.
         if let new = pendingNewMatch, match.matchData?.isEmpty ?? true,
