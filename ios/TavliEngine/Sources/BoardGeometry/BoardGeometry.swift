@@ -60,6 +60,12 @@ public struct BoardGeometry {
     /// When true, logical indices are mapped to their 180°-rotated visual
     /// positions before computing screen coordinates.
     public let flipped: Bool
+    /// Fevga (#270): the homes are diagonally opposite, so the trays split across the
+    /// board — the tray of the side whose home is bottom-left (unflipped: Black / slot 0)
+    /// sits on the **left** frame strip, the other (White / slot 25) stays on the right;
+    /// `flipped` rotates the whole arrangement 180°. `false` = both trays share one strip
+    /// (right, or left when flipped) as Plakoto / Portes.
+    public let splitTrays: Bool
     /// The fitted, centered square actually used inside the input rect.
     public let boardRect: CGRect
     public let scale: CGFloat
@@ -77,8 +83,9 @@ public struct BoardGeometry {
     /// Side length of one die face, scaled from the design reference.
     public let diceSize: CGFloat
 
-    public init(rect: CGRect, flipped: Bool = false) {
+    public init(rect: CGRect, flipped: Bool = false, splitTrays: Bool = false) {
         self.flipped = flipped
+        self.splitTrays = splitTrays
         let side = min(rect.width, rect.height)
         let originX = rect.minX + (rect.width - side) / 2
         let originY = rect.minY + (rect.height - side) / 2
@@ -187,7 +194,7 @@ public struct BoardGeometry {
             // A full-size checker is wider than the 40u strip; clamp the center
             // so the disc floats within the board rather than clipping the edge.
             let stripX: CGFloat
-            if flipped {
+            if trayOnLeft(physical) {
                 // Left strip: push center rightward away from the left edge.
                 stripX = max(Self.frame / 2, r + 1)
             } else {
@@ -233,6 +240,11 @@ public struct BoardGeometry {
 
     // ── Internals ──────────────────────────────────────────────────────────
 
+    /// Whether the tray at *physical* slot 0 / 25 sits on the left frame strip.
+    private func trayOnLeft(_ physical: Int) -> Bool {
+        splitTrays ? physical == 0 : flipped
+    }
+
     private func toScreen(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(x: boardRect.minX + x * scale, y: boardRect.minY + y * scale)
     }
@@ -271,7 +283,7 @@ public struct BoardGeometry {
     /// `flipped`. White (25) in the top half, Black (0) in the bottom half.
     private func bearOff(_ index: Int) -> PointGeometry {
         let top = index == 25
-        let stripX = flipped ? 0 : Self.frame + Self.inner   // 0 or 860
+        let stripX = trayOnLeft(index) ? 0 : Self.frame + Self.inner   // 0 or 860
         let stripW = Self.frame                               // 40
         let yMin = top ? Self.frame : Self.designSide / 2
         let yMax = top ? Self.designSide / 2 : Self.designSide - Self.frame

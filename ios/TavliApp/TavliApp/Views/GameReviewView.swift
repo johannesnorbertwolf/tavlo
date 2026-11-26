@@ -296,7 +296,7 @@ struct GameReviewView: View {
     /// The full board at the move's position with the move (and best) drawn on it.
     private func boardArea(_ eval: PlyEvaluation) -> some View {
         ZStack {
-            BoardView(flipped: flipped)
+            BoardView(flipped: flipped, splitTrays: BoardLayout.splitTrays(variant: variant))
             HandicapBoardCuesView(rules: record.replayConfig.handicapRules, flipped: flipped)   // #148 tier 2
             CheckersView(stacks: eval.boardStacks, flipped: flipped, variant: variant)
             // The move played in amber; on your moves the best in blue too, both marks on

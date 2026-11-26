@@ -96,6 +96,8 @@ struct PlayableBoardView: View {
 
     private var variant: any GameVariant { session.game.variant }
     private var boardSize: Int { session.game.board.boardSize }
+    /// Fevga (#270): each side's tray sits beside its own (diagonally opposite) home.
+    private var splitTrays: Bool { BoardLayout.splitTrays(variant: variant) }
 
     /// The live position as display stacks (trays = borne-off only, bars split out).
     private var layoutStacks: [[TavliEngine.Color]] {
@@ -118,7 +120,7 @@ struct PlayableBoardView: View {
     var body: some View {
         GeometryReader { proxy in
             let geo = BoardGeometry(rect: CGRect(origin: .zero, size: proxy.size),
-                                    flipped: flipped)
+                                    flipped: flipped, splitTrays: splitTrays)
 
             // During a drag or an AI flight (#93): show one fewer checker at
             // the source (it's in the air, drawn by the overlay views below).
@@ -158,16 +160,16 @@ struct PlayableBoardView: View {
 
             ZStack {
                 ZStack {
-                    BoardView(flipped: flipped)
+                    BoardView(flipped: flipped, splitTrays: splitTrays)
                     // Tier-2 handicap cues (#148): safe points, shortened homes.
                     HandicapBoardCuesView(rules: session.game.board.config.handicapRules, flipped: flipped)
                     TargetHighlightView(targets: highlightTargets, style: highlightStyle,
-                                        flipped: flipped)
+                                        flipped: flipped, splitTrays: splitTrays)
                     if let choice = session.routeChoice {
                         TargetHighlightView(targets: choice.intermediatePoints, style: highlightStyle,
-                                            flipped: flipped, tint: CaramelPalette.hlRoute)
+                                            flipped: flipped, splitTrays: splitTrays, tint: CaramelPalette.hlRoute)
                     }
-                    CheckersView(stacks: displayStacks, flipped: flipped)
+                    CheckersView(stacks: displayStacks, flipped: flipped, variant: variant)
                     SourceRingView(selectedPoint: ringPoint, stacks: displayStacks,
                                    flipped: flipped)
                     if let hint = session.hint {
@@ -343,19 +345,22 @@ struct PlayableBoardView: View {
 /// style; overlays `BoardView` below the checkers. Playable points (1…24) are
 /// marked on their triangle; bear-off slots (0/25) are marked as a gold tray box
 /// on the corresponding half of the right frame strip (top = White/25,
-/// bottom = Black/0) — the Caramel design has no bear-off art, so this is the
+/// bottom = Black/0; Fevga #270: Black/0 on the left strip, `splitTrays`) — the Caramel design has no bear-off art, so this is the
 /// only bear-off visual. Both honor the same `HighlightStyle`.
 struct TargetHighlightView: View {
     let targets: Set<Int>
     let style: HighlightStyle
     var flipped: Bool = false
+    /// Fevga (#270): trays beside each side's own home (`BoardGeometry.splitTrays`).
+    var splitTrays: Bool = false
     /// Overrides the amber marking (#169: `CaramelPalette.hlRoute` for the
     /// intermediate points of a pending route choice). `nil` = the standard colours.
     var tint: SwiftUI.Color? = nil
 
     var body: some View {
         Canvas { context, size in
-            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped)
+            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped,
+                                    splitTrays: splitTrays)
             let s = geo.scale
             for n in targets {
                 if n >= 1 && n <= 24 {
@@ -611,7 +616,8 @@ struct MoveHighlightView: View {
 
     var body: some View {
         Canvas { context, size in
-            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped)
+            let geo = BoardGeometry(rect: CGRect(origin: .zero, size: size), flipped: flipped,
+                                    splitTrays: BoardLayout.splitTrays(variant: variant))
             let s = geo.scale
             let best = bestMove.map { Self.marks(of: $0) }
             // Your move equal to the best → blue only (#232; the ✓ lives in the panel).

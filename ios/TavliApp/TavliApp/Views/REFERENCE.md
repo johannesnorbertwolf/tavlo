@@ -15,7 +15,11 @@ recesses. No checkers, dice, highlights, or interactivity — those land in late
 tickets.
 
 - **Bear-off tray chrome** (#31): a subtle always-present recess on each half of
-  the right frame strip (White 25 top, Black 0 bottom), drawn from
+  the right frame strip (White 25 top, Black 0 bottom; **Fevga #270: Black 0 on the
+  *left* strip, bottom half — beside its own diagonally opposite home — and
+  `flipped` rotates both 180°**; every board layer (`BoardView`, `CheckersView`,
+  `TargetHighlightView`, `MoveHighlightView`, `PlayableBoardView`'s geo/hit-testing)
+  passes `BoardLayout.splitTrays(variant:)` to `BoardGeometry`), drawn from
   `geo.point(0/25).hitRect` inset `(4·s, 8·s)` as a rounded-rect (corner `8·s`),
   filled with `trayFill` @ 0.22 + a `trayEdge` @ 0.45 hairline. Slightly larger
   than the T7 gold target box's `(5·s, 10·s)` inset so that box reads cleanly

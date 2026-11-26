@@ -29,6 +29,10 @@ public enum BoardLayout {
         color.isWhite ? whiteBarSlot : blackBarSlot
     }
 
+    /// Fevga (#270): both colours run counter-clockwise, so the homes are diagonally
+    /// opposite and the trays split across the board (see `BoardGeometry.splitTrays`).
+    public static func splitTrays(variant: any GameVariant) -> Bool { variant.id == "fevga" }
+
     public static func isBarSlot(_ slot: Int) -> Bool {
         slot == whiteBarSlot || slot == blackBarSlot
     }
