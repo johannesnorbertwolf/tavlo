@@ -866,19 +866,21 @@ for m = 0…8 both sides. Every replay from the start goes through
   the session's `agent`) is the net for dice/rerolls/hints — a two-player game passes one.
   `resume(from:..., handicapAgent:)` restores setup + tokens; `newGame` keeps the setup with
   fresh tokens.
-- **Weighted dice** — when the side on move has weighted dice on (and no undo-replay is queued),
-  `roll()`, auto-roll and the AI turn rate the 21 rolls off the main actor (`HandicapDice.rollValues`
-  on a board copy; `preparingDice` blocks input meanwhile, epoch-guarded), turn them into this
-  turn's β_t (`handicapBeta(for:values:)` → `HandicapDice.beta(values:dice:maxPoints:)` with the
-  variant's `maxPoints`) and draw with `HandicapDice.weightedFaces(u1, u2, values, β_t)` from
-  `handicapUniform` (injectable for tests).
+- **Weighted dice** — when either side has weighted dice on (`currentRollIsWeighted`; and no
+  undo-replay is queued), `roll()`, auto-roll and the AI turn rate the roller's 21 rolls off the main
+  actor (`HandicapDice.rollValues` on a board copy; `preparingDice` blocks input meanwhile,
+  epoch-guarded), turn them into this turn's β_t (`handicapBeta(for:values:)` →
+  `HandicapDice.rollBeta(values:roller:setup:maxPoints:)` with the variant's `maxPoints`: the
+  favoured side's own bend, or the **mirrored** bend on its opponent's roll, #271) and draw with
+  `HandicapDice.weightedFaces(u1, u2, values, β_t)` from `handicapUniform` (injectable for tests).
+  So the computer is rated and bent the same way whether it is the favoured or the unfavoured side.
 - **Rerolls** — human: `canReroll` / `reroll()` (picking/moving; built half-moves are taken back;
-  the new roll is weighted if that side has weighted dice, else fair from `handicapUniform`; with animation on
+  the new roll is weighted if either side has weighted dice (#271), else fair from `handicapUniform`; with animation on
   the new dice tumble like an auto-roll — `humanDiceRolling` for `aiDiceRollDuration` — before the
   turn resumes, epoch-guarded). Computer: `takeHandicappedAITurn` draws, then
   `applyComputerRerolls` rerolls **while tokens remain and**
-  `HandicapDice.shouldReroll(values, d1, d2, beta: β_t)` — the same β_t as the draw, so the rule's
-  expectation is over the side's own tilted roll (`lastComputerReroll` drives the UI note). A
+  `HandicapDice.shouldReroll(values, d1, d2, beta: β_t)` — the same β_t as the draw (mirrored when
+  the other side holds the weighted dice), so the rule's expectation is over the side's own tilted roll (`lastComputerReroll` drives the UI note). A
   restored pending roll (#171) for a computer with tokens goes through `resumeHandicappedAIRoll`:
   the same reroll decision, tumbling only if the dice changed. A roll with **no legal move** is
   never rerollable: the turn passes at once (known limitation, kept on purpose).
@@ -901,7 +903,7 @@ the rerolls left (0…4) and the hints left (0…5, a human side only — `isHum
 moves first and the tier-2 rules never change mid-game: replays, notation and the review rebuild
 the game from the start position and rules, which therefore stay valid.
 - **From the next roll.** Nothing is cached: `roll()`, auto-roll and `takeAITurn` read
-  `weightedDiceForCurrentPlayer` / `computerMayReroll` from the live `handicap` at each roll,
+  `currentRollIsWeighted` / `computerMayReroll` from the live `handicap` at each roll,
   `drawHandicapRoll` computes β_t when it draws, and `applyComputerRerolls` reads tokens and β_t.
   A roll already being rated draws with the dice in force when it lands.
 - **Allowance = new count.** A new rerolls / hints count is both the tokens left and the setup's
@@ -933,15 +935,17 @@ the game from the start position and rules, which therefore stay valid.
   count, next game, favoured side).
 
 **Dice maths (`HandicapDice`) — keep in sync with the Python** (`domain/handicap.py`
-`roll_spread`/`lean_beta`/`gain_beta`/`hybrid_beta`/`turn_beta`/`tilted_roll_probs`/`weighted_faces`,
-`ai/agent.py` `roll_values`, `ai/handicap_sweep.py` `wants_reroll`): rolls in `diceOutcomes` order
+`roll_spread`/`lean_beta`/`gain_beta`/`hybrid_beta`/`turn_beta`/`mirrored_turn_beta`/`tilted_roll_probs`/
+`weighted_faces`, `HandicappedPlakotoRules.roll_beta`, `ai/agent.py` `roll_values`,
+`ai/handicap_sweep.py` `wants_reroll`): rolls in `diceOutcomes` order
 (= `ROLLS`), p = 1/36 doubles, 2/36 others; `rollValues` = best 1-ply move value per roll, a no-move
 roll = `1 − value(opponent to move)`; `tilt` = `q(r) ∝ p(r)·exp(β·v(r))` (β = 0 returns the fair p
 exactly); `weightedFaces` = inverse CDF of `u = (int(6u1)+u2)/6` over the 36 ordered outcomes (β = 0
 is `(face(u1), face(u2))`, so one uniform pair per turn, deterministic, and the Python harness's
 paired draw are unchanged); `shouldReroll` = `v(roll) < E_q[v] − 0.02` with q the side's own (tilted)
-distribution. Pinned by Python-generated cases (`WeightedDiceModesTests.parity`: β_t and the drawn
-faces per mode × level × maxPoints on float32-exact values). Differences: no bear-off DB in Swift
+distribution. Pinned by Python-generated cases (`WeightedDiceModesTests.parity`: own and mirrored β_t
+and the drawn faces per mode × level × maxPoints on float32-exact values; regenerate with
+`ios/scripts/make_weighted_dice_parity.py`). Differences: no bear-off DB in Swift
 (race values are the net's).
 
 **Weighted-dice modes (#261).** All three draw from `q(r) ∝ p(r)·e^{β_t·v(r)}` with a per-turn β_t
@@ -959,16 +963,29 @@ three modes choose β_t per turn instead.
 - **Hybrid** (`hybridBeta`): β_t = min(fixed gain's β_t, κ_max / max(σ, σ_floor)), κ_max =
   `hybridKappaMax` = 0.3 — fixed gain in tense positions, at most a lean of 0.3 (2σ: ≈ 1.8×) in
   quiet ones.
+- **Mirrored (#271).** The bend applies to **both** sides' rolls: the favoured side's own roll uses
+  the mode's β_t ≥ 0 above; its opponent's roll uses `mirroredBeta` = −β_t(−v) ≤ 0 on the
+  opponent's own values — the same rule turned upside down, so the opponent's roll leans towards
+  rolls bad for it by the same per-roll magnitude (fixed gain: E_q[v] − μ = −g, "+g for me, −g for
+  you"; lean: a roll 2σ *below* average e^{2κ}× as likely; the cap M bounds the boosted bad rolls;
+  σ < σ_floor → fair). API: `rollBeta(values:roller:favoured:dice:maxPoints:)` (one favoured colour
+  + mode + level — the shape a shared two-sided slider needs) and
+  `rollBeta(values:roller:setup:maxPoints:)` (both sides may hold weighted dice, #236: the bends
+  add; equal setups about cancel, equal lean exactly). Off on both sides = fair dice for both, no
+  rating.
 - **Constants**: σ_floor = `sigmaFloor` = 0.01 (1 pp), M = 3, κ_max = 0.3. **Steps** (Slight →
-  Very strong, the same for either side, `WeightedDiceMode.strengths`): lean κ 0.04 / 0.08 / 0.15 /
-  0.25; fixed gain and hybrid g 0.2 / 0.4 / 0.8 / 1.5 pp per roll. Calibrated with
-  `scripts/weighted_dice_calibration.py` (gold_v11, 1-ply self-play, 120 games; σ median 2.2 pp,
-  28 % of turns under 1 pp) so a level is about as strong in every mode — first-order gain per game
-  (Σ over the favoured side's rolls of E_q[v] − μ) ≈ lean +7 / +14 / +27 / +48 pp, fixed gain +8 /
-  +16 / +30 / +50, hybrid +8 / +15 / +26 / +37 (`firstOrderGainPerGame`). For scale: the old β 0.3 /
-  0.6 / 1.2 / 2.0 sum to +3.7 / +7.5 / +15.5 / +27.1 and measured +3.7 / +6.2 / +13.6 / +22.0 in
-  E1, so the first-order sum overstates strong tilts by ~10–20 %. (The issue's example grids — κ up
-  to 0.8, g up to 5 pp — would sum to +100 pp and more: a near-certain win from the first step.)
+  Very strong, the same for either side, `WeightedDiceMode.strengths`): lean κ 0.025 / 0.045 / 0.085
+  / 0.15; fixed gain g 0.1 / 0.2 / 0.4 / 0.7 pp per roll; hybrid g 0.1 / 0.2 / 0.35 / 0.5.
+  Recalibrated for the mirrored bend (#271) with `scripts/weighted_dice_calibration.py` (gold_v11,
+  1-ply self-play, 480 games; σ median 2.0 pp, 30 % of turns under 1 pp): each level's **total**
+  first-order gain per game (Σ over the favoured side's rolls of E_q[v] − μ + Σ over the opponent's
+  rolls of μ − E_q[v]) ≈ the one-sided #261 level's on the same games, or a little more — lean +8 /
+  +15 / +28 / +50 pp (#261 grid: +7 / +14 / +26 / +46), fixed gain +7 / +15 / +30 / +51 (+8 / +15 /
+  +29 / +48), hybrid +7 / +15 / +26 / +35 (+8 / +15 / +25 / +35) (`firstOrderGainPerGame`). The
+  mirrored half is about as large as the own half, so the steps roughly halve; hybrid gets its own
+  top steps because its κ_max ceiling binds more often. For scale: the old β 0.3 / 0.6 / 1.2 / 2.0
+  sum (one-sided) to +3.7 / +7.5 / +15.5 / +27.1 and measured +3.7 / +6.2 / +13.6 / +22.0 in E1, so
+  the first-order sum overstates strong tilts by ~10–20 %.
 - **2-point variants** (Portes, Fevga, standard Plakoto): v is normalised equity
   (0.5 + points / (2 · maxPoints)), so g and σ_floor are **win-chance-equivalent pp** — the review's
   per-roll luck unit (normalised Δ × maxPoints) — and divided by `maxPoints` in value units; κ, M and

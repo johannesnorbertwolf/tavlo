@@ -5,12 +5,16 @@ import Foundation
 ///
 /// **Keep in sync with the Python harness** (`domain/handicap.py` `roll_spread` /
 /// `lean_beta` / `gain_beta` / `hybrid_beta` / `turn_beta` / `tilted_roll_probs` /
-/// `weighted_faces`, `ai/handicap_sweep.py` `wants_reroll`, `ai/agent.py` `roll_values`):
+/// `mirrored_turn_beta` / `weighted_faces`, `HandicappedPlakotoRules.roll_beta`,
+/// `ai/handicap_sweep.py` `wants_reroll`, `ai/agent.py` `roll_values`):
 /// the 21 rolls in `diceOutcomes` order (= Python `ROLLS`) with weights 1/36 (doubles)
 /// and 2/36; a roll's value is the mover's best 1-ply move value, a roll with no legal
 /// move is a pass valued `1 − opponent's static value`; the tilt is
-/// `q(r) ∝ p(r)·exp(β_t·v(r))` with the turn's β_t from the side's `WeightedDice` mode
-/// (#261, `beta(values:dice:maxPoints:)`), drawn by inverse CDF of
+/// `q(r) ∝ p(r)·exp(β_t·v(r))` with the turn's β_t from the `WeightedDice` mode
+/// (#261, `beta(values:dice:maxPoints:)`) — **mirrored (#271)**: the favoured side's own
+/// roll leans towards rolls good for it (β_t ≥ 0), its opponent's roll towards rolls bad for
+/// the opponent by the same per-roll magnitude (`mirroredBeta`, β_t ≤ 0; the roller's values,
+/// `rollBeta(values:roller:favoured:dice:maxPoints:)`) — drawn by inverse CDF of
 /// `u = (int(6 u1) + u2) / 6` over the 36 ordered outcomes (β_t = 0 is exactly
 /// `(face(u1), face(u2))`, the fair dice); the reroll rule is `v(roll) < E_q[v] − 0.02`
 /// with `q` the side's own (tilted, same β_t) distribution, repeated while tokens remain.
@@ -127,7 +131,43 @@ public enum HandicapDice {
         }
     }
 
-    /// The side's roll distribution for this turn (21 entries, sums to 1; fair when off).
+    /// The mirrored bend (#271) on the roll of the favoured side's **opponent**, from the
+    /// opponent's own 21 values: `−beta(−v)` ≤ 0 — the mode's rule applied to the negated
+    /// values, so the roll leans towards rolls bad for the roller by the same per-roll
+    /// magnitude (fixed gain E_q[v] − μ = −g, lean κ/σ, hybrid the smaller; the cap bounds the
+    /// boosted bad rolls). 0 when off. Python `mirrored_turn_beta`.
+    public static func mirroredBeta(values: [Float], dice: WeightedDice, maxPoints: Int = 1) -> Double {
+        let b = beta(values: values.map { -$0 }, dice: dice, maxPoints: maxPoints)
+        return b == 0 ? 0 : -b
+    }
+
+    /// This turn's β_t for `roller` when `favoured` holds `dice` (#271, the one-favoured-side
+    /// API): `beta` for the favoured side's own roll, `mirroredBeta` for its opponent's.
+    /// `values` = the roller's 21 roll values.
+    public static func rollBeta(values: [Float], roller: Color, favoured: Color, dice: WeightedDice,
+                                maxPoints: Int = 1) -> Double {
+        roller == favoured
+            ? beta(values: values, dice: dice, maxPoints: maxPoints)
+            : mirroredBeta(values: values, dice: dice, maxPoints: maxPoints)
+    }
+
+    /// This turn's β_t for `roller` in `setup` (both sides may hold weighted dice, #236): the
+    /// sum of each side's bend on this roll — its own `beta` when it rolls, its `mirroredBeta`
+    /// when the other side rolls (equal setups about cancel, equal lean ones exactly). 0 =
+    /// fair. Python `HandicappedPlakotoRules.roll_beta`.
+    public static func rollBeta(values: [Float], roller: Color, setup: HandicapSetup,
+                                maxPoints: Int = 1) -> Double {
+        Color.allCases.reduce(0.0) { sum, side in
+            let dice = setup[side].weightedDice
+            guard dice.isOn else { return sum }
+            return sum + rollBeta(values: values, roller: roller, favoured: side, dice: dice,
+                                  maxPoints: maxPoints)
+        }
+    }
+
+    /// The side's own roll distribution for this turn as the favoured side (21 entries, sums
+    /// to 1; fair when off). For the opponent's mirrored roll use
+    /// `tilt(values:beta:)` with `mirroredBeta` / `rollBeta`.
     public static func probabilities(values: [Float], dice: WeightedDice, maxPoints: Int = 1) -> [Double] {
         tilt(values: values, beta: beta(values: values, dice: dice, maxPoints: maxPoints))
     }

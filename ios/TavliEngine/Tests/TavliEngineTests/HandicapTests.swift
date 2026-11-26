@@ -423,7 +423,7 @@ final class HandicapTests: XCTestCase {
         XCTAssertEqual(none.unmeasured, ["weighted_hybrid", "rerolls"])
         XCTAssertTrue(none.approximate)
 
-        let table = HandicapTable(cells: ["weighted_hybrid:0.8": .init(logOddsShift: 0.5),
+        let table = HandicapTable(cells: ["weighted_hybrid:0.35": .init(logOddsShift: 0.5),
                                           "rerolls:2": .init(logOddsShift: 0.2)])
         let both = HandicapEstimator.combine(positionWhite: 0.5, setup: setup, table: table)
         XCTAssertEqual(both.whiteWinChance, 1 / (1 + exp(-(0.5 - 0.2))), accuracy: 1e-9)
@@ -431,9 +431,9 @@ final class HandicapTests: XCTestCase {
 
         // A measured combo cell on one side wins over the sum of its singles.
         let one = HandicapSetup(white: HandicapItems(weightedDice: WeightedDice(mode: .lean, level: 4), rerolls: 1))
-        let combo = HandicapTable(cells: ["weighted_lean:0.25": .init(logOddsShift: 0.3),
+        let combo = HandicapTable(cells: ["weighted_lean:0.15": .init(logOddsShift: 0.3),
                                           "rerolls:1": .init(logOddsShift: 0.1),
-                                          "rerolls:1+weighted_lean:0.25": .init(logOddsShift: 0.35)])
+                                          "rerolls:1+weighted_lean:0.15": .init(logOddsShift: 0.35)])
         XCTAssertEqual(HandicapEstimator.combine(positionWhite: 0.5, setup: one, table: combo).whiteWinChance,
                        1 / (1 + exp(-0.35)), accuracy: 1e-9)
     }

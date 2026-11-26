@@ -22,11 +22,18 @@ x + int((7 - x) u) (uniform on x..6). Mapping the SAME uniform keeps the paired
 (duplicate-dice) harness aligned under modified dice. q1/q2 are per-turn uniforms for
 the probabilistic kinds (forced low roll, no doubles).
 
-Weighted dice (tier 1, #148; three modes since #261): before the favoured side rolls, a
-`roll_valuer(board, color)` (injected by the caller; the harness passes the agent's 1-ply
-`Agent.roll_values`) rates the 21 distinct rolls (`ROLLS` order) by the value v(r) of that side's
-best move. The roll distribution is tilted to q(r) ∝ p(r)·exp(β_t·v(r)) with a PER-TURN β_t
-chosen by the mode (`turn_beta`; μ = Σ p v, σ² = Σ p (v − μ)², σ floor `SIGMA_FLOOR`):
+Weighted dice (tier 1, #148; three modes since #261; mirrored since #271): before EITHER side
+rolls in a game where one side has weighted dice, a `roll_valuer(board, color)` (injected by the
+caller; the harness passes the agent's 1-ply `Agent.roll_values`) rates the 21 distinct rolls
+(`ROLLS` order) by the value v(r) of the ROLLER's best move. The roll distribution is tilted to
+q(r) ∝ p(r)·exp(β_t·v(r)) with a PER-TURN β_t chosen by the mode (`turn_beta`; μ = Σ p v,
+σ² = Σ p (v − μ)², σ floor `SIGMA_FLOOR`). The favoured side's own roll leans towards rolls good
+for it (β_t ≥ 0, below); its opponent's roll is the mirror image (`mirrored_turn_beta`, β_t ≤ 0):
+the same rule applied to the negated values, so the opponent's roll leans towards rolls bad for
+the opponent by the same per-roll magnitude (fixed gain: E_q[v] − μ = −g; lean: a roll 2σ BELOW
+average e^{2κ}× as likely; the cap bounds the most-boosted bad roll). If both sides hold weighted
+dice, the roller's β_t is the sum of its own bend and the opponent's mirrored one
+(`HandicappedPlakotoRules.roll_beta`; equal setups about cancel, equal lean ones exactly). The modes:
 - `weighted_lean:κ`   β_t = κ / max(σ, σ_floor): the same bend every turn (a roll 2σ above the
                       average is e^{2κ}× as likely as an average one); expected gain ≈ κ·σ.
 - `weighted_gain:g`   β_t ≥ 0 solved by bisection so the expected luck E_q[v] − μ = g pp per roll
@@ -81,14 +88,19 @@ from domain.ruleset import get_ruleset
 #: Weighted-dice modes (#261), each a handicap kind whose intensity is the mode's strength:
 #: `weighted_lean` κ (scale-free bend), `weighted_gain` / `weighted_hybrid` g (win-chance pp per roll).
 WEIGHTED_KINDS: Tuple[str, ...] = ("weighted_lean", "weighted_gain", "weighted_hybrid")
-#: The app's strength steps (Slight → Very strong), the same for either side. Calibrated so a step
-#: is about as strong in every mode: first-order gain per game (Σ over the favoured side's rolls of
-#: E_q[v] − μ, gold_v11 1-ply self-play, 120 games, `scripts/weighted_dice_calibration.py`) ≈
-#: lean +7 / +14 / +27 / +48 pp, fixed gain +8 / +16 / +30 / +50, hybrid +8 / +15 / +26 / +37
-#: (the old fixed β 0.3 / 0.6 / 1.2 / 2.0: +3.7 / +7.5 / +15.5 / +27.1, measured by E1 at
-#: +3.7 / +6.2 / +13.6 / +22.0 — the first-order sum overstates strong tilts a little).
-LEAN_KAPPAS: Tuple[float, ...] = (0.04, 0.08, 0.15, 0.25)
-GAIN_STEPS_PP: Tuple[float, ...] = (0.2, 0.4, 0.8, 1.5)
+#: The app's strength steps (Slight → Very strong), the same for either side. Recalibrated for
+#: the mirrored bend (#271): each step's TOTAL first-order gain per game (Σ over the favoured side's
+#: rolls of E_q[v] − μ plus Σ over the opponent's rolls of μ − E_q[v], gold_v11 1-ply self-play,
+#: 480 games, `scripts/weighted_dice_calibration.py`) is about the one-sided #261 step's on the same
+#: games, or a little more: lean +8 / +15 / +28 / +50 pp (#261: +7 / +14 / +26 / +46), fixed gain
+#: +7 / +15 / +30 / +51 (+8 / +15 / +29 / +48), hybrid +7 / +15 / +26 / +35 (+8 / +15 / +25 / +35).
+#: The mirrored half is about as large as the own half, so the g / κ steps are roughly halved; hybrid
+#: needs its own (smaller) top steps because its κ_max ceiling binds more often. (For scale: the old
+#: fixed β 0.3 … 2.0 summed one-sided to +3.7 … +27.1 and measured +3.7 … +22.0 in E1 — the
+#: first-order sum overstates strong tilts a little.)
+LEAN_KAPPAS: Tuple[float, ...] = (0.025, 0.045, 0.085, 0.15)
+GAIN_STEPS_PP: Tuple[float, ...] = (0.1, 0.2, 0.4, 0.7)
+HYBRID_STEPS_PP: Tuple[float, ...] = (0.1, 0.2, 0.35, 0.5)
 #: σ floor (win-chance pp, ÷ max_points for normalised equity): below it the 21 values differ by
 #: model noise only — lean bends no harder than at σ = floor, fixed gain / hybrid roll fair dice.
 SIGMA_FLOOR = 0.01
@@ -123,7 +135,7 @@ KINDS: Dict[str, KindInfo] = {
                               "dice lean towards {side} (bend {x})"),
     "weighted_gain": KindInfo("dice", True, GAIN_STEPS_PP, True,
                               "dice give {side} about +{x} pp per roll"),
-    "weighted_hybrid": KindInfo("dice", True, GAIN_STEPS_PP, True,
+    "weighted_hybrid": KindInfo("dice", True, HYBRID_STEPS_PP, True,
                                 "dice give {side} up to +{x} pp per roll, gently in quiet positions"),
     "rerolls": KindInfo("dice", True, (1, 2, 3, 4), True,
                         "{x} rerolls per game"),
@@ -171,8 +183,8 @@ _ROLL_INDEX = {(i, j): k for k, (i, j, _) in enumerate(ROLLS)}
 #: (board, color) -> 21 values in ROLLS order (win prob of `color`'s best move per roll).
 RollValuer = Callable[[Board, int], Sequence[float]]
 
-#: Kinds that change the favoured side's die faces; weighted dice replace the face mapping,
-#: so it cannot share a side with them.
+#: Kinds that change a side's die faces; weighted dice replace the face mapping of both sides'
+#: rolls (mirrored, #271), so they cannot be combined with any of them.
 _FACE_KINDS = ("dice_ceiling", "dice_floor", "forced_low", "no_doubles")
 
 #: Own turns over which `pass_turns` spreads its skips (~ a typical game's own-turn count).
@@ -333,6 +345,17 @@ def turn_beta(values: Sequence[float], kind: str, strength: float, max_points: i
     if kind == "weighted_hybrid":
         return hybrid_beta(values, strength, max_points)
     raise ValueError(f"not a weighted-dice kind: {kind!r}")
+
+
+def mirrored_turn_beta(values: Sequence[float], kind: str, strength: float,
+                       max_points: int = 1) -> float:
+    """The mirrored bend (#271) on the roll of the favoured side's OPPONENT, from that
+    opponent's own 21 values: −turn_beta(−v) ≤ 0 — the mode's rule applied to the negated
+    values, so the roll leans towards rolls bad for the roller by the same per-roll magnitude
+    (fixed gain E_q[v] − μ = −g, lean κ/σ, hybrid the smaller of both, cap on the boosted
+    bad rolls). 0 = fair."""
+    b = turn_beta([-v for v in values], kind, strength, max_points)
+    return -b if b else 0.0
 
 
 def roll_uniform(u1: float, u2: float) -> float:
@@ -520,10 +543,12 @@ class HandicappedPlakotoRules(PlakotoRules):
                 raise ValueError("one weighted-dice mode per side: " + ", ".join(k for k, _ in on))
             self._weighting[c] = on[0] if on else None
         self._rerolls = {c: int(self._by_target[c].get("rerolls", 0)) for c in (WHITE, BLACK)}
-        for c in (WHITE, BLACK):
-            if self._weighting[c] and any(k in self._by_target[c] for k in _FACE_KINDS):
-                raise ValueError("weighted dice cannot share a side with "
-                                 + "/".join(_FACE_KINDS))
+        # Mirrored (#271): weighted dice bend both sides' rolls, so they replace the face mapping
+        # of both sides — no face kind on either side.
+        if any(self._weighting.values()) and any(
+                k in self._by_target[c] for c in (WHITE, BLACK) for k in _FACE_KINDS):
+            raise ValueError("weighted dice cannot be combined with "
+                             + "/".join(_FACE_KINDS) + " (they bend both sides' rolls)")
         self._skip = {c: pass_schedule(self._by_target[c]["pass_turns"])
                       if "pass_turns" in self._by_target[c] else frozenset()
                       for c in (WHITE, BLACK)}
@@ -579,15 +604,22 @@ class HandicappedPlakotoRules(PlakotoRules):
     # --- dice ---
 
     def needs_roll_values(self, color: int) -> bool:
-        """True when `roll` for `color` needs the 21 per-roll values (weighted dice)."""
-        return self._weighting[color] is not None
+        """True when `roll` for `color` needs the 21 per-roll values: either side has weighted
+        dice (#271: the favoured side's own rolls and, mirrored, its opponent's)."""
+        return self._weighting[color] is not None or self._weighting[-color] is not None
 
     def roll_beta(self, color: int, values: Optional[Sequence[float]]) -> float:
-        """This turn's tilt β_t for `color` given its 21 roll values (0 = fair dice)."""
-        w = self._weighting[color]
-        if w is None or values is None:
+        """This turn's tilt β_t for `color` given its 21 roll values (0 = fair dice): its own
+        weighted dice' bend (≥ 0) plus the opponent's weighted dice' mirrored bend (≤ 0)."""
+        if values is None:
             return 0.0
-        return turn_beta(values, w[0], w[1], self.max_points)
+        beta = 0.0
+        own, opp = self._weighting[color], self._weighting[-color]
+        if own is not None:
+            beta += turn_beta(values, own[0], own[1], self.max_points)
+        if opp is not None:
+            beta += mirrored_turn_beta(values, opp[0], opp[1], self.max_points)
+        return beta
 
     def reroll_tokens(self, color: int) -> int:
         """Rerolls `color` may spend per game."""
@@ -598,7 +630,7 @@ class HandicappedPlakotoRules(PlakotoRules):
         """Dice for `color` from the turn's uniforms. Weighted dice need `values` (21, ROLLS
         order) or a `board` for `self.roll_valuer`; other kinds ignore both."""
         mods = self._by_target[color]
-        if self._weighting[color] is not None:
+        if self.needs_roll_values(color):
             if values is None:
                 if self.roll_valuer is None or board is None:
                     raise ValueError("weighted dice need roll values (roll_valuer + board)")

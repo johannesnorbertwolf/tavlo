@@ -415,7 +415,7 @@ public final class GameSession: ObservableObject {
     public func roll() {
         guard phase == .awaitingRoll, !autoRollPassing, !humanDiceRolling, !preparingDice else { return }
         if restoreRollOnStart { resumePendingRoll(); return }
-        if weightedDiceForCurrentPlayer != nil {
+        if currentRollIsWeighted {
             // Weighted dice (#148): rate the rolls off the main actor, then draw.
             let pending = startHandicappedRoll()
             Task { @MainActor [weak self] in
@@ -861,7 +861,7 @@ public final class GameSession: ObservableObject {
         autoRollTask = Task { @MainActor [weak self] in
             guard let self, !Task.isCancelled else { return }
             if rollDuration > 0 {
-                if self.weightedDiceForCurrentPlayer != nil {
+                if self.currentRollIsWeighted {
                     guard await self.finishHandicappedRoll(self.startHandicappedRoll()) else { return }
                 } else {
                     self.rollDice()
@@ -889,7 +889,7 @@ public final class GameSession: ObservableObject {
     /// the chosen half-moves one at a time. With `.off` everything below is
     /// synchronous exactly as before.
     private func takeAITurn() {
-        if handicap != nil, weightedDiceForCurrentPlayer != nil || computerMayReroll {
+        if handicap != nil, currentRollIsWeighted || computerMayReroll {
             takeHandicappedAITurn()
             return
         }
@@ -1093,21 +1093,23 @@ public final class GameSession: ObservableObject {
     // ── Handicap (#148, tier 1) ─────────────────────────────────────────────────
     // Only reached when `handicap != nil`.
 
-    /// The weighted dice of the side on move, or `nil` when its dice are fair (no
-    /// handicap, weighted dice off, no evaluator, or an undo replay queued — replays
-    /// reproduce the recorded dice exactly).
-    private var weightedDiceForCurrentPlayer: WeightedDice? {
-        guard let handicap, handicapAgent != nil, diceReplays.isEmpty else { return nil }
-        let dice = handicap.setup[currentPlayer].weightedDice
-        return dice.isOn ? dice : nil
+    /// Whether the side on move rolls weighted dice: either side holds weighted dice (#271:
+    /// the favoured side's own rolls lean its way, its opponent's rolls are bent the mirrored
+    /// way). False when the dice are fair (no handicap, weighted dice off on both sides, no
+    /// evaluator, or an undo replay queued — replays reproduce the recorded dice exactly).
+    private var currentRollIsWeighted: Bool {
+        guard let handicap, handicapAgent != nil, diceReplays.isEmpty else { return false }
+        return handicap.setup.hasWeightedDice
     }
 
     /// This turn's tilt β_t for `color` from its 21 roll values (#261: per turn, by the
-    /// side's weighted-dice mode; 0 = fair). The draw and the computer's reroll rule both
-    /// read it, so they see the same distribution.
+    /// weighted-dice mode; #271: its own bend plus the opponent's mirrored one; 0 = fair).
+    /// The draw and the computer's reroll rule both read it, so they see the same
+    /// distribution.
     private func handicapBeta(for color: Color, values: [Float]?) -> Double {
-        guard let values, let dice = handicap?.setup[color].weightedDice, dice.isOn else { return 0 }
-        return HandicapDice.beta(values: values, dice: dice, maxPoints: game.variant.maxPoints)
+        guard let values, let setup = handicap?.setup, setup.hasWeightedDice else { return 0 }
+        return HandicapDice.rollBeta(values: values, roller: color, setup: setup,
+                                     maxPoints: game.variant.maxPoints)
     }
 
     /// The computer on move has rerolls left (and a net to decide with).
@@ -1195,14 +1197,14 @@ public final class GameSession: ObservableObject {
         handicap?.rerollsLeft[currentPlayer] -= 1
         phase = .awaitingRoll
         let tumble = animationTimings.aiDiceRollDuration
-        if weightedDiceForCurrentPlayer == nil && tumble <= 0 {
+        if !currentRollIsWeighted && tumble <= 0 {
             drawHandicapRoll(values: nil)
             beginTurn()
             return
         }
         // Weighted dice rate the rolls off the main actor first; with animation on, the new
         // dice then tumble like an auto-roll (`humanDiceRolling`) before the turn resumes.
-        let weighted = weightedDiceForCurrentPlayer != nil
+        let weighted = currentRollIsWeighted
         let pending: Int
         if weighted {
             pending = startHandicappedRoll()

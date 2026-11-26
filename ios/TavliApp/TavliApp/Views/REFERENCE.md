@@ -1329,7 +1329,9 @@ only when a handicap is active / exists.
   its label (Off → Very strong) and one caption line from `WeightedDiceMode.explanation(level:)`:
   Lean "Good rolls are a bit more likely, the same in every position."; Fixed gain "About +0.4% win
   chance per roll on average, steady through the game." (the level's g, first step when off; a
-  win-chance-equivalent pp in 2-point variants too); Hybrid "Steady gain, but never bends the dice
+  win-chance-equivalent pp in 2-point variants too; since #271 the bend is mirrored, so every roll —
+  the favoured side's and its opponent's — moves the favoured side's chance by about g, and the
+  strings stayed true unchanged); Hybrid "Steady gain, but never bends the dice
   much in quiet positions." The builder keeps its general caption under it. Checked on an iPhone 13
   mini (en/de, light/dark): nothing cut off. **Estimate:** weighted dice are never in the number
   (no mode is measured): in house Plakoto the estimate keeps the other levers and adds "Weighted

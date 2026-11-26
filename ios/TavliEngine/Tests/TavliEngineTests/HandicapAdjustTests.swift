@@ -185,6 +185,69 @@ final class HandicapAdjustTests: XCTestCase {
                        HandicapDice.outcomeIndex(expected.0, expected.1))
     }
 
+    // MARK: - Mirrored bend (#271): the opponent's rolls are bent the other way
+
+    /// White holds weighted dice; Black (a human, two-player game) rolls: its roll is rated
+    /// too and drawn with the mirrored β_t (≤ 0), so its expected roll value drops.
+    func testOpponentRollIsBentTheOtherWay() async throws {
+        let agent = try loadAgent()
+        for mode in WeightedDiceMode.allCases {
+            let dice = WeightedDice(mode: mode, level: WeightedDice.levels)
+            let s = GameSession(startingPlayer: .black, animationTimings: .off,
+                                handicap: HandicapSetup(white: HandicapItems(weightedDice: dice)),
+                                handicapAgent: agent)
+            let values = try HandicapDice.rollValues(agent: agent, board: s.game.board, color: .black)
+            let beta = HandicapDice.mirroredBeta(values: values, dice: dice)
+            XCTAssertLessThan(beta, 0, "\(mode)")
+            let q = HandicapDice.tilt(values: values, beta: beta)
+            XCTAssertLessThan(HandicapDice.expectedValue(values, probabilities: q),
+                              HandicapDice.expectedValue(values), "\(mode)")
+            let u = try XCTUnwrap(discriminatingUniforms(values: values, beta: beta), "\(mode)")
+            s.handicapUniform = uniforms([u.0, u.1])
+            s.roll()
+            XCTAssertTrue(s.preparingDice, "the unfavoured side's roll is rated too")
+            await s.awaitDiceForTesting()
+            let expected = HandicapDice.weightedFaces(u1: u.0, u2: u.1, values: values, beta: beta)
+            XCTAssertEqual(s.game.dice.die1.value, expected.0, "\(mode)")
+            XCTAssertEqual(s.game.dice.die2.value, expected.1, "\(mode)")
+        }
+    }
+
+    /// The computer as the unfavoured side (the human holds weighted dice) rolls the mirrored
+    /// dice, and its reroll rule sees the same mirrored distribution.
+    func testComputerAsUnfavouredSideRollsMirroredDice() async throws {
+        let agent = try loadAgent()
+        let dice = WeightedDice(mode: .fixedGain, level: WeightedDice.levels)
+        let s = GameSession(startingPlayer: .black, agent: agent, aiColor: .black,
+                            searchConfig: SearchConfig(maxDepth: 1), animationTimings: .off,
+                            handicap: HandicapSetup(white: HandicapItems(weightedDice: dice)))
+        let values = try HandicapDice.rollValues(agent: agent, board: s.game.board, color: .black)
+        let beta = HandicapDice.rollBeta(values: values, roller: .black, favoured: .white, dice: dice)
+        XCTAssertEqual(beta, HandicapDice.mirroredBeta(values: values, dice: dice))
+        let u = try XCTUnwrap(discriminatingUniforms(values: values, beta: beta))
+        s.handicapUniform = uniforms([u.0, u.1])
+        s.start()
+        while s.history.isEmpty { try await Task.sleep(nanoseconds: 5_000_000) }
+        let expected = HandicapDice.weightedFaces(u1: u.0, u2: u.1, values: values, beta: beta)
+        let ply = s.history[0]
+        XCTAssertEqual(HandicapDice.outcomeIndex(ply.die1, ply.die2),
+                       HandicapDice.outcomeIndex(expected.0, expected.1))
+    }
+
+    /// Off on both sides (here: only rerolls) is fair for both sides: no rating, the fair
+    /// faces of the uniforms.
+    func testNoWeightedDiceIsFairForBothSides() async throws {
+        let agent = try loadAgent()
+        for starter in Color.allCases {
+            let s = GameSession(startingPlayer: starter, animationTimings: .off,
+                                handicap: HandicapSetup(white: HandicapItems(rerolls: 2)),
+                                handicapAgent: agent)
+            s.roll()
+            XCTAssertFalse(s.preparingDice, "\(starter)")
+            XCTAssertEqual(s.phase, .picking)
+        }
+    }
+
     func testComputerRerollsWithTokensAddedMidGame() async throws {
         let agent = try loadAgent()
         let s = GameSession(startingPlayer: .black, agent: agent, aiColor: .black,

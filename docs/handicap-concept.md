@@ -51,7 +51,7 @@ retraining (E3).
 |---|---|---|---|---|
 | **Head start** | m checkers of the favoured side start further ahead (6 or 12 pips, E1 decides) | Slider | Net + measured | Phase 1: up to 7.2 pp at m=4; E1 extends the range |
 | **Moves first** | The favoured side always rolls first | Toggle | Measured (2.8 pp) | |
-| **Weighted dice** *(user idea)* | Before each roll, the net rates all 21 rolls for the favoured side by the value of its best move. Each roll's probability is tilted by `exp(β · value)` and renormalised. β = 0 means fair dice. **#261:** β is chosen per turn by one of three modes — Lean, Fixed gain, Hybrid (§9 "Weighted dice") | Mode + slider (4 steps) | Not measured yet (#261) | Continuous, so it's the finest knob. It adapts to the position: in an exact-die bear-off a *low* roll can be the good one. No rules change, any variant. The AI plans as if the dice were fair, so it's slightly off under tilt; the measurement absorbs that. **Disclosed via the in-game Handicap tag** ("Dice favour White slightly"), never per roll |
+| **Weighted dice** *(user idea)* | Before each roll, the net rates all 21 rolls for the favoured side by the value of its best move. Each roll's probability is tilted by `exp(β · value)` and renormalised. β = 0 means fair dice. **#261:** β is chosen per turn by one of three modes — Lean, Fixed gain, Hybrid (§9 "Weighted dice"). **#271:** mirrored — the opponent's rolls lean towards rolls bad for the opponent by the same per-roll amount | Mode + slider (4 steps) | Not measured yet (#261) | Continuous, so it's the finest knob. It adapts to the position: in an exact-die bear-off a *low* roll can be the good one. No rules change, any variant. The AI plans as if the dice were fair, so it's slightly off under tilt; the measurement absorbs that. **Disclosed via the in-game Handicap tag** ("Dice favour White slightly"), never per roll |
 | **Rerolls** | The favoured side may reroll N times per game, choosing when | Slider 0…N | Measured | AI policy for self-play: reroll when the rolled position's value is below the expected value of a fresh roll by more than a threshold. Simple and close to what a human would do |
 | **Hints** | The favoured side may ask for the best move N times per game | Slider 0…N | **Rough** (simulated with a weaker AI level getting N best moves), labelled "approx." | Value depends on the human; it also teaches |
 
@@ -194,15 +194,19 @@ Engine detail: `ios/REFERENCE.md` ("Handicaps, tier 1"); views: `ios/TavliApp/Ta
   fixed β did almost nothing early and swamped endgames. With μ = Σ p v, σ² = Σ p (v − μ)² and a
   σ floor of 1 pp:
   - **Lean** — β_t = κ / max(σ, σ_floor): the same bend every turn (a roll 2σ above average is
-    e^{2κ}× as likely); gain ≈ κ·σ. Steps κ 0.04 / 0.08 / 0.15 / 0.25.
+    e^{2κ}× as likely); gain ≈ κ·σ. Steps κ 0.025 / 0.045 / 0.085 / 0.15 (#271).
   - **Fixed gain** — β_t solved by bisection so E_q[v] − μ = g per roll, but no roll more than 3×
-    its fair probability (the cap binds where g is out of reach); σ < 1 pp → fair. Steps g 0.2 /
-    0.4 / 0.8 / 1.5 pp per roll.
+    its fair probability (the cap binds where g is out of reach); σ < 1 pp → fair. Steps g 0.1 /
+    0.2 / 0.4 / 0.7 pp per roll (#271).
   - **Hybrid** — min(fixed gain's β_t, 0.3 / max(σ, σ_floor)): fixed gain in tense positions, a
-    gentle lean in quiet ones. Same g steps.
-  The steps (Slight → Very strong, either side) are calibrated so a step is about equally strong in
-  every mode: first-order gain per game ≈ +7–8 / +14–16 / +26–30 / +37–50 pp
-  (`scripts/weighted_dice_calibration.py`, gold_v11 self-play). For 2-point variants g and the σ
+    gentle lean in quiet ones. Steps g 0.1 / 0.2 / 0.35 / 0.5 (#271).
+  **#271 mirrored the bend:** the favoured side's rolls lean its way as above, and the opponent's
+  rolls lean towards rolls bad for the opponent with the same per-roll magnitude (the same rule on
+  the opponent's negated values: "+g for me, −g for you"). That doubled the effect per game, so the
+  steps were roughly halved. The steps (Slight → Very strong, either side) are calibrated so a step
+  is about equally strong in every mode and about as strong in total as the one-sided #261 step
+  (or a little stronger): first-order gain per game ≈ +7–8 / +15 / +26–30 / +35–51 pp
+  (`scripts/weighted_dice_calibration.py`, gold_v11 self-play, 480 games). For 2-point variants g and the σ
   floor are win-chance-equivalent pp (÷ max points in normalised equity). Old saves and settings
   (a fixed β) load as hybrid dice of comparable strength. The tilt is disclosed only in the
   Handicap tag ("Dice favour Red moderately"), never per roll; the estimate says "not measured

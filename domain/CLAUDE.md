@@ -88,19 +88,27 @@ size = `HandicapBoard(Board)` overriding `is_home`/`clone` — the generator onl
 `is_home`; `board.py`/`move_generation.py` are untouched. Results / rationale: `docs/handicap-phase1.md`.
 
 Tier-1 dice kinds (all bonus, category "dice", on-distribution). **Weighted dice (#261, three modes,
-`WEIGHTED_KINDS`; the fixed-β `weighted_dice` is gone):** the favoured side's roll is tilted to
-q(r) ∝ p(r)·exp(β_t·v(r)) over the 21 `ROLLS`, with `v` from an injected `roll_valuer(board, color)`
+`WEIGHTED_KINDS`; the fixed-β `weighted_dice` is gone; **mirrored since #271**):** the roller's roll
+is tilted to q(r) ∝ p(r)·exp(β_t·v(r)) over the 21 `ROLLS`, with `v` (the roller's values) from an
+injected `roll_valuer(board, color)`
 (constructor arg / attribute; or `values=` passed to `roll`) and a per-turn β_t from `turn_beta`
 (μ, σ from `roll_spread`; σ floor `SIGMA_FLOOR` = 1 pp): `weighted_lean:κ` β_t = κ/max(σ, floor)
 (`lean_beta`; constant bend, 2σ above average = e^{2κ}×); `weighted_gain:g` the largest β_t with
 E_q[v] − μ ≤ g pp and max q/p ≤ `GAIN_CAP` (3), one bisection over [0, 50/σ] (`gain_beta`; σ < floor
 → 0); `weighted_hybrid:g` min of that and `HYBRID_KAPPA_MAX`(0.3)/max(σ, floor) (`hybrid_beta`).
-First-order gain ≈ β·σ². Steps `LEAN_KAPPAS` (0.04/0.08/0.15/0.25), `GAIN_STEPS_PP` (0.2/0.4/0.8/1.5),
-calibrated by `scripts/weighted_dice_calibration.py`. `max_points` (the RuleSet's) divides g and the
-floor for normalised-equity variants. One mode per side. Drawn by `weighted_faces`: inverse CDF of one
+That β_t ≥ 0 bends the favoured side's own roll; the OPPONENT's roll gets the mirror image
+`mirrored_turn_beta` = −turn_beta(−v) ≤ 0 (towards rolls bad for it, same per-roll magnitude: fixed
+gain E_q[v] − μ = −g). `rules.roll_beta(color, values)` = own bend + the other side's mirrored bend
+(both sides weighted: the sum); `needs_roll_values(color)` is true when either side has weighted dice.
+First-order gain ≈ β·σ². Steps `LEAN_KAPPAS` (0.025/0.045/0.085/0.15), `GAIN_STEPS_PP`
+(0.1/0.2/0.4/0.7), `HYBRID_STEPS_PP` (0.1/0.2/0.35/0.5), calibrated by
+`scripts/weighted_dice_calibration.py` so each step's total (own + mirrored) gain ≈ the one-sided #261
+step's. `max_points` (the RuleSet's) divides g and the floor for normalised-equity variants. One mode
+per side. Drawn by `weighted_faces`: inverse CDF of one
 uniform `(int(6u1)+u2)/6` over the 36 ordered outcomes, which for β_t = 0 is exactly
-`(face(u1), face(u2))` — fair dice bit-for-bit, same uniforms, so pairs stay aligned. Cannot share a
-side with the face kinds (ceiling/floor/forced-low/no-doubles). The Swift port (`HandicapDice`) is
+`(face(u1), face(u2))` — fair dice bit-for-bit, same uniforms, so pairs stay aligned. Cannot be
+combined with the face kinds (ceiling/floor/forced-low/no-doubles) on either side (it bends both
+sides' rolls). The Swift port (`HandicapDice`) is
 pinned to these functions.
 `rerolls:N` only exposes `reroll_tokens(color)`; when to reroll is a player policy in the game loop
 (`ai/handicap_sweep.py`). `needs_roll_values(color)` tells the loop when values are needed;
