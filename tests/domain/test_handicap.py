@@ -11,10 +11,11 @@ from domain.board import Board
 from domain.constants import WHITE, BLACK
 from domain.dice import Dice
 from domain.handicap import (
-    GAIN_CAP, GAIN_STEPS_PP, HYBRID_KAPPA_MAX, LEAN_KAPPAS, ROLLS, SIGMA_FLOOR, WEIGHTED_KINDS,
-    HandicapBoard, HandicapSpec, HandicappedPlakotoRules, KINDS, face, gain_beta, hybrid_beta,
-    lean_beta, make_handicapped_rules, parse_spec, pass_schedule, plain_roll, roll_index,
-    roll_spread, roll_uniform, tilted_roll_probs, turn_beta, weighted_faces,
+    GAIN_CAP, GAIN_STEPS_PP, HYBRID_KAPPA_MAX, HYBRID_STEPS_PP, LEAN_KAPPAS, ROLLS, SIGMA_FLOOR,
+    WEIGHTED_KINDS, HandicapBoard, HandicapSpec, HandicappedPlakotoRules, KINDS, face, gain_beta,
+    hybrid_beta, lean_beta, make_handicapped_rules, mirrored_turn_beta, parse_spec, pass_schedule,
+    plain_roll, roll_index, roll_spread, roll_uniform, tilted_roll_probs, turn_beta,
+    weighted_faces,
 )
 from domain.move import HalfMove, Move
 from domain.move_generation import legal_moves
@@ -245,7 +246,11 @@ class TestWeightedDice(unittest.TestCase):
         self.assertNotIn("weighted_dice", KINDS)  # the fixed-β mode is gone
         self.assertEqual(KINDS["weighted_lean"].intensities, LEAN_KAPPAS)
         self.assertEqual(KINDS["weighted_gain"].intensities, GAIN_STEPS_PP)
-        self.assertEqual(KINDS["weighted_hybrid"].intensities, GAIN_STEPS_PP)
+        self.assertEqual(KINDS["weighted_hybrid"].intensities, HYBRID_STEPS_PP)
+        # #271 calibration (mirrored: each step about the #261 one-sided step's total gain).
+        self.assertEqual(LEAN_KAPPAS, (0.025, 0.045, 0.085, 0.15))
+        self.assertEqual(GAIN_STEPS_PP, (0.1, 0.2, 0.4, 0.7))
+        self.assertEqual(HYBRID_STEPS_PP, (0.1, 0.2, 0.35, 0.5))
         self.assertEqual(KINDS["weighted_gain"].describe.format(side="White", x=0.4),
                          "dice give White about +0.4 pp per roll")
         self.assertEqual(KINDS["rerolls"].describe.format(x=3), "3 rerolls per game")
@@ -372,7 +377,7 @@ class TestWeightedDice(unittest.TestCase):
         saw_gain = saw_lean = False
         for sigma in (0.011, 0.02, 0.05, 0.12):
             vals = _spread_vals(sigma)
-            for g in GAIN_STEPS_PP:
+            for g in GAIN_STEPS_PP + HYBRID_STEPS_PP:
                 bg = gain_beta(vals, g)
                 bl = lean_beta(vals, HYBRID_KAPPA_MAX)
                 self.assertEqual(hybrid_beta(vals, g), min(bg, bl))
@@ -431,18 +436,96 @@ class TestWeightedDice(unittest.TestCase):
         d = r.roll(BLACK, 0.99, 0.99, 0.0, 0.0, board)
         self.assertEqual((d.die1.value, d.die2.value), (6, 6))
         self.assertEqual(calls, [BLACK])
-        # The handicapped (unfavoured) side rolls fair dice without consulting the valuer.
-        self.assertTrue(r.needs_roll_values(BLACK) and not r.needs_roll_values(WHITE))
+        # Mirrored (#271): the handicapped (unfavoured) side's roll consults the valuer too and
+        # is bent away from its good roll — here its 6-6 loses mass.
+        self.assertTrue(r.needs_roll_values(BLACK) and r.needs_roll_values(WHITE))
+        vals = valuer(board, WHITE)
+        beta = r.roll_beta(WHITE, vals)
+        self.assertLess(beta, 0.0)
+        self.assertLess(tilted_roll_probs(vals, beta)[roll_index(6, 6)], 1 / 36 / 2)
+        calls.clear()
+        d = r.roll(WHITE, 0.999, 0.999, 0.0, 0.0, board)
+        self.assertEqual((d.die1.value, d.die2.value), weighted_faces(0.999, 0.999, vals, beta))
+        self.assertEqual(calls, [WHITE])
         d = r.roll(WHITE, 0.1, 0.1, 0.0, 0.0, board)
         self.assertEqual((d.die1.value, d.die2.value), (1, 1))
-        self.assertEqual(calls, [BLACK])
         with self.assertRaises(ValueError):
             rules("weighted_hybrid:0.4").roll(BLACK, 0.1, 0.1, 0.0, 0.0)
 
-    def test_no_face_kind_on_same_side(self):
+    def test_no_face_kind_beside_weighted_dice(self):
         with self.assertRaises(ValueError):
             rules("weighted_gain:0.4", "dice_floor:2")   # both favour the opponent
-        rules("weighted_gain:0.4", "dice_ceiling:5")     # different sides: fine
+        # Mirrored (#271): weighted dice bend both sides' rolls, so a face kind on the other
+        # side clashes too.
+        with self.assertRaises(ValueError):
+            rules("weighted_gain:0.4", "dice_ceiling:5")
+        rules("rerolls:2", "dice_ceiling:5")             # without weighted dice: fine
+
+    def test_mirrored_bend_is_the_opposite_of_the_own_bend(self):
+        """#271: the opponent's roll leans towards rolls bad for it by the same magnitude —
+        fixed gain E_q[v] − μ = −g, lean a roll z σ below another e^{κ z}× as likely, the cap
+        bounds the boosted bad rolls; it is the own rule on the negated values."""
+        fair = [w for _, _, w in ROLLS]
+        for sigma in (0.02, 0.05, 0.12):
+            vals = _spread_vals(sigma)
+            mu, sd = roll_spread(vals)
+            neg = [-v for v in vals]
+            for kind, grid in (("weighted_lean", LEAN_KAPPAS), ("weighted_gain", GAIN_STEPS_PP),
+                               ("weighted_hybrid", HYBRID_STEPS_PP)):
+                for x in grid:
+                    bm = mirrored_turn_beta(vals, kind, x)
+                    self.assertLess(bm, 0.0)
+                    self.assertEqual(bm, -turn_beta(neg, kind, x))
+                    p = tilted_roll_probs(vals, bm)
+                    self.assertAlmostEqual(sum(p), 1.0, places=12)
+                    luck = sum(q * v for q, v in zip(p, vals)) - mu
+                    self.assertLess(luck, 0.0)
+                    self.assertLessEqual(max(q / w for q, w in zip(p, fair)), GAIN_CAP + 1e-9)
+                    if kind == "weighted_lean":   # same bend magnitude, opposite direction
+                        self.assertAlmostEqual(bm, -turn_beta(vals, kind, x), places=12)
+                        self.assertAlmostEqual(math.exp(-bm * 2 * sd), math.exp(2 * x), places=9)
+                    if kind == "weighted_gain" and max(q / w for q, w in zip(p, fair)) < GAIN_CAP - 1e-6:
+                        self.assertAlmostEqual(luck, -x / 100, delta=1e-9)
+        # Flat / quiet positions: fair (fixed gain + hybrid below the σ floor).
+        for kind in ("weighted_gain", "weighted_hybrid"):
+            self.assertEqual(mirrored_turn_beta(_spread_vals(SIGMA_FLOOR * 0.5), kind, 0.5), 0.0)
+        self.assertEqual(mirrored_turn_beta(_vals(1), "weighted_lean", 0.0), 0.0)
+
+    def test_roll_beta_mirrors_onto_the_opponent(self):
+        """The favoured side (Black for a White spec) gets its own bend, White the mirrored one;
+        both sides weighted = the sum; equal lean on both sides cancels to fair dice."""
+        vals = _vals(7)
+        for kind, x in (("weighted_lean", 0.085), ("weighted_gain", 0.4), ("weighted_hybrid", 0.35)):
+            r = rules(f"{kind}:{x}")
+            self.assertEqual(r.roll_beta(BLACK, vals), turn_beta(vals, kind, x))
+            self.assertEqual(r.roll_beta(WHITE, vals), mirrored_turn_beta(vals, kind, x))
+            self.assertGreater(r.roll_beta(BLACK, vals), 0.0)
+            self.assertLess(r.roll_beta(WHITE, vals), 0.0)
+            self.assertEqual(r.roll_beta(WHITE, None), 0.0)
+            us = [(0.13, 0.77), (0.5, 0.5), (0.86, 0.61)]
+            rolled = [r.roll(WHITE, u1, u2, 0, 0, values=vals) for u1, u2 in us]
+            self.assertEqual([(d.die1.value, d.die2.value) for d in rolled],
+                             [weighted_faces(u1, u2, vals, mirrored_turn_beta(vals, kind, x))
+                              for u1, u2 in us])
+        both = make_handicapped_rules([parse_spec("weighted_gain:0.4", WHITE),
+                                       parse_spec("weighted_lean:0.045", BLACK)])
+        self.assertEqual(both.roll_beta(BLACK, vals), turn_beta(vals, "weighted_gain", 0.4)
+                         + mirrored_turn_beta(vals, "weighted_lean", 0.045))
+        even = make_handicapped_rules([parse_spec("weighted_lean:0.085", WHITE),
+                                       parse_spec("weighted_lean:0.085", BLACK)])
+        for c in (WHITE, BLACK):
+            self.assertEqual(even.roll_beta(c, vals), 0.0)
+            d = even.roll(c, 0.4, 0.7, 0.0, 0.0, values=vals)
+            self.assertEqual((d.die1.value, d.die2.value), (face(0.4), face(0.7)))
+
+    def test_off_is_fair_for_both_sides(self):
+        """No weighted dice (or strength 0): neither side needs roll values, both roll fair."""
+        for r in (rules("rerolls:1"), rules("weighted_gain:0"), rules("weighted_lean:0")):
+            for c in (WHITE, BLACK):
+                self.assertFalse(r.needs_roll_values(c))
+                self.assertEqual(r.roll_beta(c, _vals(2)), 0.0)
+                d = r.roll(c, 0.4, 0.7, 0.0, 0.0)
+                self.assertEqual((d.die1.value, d.die2.value), (face(0.4), face(0.7)))
 
     def test_reroll_tokens(self):
         r = rules("rerolls:3")

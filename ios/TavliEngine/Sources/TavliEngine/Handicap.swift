@@ -13,8 +13,11 @@ import Foundation
 // position/dice/turn order are exactly the unhandicapped ones.
 
 /// How weighted dice pick this turn's tilt (#261). Every mode draws from
-/// `q(r) ∝ p(r)·exp(β_t·v(r))` over the 21 rolls (`v` = the side's best 1-ply move value);
-/// they differ in β_t (μ, σ = mean and spread of `v` under fair dice; see `HandicapDice`):
+/// `q(r) ∝ p(r)·exp(β_t·v(r))` over the 21 rolls (`v` = the roller's best 1-ply move value).
+/// **Mirrored (#271):** the favoured side's own rolls lean towards rolls good for it, its
+/// opponent's rolls towards rolls bad for the opponent, by the same per-roll magnitude
+/// (`HandicapDice.mirroredBeta`). The modes differ in β_t (μ, σ = mean and spread of `v`
+/// under fair dice; see `HandicapDice`):
 /// - `lean`: β_t = κ / max(σ, σ_floor) — the same bend in every position.
 /// - `fixedGain`: β_t solved so the expected luck E_q[v] − μ = g per roll, capped at
 ///   `HandicapDice.gainCap`× fair; σ < σ_floor → fair dice.
@@ -33,27 +36,29 @@ public enum WeightedDiceMode: String, Codable, CaseIterable, Sendable {
     }
 
     /// The strength per level (1…`WeightedDice.levels`): κ for lean, g in win-chance pp per
-    /// roll for fixed gain and hybrid. **The one place the grids live** (Python
-    /// `LEAN_KAPPAS` / `GAIN_STEPS_PP`). Calibrated (gold_v11 1-ply self-play,
-    /// `scripts/weighted_dice_calibration.py`) so a level is about as strong in every mode:
-    /// first-order gain per game ≈ +7 / +14 / +27 / +48 pp (lean), +8 / +16 / +30 / +50
-    /// (fixed gain), +8 / +15 / +26 / +37 (hybrid).
+    /// roll (each side's roll, #271) for fixed gain and hybrid. **The one place the grids
+    /// live** (Python `LEAN_KAPPAS` / `GAIN_STEPS_PP` / `HYBRID_STEPS_PP`). Recalibrated for
+    /// the mirrored bend (#271, gold_v11 1-ply self-play, `scripts/weighted_dice_calibration.py`)
+    /// so each level's total gain per game (own + mirrored rolls) is about the one-sided #261
+    /// level's or a little more: see `firstOrderGainPerGame`.
     public var strengths: [Double] {
         switch self {
-        case .lean:                return [0.04, 0.08, 0.15, 0.25]
-        case .fixedGain, .hybrid:  return [0.2, 0.4, 0.8, 1.5]
+        case .lean:      return [0.025, 0.045, 0.085, 0.15]
+        case .fixedGain: return [0.1, 0.2, 0.4, 0.7]
+        case .hybrid:    return [0.1, 0.2, 0.35, 0.5]
         }
     }
 
     /// Each level's calibrated first-order gain per game in house Plakoto (pp; the sum over
-    /// the favoured side's rolls of E_q[v] − μ, `scripts/weighted_dice_calibration.py`). Not
-    /// a measured win rate: used only to migrate old β settings and to tell which side a
-    /// two-sided setup favours (`WeightedDice.approximateLogOddsShift`), never shown.
+    /// the favoured side's rolls of E_q[v] − μ plus, mirrored (#271), over the opponent's rolls
+    /// of μ − E_q[v]; `scripts/weighted_dice_calibration.py`). Not a measured win rate: used
+    /// only to migrate old β settings and to tell which side a two-sided setup favours
+    /// (`WeightedDice.approximateLogOddsShift`), never shown.
     public var firstOrderGainPerGame: [Double] {
         switch self {
-        case .lean:      return [7, 14, 27, 48]
-        case .fixedGain: return [8, 16, 30, 50]
-        case .hybrid:    return [8, 15, 26, 37]
+        case .lean:      return [8, 15, 28, 50]
+        case .fixedGain: return [7, 15, 30, 51]
+        case .hybrid:    return [7, 15, 26, 35]
         }
     }
 }
@@ -91,8 +96,9 @@ public struct WeightedDice: Codable, Hashable, Sendable {
 
     /// An old fixed-β setting (before #261, `HandicapItems.diceTilt`) as hybrid dice of a
     /// comparable strength: the old β's first-order gain per game (≈ 13.5 pp per unit β,
-    /// E1) matched to the nearest hybrid level (+8 / +15 / +26 / +37 pp). The old app steps
-    /// β 0.3 / 0.6 / 1.2 / 2.0 become levels 1 / 1 / 2 / 3; β ≤ 0 is off.
+    /// E1) matched to the nearest hybrid level's total gain (+7 / +15 / +26 / +35 pp, mirrored
+    /// since #271). The old app steps β 0.3 / 0.6 / 1.2 / 2.0 become levels 1 / 1 / 2 / 3;
+    /// β ≤ 0 is off.
     public static func migrating(beta: Double) -> WeightedDice {
         guard beta.isFinite, beta > 0 else { return .off }
         let gain = 13.5 * beta

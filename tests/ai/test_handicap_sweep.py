@@ -1,5 +1,6 @@
 """Handicap harness (#148): no-handicap equivalence, determinism, pairing, stats."""
 
+import random
 import unittest
 from pathlib import Path
 
@@ -13,7 +14,8 @@ from ai.handicap_sweep import (
     REROLL_MARGIN, cell_label, cell_uses_bearoff_db, default_cells, is_estimable, parse_cell,
     play_game, play_pair, rules_for, start_estimate, summarize_cell, to_markdown, wants_reroll,
 )
-from domain.handicap import ROLLS, hybrid_beta, roll_index
+from domain.handicap import (ROLLS, hybrid_beta, mirrored_turn_beta, roll_index,
+                             weighted_faces)
 from config.config_loader import ConfigLoader
 from domain.constants import WHITE, BLACK
 from domain.dice import Dice
@@ -40,7 +42,9 @@ class TestCells(unittest.TestCase):
         vals = [0.3 + 0.02 * k for k in range(21)]
         self.assertEqual((r.reroll_tokens(BLACK), r.roll_beta(BLACK, vals), r.first_mover(WHITE)),
                          (1, hybrid_beta(vals, 2), BLACK))
-        self.assertEqual(r.roll_beta(WHITE, vals), 0.0)
+        # Mirrored (#271): the handicapped side's roll is bent the other way.
+        self.assertEqual(r.roll_beta(WHITE, vals), mirrored_turn_beta(vals, "weighted_hybrid", 2))
+        self.assertLess(r.roll_beta(WHITE, vals), 0.0)
         self.assertTrue(is_estimable(parse_cell("pip_headstart:4+first_mover")))
         self.assertFalse(is_estimable(c))
 
@@ -146,11 +150,21 @@ class TestHarness(unittest.TestCase):
         a = play_pair(self.agent, self.config, cell, 4)
         b = play_pair(self.agent, self.config, cell, 4)
         self.assertEqual(a, b)
-        # The handicapped side's own rolls are the plain stream's: its first roll matches.
-        t_plain, t_w = [], []
-        play_game(self.agent, self.config, rules_for((), WHITE), 4, t_plain)
-        play_game(self.agent, self.config, rules_for(cell, WHITE), 4, t_w)
-        self.assertEqual(t_plain[0][:2], t_w[0][:2])
+        # Mirrored (#271): the handicapped side's rolls are bent too (away from its good rolls),
+        # drawn from the SAME main-stream uniforms: its first roll is the mirrored tilt's
+        # inverse CDF of the plain stream's first two uniforms.
+        t_w = []
+        rules = rules_for(cell, WHITE)
+        play_game(self.agent, self.config, rules, 4, t_w)
+        board = rules.initial_board(self.config)
+        vals = self.agent.roll_values(board, WHITE, rules.legal_moves)
+        beta = rules.roll_beta(WHITE, vals)
+        self.assertEqual(beta, mirrored_turn_beta(vals, "weighted_gain", 1.5))
+        self.assertLess(beta, 0.0)
+        rng = random.Random(4)
+        u1, u2 = rng.random(), rng.random()
+        self.assertEqual(t_w[0][0], WHITE)
+        self.assertEqual(t_w[0][1][:2], weighted_faces(u1, u2, vals, beta))
 
     def test_reroll_token_accounting(self):
         for n in (1, 3):
