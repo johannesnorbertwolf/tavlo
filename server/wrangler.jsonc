@@ -3,8 +3,8 @@
 //   staging      `npm run deploy:staging`   → tavtav-server-staging.<subdomain>.workers.dev
 //   production   `npm run deploy:production` → tavtav-server.<subdomain>.workers.dev
 // Bindings (vars, d1_databases, durable_objects, ratelimits) are NOT inherited by
-// environments, so every environment repeats them. Before the first deploy replace the
-// two REPLACE_WITH_* D1 ids (see REFERENCE.md "Runbook").
+// environments, so every environment repeats them. The staging/production D1 ids are
+// filled in (created 2026-11-27; see REFERENCE.md "Runbook").
 // GOOGLE_CLIENT_IDS: the iOS OAuth client id(s) (comma separated; public, not a secret)
 // that Google id_tokens must name as `aud`; empty = Sign in with Google answers 503.
 {
@@ -47,7 +47,7 @@
         {
           "binding": "DB",
           "database_name": "tavtav-staging",
-          "database_id": "REPLACE_WITH_STAGING_D1_ID",
+          "database_id": "9ede3d99-2d0f-4937-9b4b-494dce25bed7",
           "migrations_dir": "migrations"
         }
       ],
@@ -71,7 +71,7 @@
         {
           "binding": "DB",
           "database_name": "tavtav-production",
-          "database_id": "REPLACE_WITH_PRODUCTION_D1_ID",
+          "database_id": "b241f489-923d-49be-9dd4-3ce3c5e34cc4",
           "migrations_dir": "migrations"
         }
       ],
