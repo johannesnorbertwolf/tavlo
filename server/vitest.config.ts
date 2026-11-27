@@ -11,7 +11,13 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: "./wrangler.jsonc" },
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } },
+        // GOOGLE_CLIENT_IDS = test/auth-helpers.ts GOOGLE_CLIENT_ID (Google sign-in tests).
+        miniflare: {
+          bindings: {
+            TEST_MIGRATIONS: migrations,
+            GOOGLE_CLIENT_IDS: "test-ios-client.apps.googleusercontent.com",
+          },
+        },
       }),
     ],
     test: { setupFiles: ["./test/setup.ts"] },

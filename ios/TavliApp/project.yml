@@ -56,11 +56,27 @@ targets:
         # Game Center capability (#134). Signing the entitlement needs a real
         # DEVELOPMENT_TEAM and the app registered in App Store Connect with Game
         # Center enabled; compile-only builds pass CODE_SIGNING_ALLOWED=NO.
+        # Sign in with Apple (#285) is in the same entitlements file; automatic signing
+        # adds the capability to the App ID.
         CODE_SIGN_ENTITLEMENTS: TavliApp/TavliApp.entitlements
+        # Server v1 (#285, server/REFERENCE.md). Info.plist reads these. Replace the
+        # workers.dev subdomain once the server is deployed; a URL containing REPLACE
+        # counts as "not configured" (the account screen says the server isn't available).
+        # Debug builds talk to `wrangler dev` on this Mac (the simulator reaches localhost)
+        # and can switch servers in the account screen's Developer card.
+        TAVTAV_SERVER_URL_STAGING: "https://tavtav-server-staging.REPLACE_WITH_SUBDOMAIN.workers.dev"
+        TAVTAV_SERVER_URL_PRODUCTION: "https://tavtav-server.REPLACE_WITH_SUBDOMAIN.workers.dev"
+        TAVTAV_SERVER_URL: "$(TAVTAV_SERVER_URL_PRODUCTION)"
+        # The iOS OAuth client id from Google Cloud (…apps.googleusercontent.com; public, not
+        # a secret). Empty = "Sign in with Google isn't available" (#285).
+        GOOGLE_IOS_CLIENT_ID: ""
         SWIFT_VERSION: "5.9"
         DEVELOPMENT_TEAM: ""
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          TAVTAV_SERVER_URL: "http://localhost:8787"
   TavliAppUITests:
     type: bundle.ui-testing
     platform: iOS

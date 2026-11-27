@@ -31,6 +31,7 @@ final class ServerAPITests: XCTestCase {
         "refresh-request.json": { try $0.decode(ServerAPI.RefreshRequest.self, "refresh-request.json") },
         "auth-session.json": { try $0.decode(ServerAPI.AuthSession.self, "auth-session.json") },
         "update-account-request.json": { try $0.decode(ServerAPI.UpdateAccountRequest.self, "update-account-request.json") },
+        "dev-sign-in-request.json": { try $0.decode(ServerAPI.DevSignInRequest.self, "dev-sign-in-request.json") },
         "match-snapshot.json": { try $0.decode(ServerAPI.MatchSnapshot.self, "match-snapshot.json") },
         "match-snapshot-new.json": { try $0.decode(ServerAPI.MatchSnapshot.self, "match-snapshot-new.json") },
         "match-list.json": { try $0.decode(ServerAPI.MatchList.self, "match-list.json") },

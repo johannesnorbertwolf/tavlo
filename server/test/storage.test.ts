@@ -9,7 +9,7 @@ describe("D1 schema (migrations/)", () => {
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' ORDER BY name",
     ).all<{ name: string }>();
     expect(results.map((r) => r.name)).toEqual(
-      expect.arrayContaining(["account_identities", "accounts", "match_index", "ops_alerts"]),
+      expect.arrayContaining(["account_identities", "accounts", "match_index", "ops_alerts", "sessions"]),
     );
   });
 
@@ -46,7 +46,9 @@ describe("D1 schema (migrations/)", () => {
     const now = Date.now();
     await env.DB.batch([
       env.DB.prepare("INSERT INTO accounts VALUES ('acc_t2', 'Gone', ?, ?)").bind(now, now),
-      env.DB.prepare("INSERT INTO account_identities VALUES ('google', 'g2', 'acc_t2', ?)").bind(now),
+      env.DB.prepare(
+        "INSERT INTO account_identities (provider, subject, account_id, created_at) VALUES ('google', 'g2', 'acc_t2', ?)",
+      ).bind(now),
       env.DB.prepare(
         "INSERT INTO match_index (match_id, account_id, variant, target_wins, state, created_at, updated_at) " +
           "VALUES ('m1', 'acc_t2', 'plakoto', 2, 'yourTurn', ?, ?)",

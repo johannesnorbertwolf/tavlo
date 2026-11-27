@@ -5,6 +5,8 @@
 // Bindings (vars, d1_databases, durable_objects, ratelimits) are NOT inherited by
 // environments, so every environment repeats them. Before the first deploy replace the
 // two REPLACE_WITH_* D1 ids (see REFERENCE.md "Runbook").
+// GOOGLE_CLIENT_IDS: the iOS OAuth client id(s) (comma separated; public, not a secret)
+// that Google id_tokens must name as `aud`; empty = Sign in with Google answers 503.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tavtav-server-dev",
@@ -13,7 +15,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": { "ENVIRONMENT": "development", "GIT_COMMIT": "dev" },
+  "vars": { "ENVIRONMENT": "development", "GIT_COMMIT": "dev", "GOOGLE_CLIENT_IDS": "" },
   "durable_objects": {
     "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
   },
@@ -36,7 +38,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true, "head_sampling_rate": 1 },
-      "vars": { "ENVIRONMENT": "staging", "GIT_COMMIT": "unknown" },
+      "vars": { "ENVIRONMENT": "staging", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "" },
       "durable_objects": {
         "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
       },
@@ -60,7 +62,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true, "head_sampling_rate": 1 },
-      "vars": { "ENVIRONMENT": "production", "GIT_COMMIT": "unknown" },
+      "vars": { "ENVIRONMENT": "production", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "" },
       "durable_objects": {
         "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
       },

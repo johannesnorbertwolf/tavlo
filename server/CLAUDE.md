@@ -17,9 +17,12 @@ dice + WebSocket · #287 invites/auto-match/lobby/push · #288 remove Game Cente
 | `src/api.ts` | **Wire contract**: runtime schemas + types for every body and WebSocket message, error codes |
 | `src/schema.ts` | Mini schema kit (`parse` validates, `Infer` types; unknown keys dropped) |
 | `src/match-room.ts` | `MatchRoom` Durable Object: append-only storage migrations, ping/pong auto-response |
+| `src/accounts.ts` · `src/sessions.ts` | #285 account handlers + display-name rule · our access/refresh tokens |
+| `src/identity.ts` · `src/jwt.ts` | Apple/Google token verification (JWKS cache, nonce) · WebCrypto JWT helpers |
+| `src/apple-revoke.ts` · `src/account-hooks.ts` | Apple token exchange/revocation (only with `APPLE_*` secrets) · deletion hooks for #286/#287 |
 | `src/http.ts` · `src/log.ts` · `src/rate-limit.ts` | Error format/JSON helpers · JSON-line logger · per-IP/per-account limiter |
 | `src/usage.ts` | Free-plan usage check (GraphQL Analytics) + once-a-day webhook alert |
-| `migrations/` | D1 migrations (`0001_initial.sql`: accounts, identities, match_index, ops_alerts) |
+| `migrations/` | D1 migrations (`0001_initial.sql`: accounts, identities, match_index, ops_alerts; `0002_sessions.sql`) |
 | `fixtures/` | Shared JSON fixtures, decoded by `test/fixtures.test.ts` **and** Swift `ServerAPITests` |
 | `scripts/deploy.sh` · `scripts/d1-backup.sh` | Migrate + deploy + health check · D1 export |
 | `wrangler.jsonc` | Top level = local/test; `env.staging` / `env.production` |
@@ -53,6 +56,9 @@ npm run deploy:staging    # needs wrangler login or CLOUDFLARE_API_TOKEN (CI doe
   D1, DO, ratelimits and `migrations`. Rerun `npm run types` after editing.
 - **Migrations are append-only** (D1 files and `ROOM_MIGRATIONS`) and must stay compatible with
   the previous release (rollback does not undo them).
-- **No remote calls in tests**; inject `fetch` (see `usage.ts`). Logs never contain tokens,
-  payloads or IPs.
+- **No remote calls in tests**; inject `fetch` (see `usage.ts`, `identityDeps` in
+  `identity.ts`). Logs never contain tokens, payloads or IPs.
+- **Auth** (#285): routes with `auth: "required"` get `rc.auth` (`accountID`, `sessionID`)
+  from the entry point; access tokens are stateless, so check the account/participant row
+  where a revoked caller must be refused. Secrets/vars + setup: REFERENCE.md "Accounts setup".
 - Dependencies are pinned exactly (no `^`), each ≥ 2 weeks old when added.

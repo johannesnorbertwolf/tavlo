@@ -1454,6 +1454,10 @@ that would need agreement. Glossary:
 | handicap / hint / weighted dice / head start / safe point | χάντικαπ / βοήθεια / ευνοϊκά ζάρια / προβάδισμα / ασφαλής θέση |
 | Off / On | Όχι / Ναι |
 
+**#285 strings** (the Server v1 account sheet + Settings row + error copy) come from
+`ios/scripts/add_account_strings.py` (de/nl/el/fa; Greek and Persian await review). The DEBUG
+Developer card is verbatim English. The system "Sign in with Apple" button localizes itself.
+
 ## Right-to-left / Persian (#185 — `RTLSupport.swift`, `BoardGeometry/BidiText.swift`)
 
 Persian (`fa`) is the first right-to-left language. SwiftUI mirrors the whole layout under an RTL

@@ -24,6 +24,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.showWinProbability) private var showWinProbability = false
     @AppStorage(SettingsKey.appearance) private var appearance: AppearanceSetting = .system
     @AppStorage(SettingsKey.houseRules) private var houseRules = false
+    @AppStorage(SettingsKey.developerTools) private var developerToolsSetting = false
 
     var body: some View {
         ZStack {
@@ -69,6 +70,12 @@ struct SettingsView: View {
                     // #148: the one handicap entry, a card of its own at the end
                     // (builder in HandicapSettingsView).
                     HandicapSettingsRow()
+
+                    // #285: the Server v1 account (preview until #286/#287 put online
+                    // play on the server), only while developer tools are on.
+                    if DeveloperTools.isEnabled(setting: developerToolsSetting) {
+                        AccountSettingsRow()
+                    }
                 }
                 .compactPadding(28, compact: 16)
                 .frame(maxWidth: 560)

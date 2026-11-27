@@ -13,6 +13,8 @@ export interface RouteContext {
   params: Record<string, string>;
   url: URL;
   requestId: string;
+  /** The verified caller, set by the entry point on `auth: "required"` routes (#285). */
+  auth?: { accountID: string; sessionID: string };
 }
 
 export interface Route {
@@ -41,6 +43,7 @@ export const CONTRACT_ROUTES: Route[] = [
   r("POST", "/v1/auth/apple", "#285", "none", "Sign in with Apple identity token → AuthSession"),
   r("POST", "/v1/auth/google", "#285", "none", "Sign in with Google id_token → AuthSession"),
   r("POST", "/v1/auth/refresh", "#285", "none", "Rotate refresh token → AuthSession"),
+  r("POST", "/v1/auth/dev", "#285", "none", "Development only: sign in without a provider token → AuthSession"),
   r("POST", "/v1/auth/logout", "#285", "required", "Revoke the refresh token"),
   r("GET", "/v1/account", "#285", "required", "The caller's Account"),
   r("PATCH", "/v1/account", "#285", "required", "Change display name"),

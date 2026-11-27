@@ -21,6 +21,7 @@ const SCHEMAS: Record<string, Schema<unknown>> = {
   "refresh-request.json": api.RefreshRequest,
   "auth-session.json": api.AuthSession,
   "update-account-request.json": api.UpdateAccountRequest,
+  "dev-sign-in-request.json": api.DevSignInRequest,
   "match-snapshot.json": api.MatchSnapshot,
   "match-snapshot-new.json": api.MatchSnapshot,
   "match-list.json": api.MatchListResponse,

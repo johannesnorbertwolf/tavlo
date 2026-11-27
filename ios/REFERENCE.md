@@ -902,6 +902,66 @@ draw — is logged as `GameLog(plies:result:)`, recorded into `MatchState` by po
 rolls into a replay). Older builds don't know the new variant ids and would fall back to
 Plakoto, so both players need this build.
 
+## Server accounts (#285)
+
+The app side of Server v1 accounts (contract + server behaviour: `server/REFERENCE.md`
+"Accounts"). Game Center stays the live online path until #286/#287; this only adds the account.
+
+**Engine (`ServerAuth.swift`, tested by `AuthClientTests` + `AuthHelpersTests`).**
+- `AuthClient(baseURL:clientHeader:transport:store:now:)`, `@MainActor ObservableObject`.
+  `init` runs `restore()`: a stored session whose refresh token has not expired → `.signedIn`
+  (with its `needsDisplayName`), else the store is cleared → `.signedOut`.
+- States: `.signedOut` → `beginSignIn(provider)` → `.signingIn(provider)` (provider UI up) →
+  `completeAppleSignIn(identityToken:nonce:displayName:authorizationCode:)` /
+  `completeGoogleSignIn(idToken:nonce:)` / `developmentSignIn(subject:)` → `.signedIn(account)`;
+  `cancelSignIn()` or a failed sign-in → back to `.signedOut`. `needsDisplayName` = the
+  server's `isNewAccount`, persisted with the session so the prompt survives a restart;
+  cleared by `updateDisplayName(_:)` (validated with `DisplayNameRule` first — an invalid name
+  throws `.invalidDisplayName` without a request) or `keepCurrentDisplayName()`.
+- `authorized(method:path:body:)` (generic over the response; `R?` decodes a 204 as nil):
+  refreshes first when the access token has < `refreshMargin` (60 s) left; on
+  `401 token_expired` refreshes once and retries; any other 401 → signs out locally and throws
+  `.notSignedIn`. Refresh is single-flight (`refreshTask`); a refused refresh (401) signs out;
+  network errors keep the session (`.network`). Every request sends `X-Tavtav-Client`.
+- `signOut()` posts `/v1/auth/logout` best effort and always clears locally;
+  `deleteAccount()` signs out only after the server answered 204 (a failed delete keeps the
+  account and throws).
+- Errors: `AuthError` (`cancelled`, `network`, `server(code:status:)` with `serverCode`,
+  `providerFailed`, `providerUnavailable`, `invalidDisplayName`, `notSignedIn`); the app maps
+  them to copy in `AccountCopy`.
+- `AuthNonce`: 32 random bytes base64url raw; `hash` = SHA-256 lowercase hex — Apple's
+  `request.nonce` and Google's `nonce` parameter both get the hash, the server gets `raw`.
+- `GoogleOAuth(clientID:)` (nil unless `…apps.googleusercontent.com` without "REPLACE"):
+  `callbackScheme` = reversed client id, `redirectURI` `<scheme>:/oauthredirect`,
+  `Attempt` (state, PKCE verifier, nonce), `authorizationURL(for:)` (scope `openid`,
+  `code_challenge_method=S256`, `prompt=select_account`), `code(fromCallback:attempt:)` (state
+  check; `access_denied` → `.cancelled`), `tokenRequest(code:attempt:)` (form POST, no secret),
+  `idToken(fromTokenResponse:)`.
+- `KeychainAuthTokenStore(serverURL:)`: generic password, service
+  `com.plakoto.TavliApp.server-session`, account = the server URL (local / staging /
+  production sessions never mix), `AfterFirstUnlockThisDeviceOnly` (not synced, not restored to
+  another device).
+
+**App (`TavliApp/Online/AccountService.swift`).** `ServerConfig` reads Info.plist keys filled
+from `project.yml` build settings: `TavtavServerURL` (`TAVTAV_SERVER_URL`: Debug =
+`http://localhost:8787`, Release = production), `TavtavServerURLStaging` /
+`TavtavServerURLProduction` (`https://tavtav-server[-staging].REPLACE_WITH_SUBDOMAIN.workers.dev`
+until deployed; a URL containing "REPLACE" = no server → the sheet says "The online server isn't
+available yet."), `TavtavGoogleClientID` (`GOOGLE_IOS_CLIENT_ID`, empty for now → tapping Google
+shows "Sign in with Google isn't available in this version yet."). DEBUG builds can switch servers
+in the sheet's Developer card (`debug.serverChoice`; `AccountStore.rebuild()`).
+`NSAllowsLocalNetworking` lets the simulator reach `wrangler dev`. `AccountStore.shared` holds
+one `AuthClient` (Keychain). `AppleSignIn` prepares the request (scope full name only, nonce
+hash) and forwards the credential (identity token, authorization code, first-time name);
+`GoogleSignIn` runs `ASWebAuthenticationSession` with the reversed-client-id callback scheme (no
+URL type registration needed), then the token exchange, then `completeGoogleSignIn`.
+Entitlement `com.apple.developer.applesignin = [Default]` in `TavliApp.entitlements`.
+
+**UI** (`Views/AccountViews.swift`, Views docs). Not covered by `swift test`; checked against
+`wrangler dev` in the simulator with the DEBUG development sign-in (`-debugAccount…` launch
+arguments), light + dark. The real Apple / Google flows need a signed build with the
+capability and the Google client (setup: `server/REFERENCE.md` "Accounts setup").
+
 ## Human game stats (#64)
 
 `HumanGameStats.swift` is the iPad analogue of the CLI's post-game summary box / `human-stats`
