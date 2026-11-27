@@ -69,7 +69,7 @@ targets:
         TAVTAV_SERVER_URL: "$(TAVTAV_SERVER_URL_PRODUCTION)"
         # The iOS OAuth client id from Google Cloud (…apps.googleusercontent.com; public, not
         # a secret). Empty = "Sign in with Google isn't available" (#285).
-        GOOGLE_IOS_CLIENT_ID: ""
+        GOOGLE_IOS_CLIENT_ID: "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com"
         SWIFT_VERSION: "5.9"
         DEVELOPMENT_TEAM: ""
         LOCALIZATION_PREFERS_STRING_CATALOGS: "YES"
