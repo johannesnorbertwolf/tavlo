@@ -502,7 +502,7 @@ Non-secret config lives in `wrangler.jsonc` `vars` (per environment): `GOOGLE_CL
 `npm run db:migrate:local && npm run dev` (port 8787), then a DEBUG app build (its default
 server is `http://localhost:8787`, `NSAllowsLocalNetworking`): Settings → Online account →
 Developer → "Development sign-in", or launch arguments `-debugAccount
--debugAccountDevSubject sim-a -debugAccountName "Eleni K."` (see `AccountViews.swift`).
+-debugAccountDevSubject sim-a -debugAccountName "Alex K."` (see `AccountViews.swift`).
 Sign in with Apple / Google need a signed build and real provider setup.
 
 ### Migrations (D1)

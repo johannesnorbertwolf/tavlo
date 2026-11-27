@@ -5,7 +5,7 @@ import TavliEngine
 /// DEBUG-only shortcut into an online game with the shared weighted dice (#272), for
 /// checking the tag and the card without Game Center or a second device. Launch with
 /// `-debugOnlineDice`: a full-screen online `GameView` over an in-memory one-device match
-/// (you = White, on turn, opponent "Eleni"). `-debugOnlineDiceLevel N` sets the dice
+/// (you = White, on turn, opponent "Alex"). `-debugOnlineDiceLevel N` sets the dice
 /// first (−4…4 from your side: positive favours you), `-debugOnlineDiceCard` opens the
 /// card over the game. Nothing is saved or sent. Compiled out of release builds.
 enum DebugOnlineDice {
@@ -36,13 +36,13 @@ private final class DebugOnlineService: OnlineMatchService {
     var snapshot: OnlineMatchSnapshot {
         OnlineMatchSnapshot(matchID: "debug-match", data: data,
                             participants: [OnlineParticipant(playerID: localPlayerID, displayName: "You"),
-                                           OnlineParticipant(playerID: "debug-eleni", displayName: "Eleni")],
+                                           OnlineParticipant(playerID: "debug-alex", displayName: "Alex")],
                             currentPlayerID: current, isEnded: false)
     }
 
     func endTurn(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
         self.data = data
-        current = "debug-eleni"
+        current = "debug-alex"
         completion(nil)
     }
     func saveTurn(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
@@ -87,7 +87,7 @@ private struct DebugOnlineDiceScreen: View {
         if let session = match.controller.session {
             DebugOnlineGame(controller: match.controller, session: session, onClose: onClose)
                 .sheet(isPresented: $showCard) {
-                    OnlineDiceSheet(controller: match.controller, opponentName: "Eleni")
+                    OnlineDiceSheet(controller: match.controller, opponentName: "Alex")
                         .presentationDetents([.medium, .large])
                         .presentationDragIndicator(.visible)
                 }
@@ -109,12 +109,12 @@ private struct DebugOnlineGame: View {
                  online: GameView.Online(localColor: controller.localColor,
                                          isLocalTurn: controller.isLocalTurn,
                                          isMatchOver: controller.isMatchOver,
-                                         opponentName: "Eleni", banner: nil,
+                                         opponentName: "Alex", banner: nil,
                                          onBack: onClose, onLeave: onClose,
                                          controller: controller),
                  match: controller.matchState.isMatch
                     ? GameView.Match(state: controller.matchState, localColor: controller.localColor,
-                                     opponentName: "Eleni", lastGameResult: nil,
+                                     opponentName: "Alex", lastGameResult: nil,
                                      showResultOverlay: false, onNextGame: {}, onRematch: nil,
                                      onExit: onClose)
                     : nil)

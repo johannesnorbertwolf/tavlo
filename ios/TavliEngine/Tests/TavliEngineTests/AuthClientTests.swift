@@ -79,13 +79,13 @@ final class AuthClientTests: XCTestCase {
         let client = makeClient()
         XCTAssertEqual(client.state, .signedOut)
         try await client.completeAppleSignIn(identityToken: "apple.jwt.sig", nonce: AuthNonce(raw: "raw-nonce-1234567890"),
-                                             displayName: "  Eleni  ", authorizationCode: "code-1")
+                                             displayName: "  Alex  ", authorizationCode: "code-1")
         let sent = try XCTUnwrap(server.sent.first)
         XCTAssertEqual("\(sent.method) \(sent.path)", "POST /v1/auth/apple")
         XCTAssertNil(sent.bearer)
         XCTAssertEqual(sent.body?["identityToken"] as? String, "apple.jwt.sig")
         XCTAssertEqual(sent.body?["nonce"] as? String, "raw-nonce-1234567890")
-        XCTAssertEqual(sent.body?["displayName"] as? String, "Eleni")
+        XCTAssertEqual(sent.body?["displayName"] as? String, "Alex")
         XCTAssertEqual(sent.body?["authorizationCode"] as? String, "code-1")
 
         XCTAssertEqual(client.state.account?.id, "acc_test")
