@@ -1030,7 +1030,7 @@ too), and `match.recordGame(winner:points:)`.
     `xcrun simctl launch <udid> com.plakoto.TavliApp -debugReviewSample -settings.appearance dark`.
   - **`-debugOnlineDice`** (#272, DEBUG only, `DebugOnlineDice.swift`): a full-screen online
     `GameView` over an in-memory one-device match (`DebugOnlineService`: every write succeeds; you =
-    White on turn vs "Eleni", best of 3, house Plakoto unless `-debugOnlineDiceVariant <id>`), with
+    White on turn vs "Alex", best of 3, house Plakoto unless `-debugOnlineDiceVariant <id>`), with
     the real `OnlineMatchController` + value net, so the shared-dice tag, the card and weighted rolls
     can be checked without Game Center. `-debugOnlineDiceLevel N` (−4…4 from your side) sets the dice
     first, `-debugOnlineDiceCard` opens the card over the game. Nothing is saved or sent.
