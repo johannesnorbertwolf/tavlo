@@ -43,14 +43,23 @@ public struct OnlineMatchSnapshot: Equatable, Sendable {
     /// `gamePlayerID` of the participant whose turn it is (`nil` when ended or unfilled).
     public var currentPlayerID: String?
     public var isEnded: Bool
+    /// Who starts game 1 when the service decides it (our server draws it at creation,
+    /// #286); `nil` = the creator decides (Game Center).
+    public var startingPlayer: Color?
+    /// The shared dice as a server holds them (#286: the server is their single writer);
+    /// `nil` = they live in the payload (Game Center, #272).
+    public var serverDice: OnlineDiceHandicap?
 
     public init(matchID: String, data: Data?, participants: [OnlineParticipant],
-                currentPlayerID: String?, isEnded: Bool = false) {
+                currentPlayerID: String?, isEnded: Bool = false,
+                startingPlayer: Color? = nil, serverDice: OnlineDiceHandicap? = nil) {
         self.matchID = matchID
         self.data = data
         self.participants = participants
         self.currentPlayerID = currentPlayerID
         self.isEnded = isEnded
+        self.startingPlayer = startingPlayer
+        self.serverDice = serverDice
     }
 
     public var payload: OnlineMatchPayload? {
@@ -89,6 +98,31 @@ public protocol OnlineMatchService: AnyObject {
 /// A service without an out-of-turn channel: every request fails, so a waiting player's
 /// dice change waits for their own turn (`OnlineMatchController`, #272).
 public struct OnlineRequestUnsupported: Error {}
+
+/// A service whose **server draws the dice and holds the shared slider** (#286, our own
+/// server: `ServerMatchService`). The controller then asks it for every local roll
+/// (`GameSession.remoteRoller`) and sends slider changes straight to it — either player,
+/// any time; no turn-holder minting and no out-of-turn requests. Snapshots carry the
+/// server's value (`OnlineMatchSnapshot.serverDice`).
+@MainActor
+public protocol OnlineServerDiceService: OnlineMatchService {
+    /// The dice for ply `plyIndex` of game `gameIndex` (the same answer when asked again).
+    /// `rollValues`: the roller's 21 roll values, needed when the dice are weighted; throws
+    /// `OnlineServerDiceError.rollValuesRequired` when the server wanted them.
+    func roll(matchID: String, gameIndex: Int, plyIndex: Int,
+              rollValues: [Float]?) async throws -> GameSession.RemoteRoll
+    /// Change the slider (`OnlineDiceRequest` rule on the server); returns the new value.
+    func changeDice(matchID: String, whiteLevel: Int, baseRev: Int) async throws -> OnlineDiceHandicap
+    /// Events reach the controller live right now (socket up): the fallback poll rests.
+    var deliversEventsLive: Bool { get }
+}
+
+public enum OnlineServerDiceError: Error, Equatable {
+    /// The dice are weighted: send the 21 roll values.
+    case rollValuesRequired
+    /// No match open (or the roll was for one that closed).
+    case noMatch
+}
 
 public extension OnlineMatchService {
     func sendRequest(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
@@ -304,6 +338,11 @@ public final class OnlineMatchController: ObservableObject {
 
     private var localPlayerID: String { service.localPlayerID }
 
+    /// Our own server (#286): it draws the dice and holds the slider.
+    private var serverDice: OnlineServerDiceService? { service as? OnlineServerDiceService }
+    /// A slider change on its way to the server (#286), one at a time.
+    private var serverDiceInFlight = false
+
     /// `liveTurns`: how the turn in progress is shared (#269); `nil` turns it off (only
     /// finished turns are sent, as before). `handicapAgent`: the value net for a variant
     /// (#272, the shared weighted dice rate every roll with it); `nil` = no weighted dice.
@@ -411,7 +450,11 @@ public final class OnlineMatchController: ObservableObject {
         guard canChangeDice else { return }
         let level = OnlineDiceHandicap.clamp(whiteLevel)
         guard level != diceHandicap.whiteLevel else { return }
-        if holdsTurn {
+        if serverDice != nil {
+            // The server is the single writer (#286): any time, from either player.
+            let base = pendingDiceRequest?.baseRev ?? confirmedDice.rev
+            pendingDiceRequest = OnlineDiceRequest(whiteLevel: level, baseRev: base, by: localColor)
+        } else if holdsTurn {
             pendingDiceRequest = nil
             confirmedDice = OnlineDiceHandicap(whiteLevel: level, rev: confirmedDice.rev + 1,
                                                by: localColor)
@@ -430,7 +473,7 @@ public final class OnlineMatchController: ObservableObject {
     /// otherwise ignored (the requester applies it on its own turn, or sees the newer
     /// value). Requests for other matches are ignored.
     public func receiveRequest(matchID: String, data: Data) {
-        guard matchID == activeMatchID, let request = OnlineDiceRequest.decoded(from: data),
+        guard serverDice == nil, matchID == activeMatchID, let request = OnlineDiceRequest.decoded(from: data),
               let requester = request.requester, requester != localColor,
               canChangeDice, holdsTurn, request.isAccepted(over: confirmedDice) else { return }
         confirmedDice = OnlineDiceHandicap(whiteLevel: request.whiteLevel,
@@ -463,7 +506,7 @@ public final class OnlineMatchController: ObservableObject {
             }
             // else: an earlier change of ours landed, this newer one is still on its way
         }
-        if let p = pendingDiceRequest, holdsTurn, canChangeDice {
+        if serverDice == nil, let p = pendingDiceRequest, holdsTurn, canChangeDice {
             confirmedDice = OnlineDiceHandicap(whiteLevel: p.whiteLevel, rev: confirmedDice.rev + 1,
                                                by: localColor)
             pendingDiceRequest = nil
@@ -475,7 +518,9 @@ public final class OnlineMatchController: ObservableObject {
         let pending = pendingDiceRequest != nil
         if isDiceChangePending != pending { isDiceChangePending = pending }
         if let session { applyDice(to: session) }
-        if holdsTurn, confirmedDice.rev > sentDiceRev {
+        if serverDice != nil {
+            sendServerDiceIfNeeded()
+        } else if holdsTurn, confirmedDice.rev > sentDiceRev {
             scheduleLiveSend(after: 0)
         } else {
             sendDiceRequestIfNeeded()
@@ -508,6 +553,47 @@ public final class OnlineMatchController: ObservableObject {
         }
     }
 
+    /// Our server (#286): send the pending change, one at a time; the server's answer (or,
+    /// when it refused a change over the other player's unseen one, a reload) settles it.
+    private func sendServerDiceIfNeeded() {
+        guard let server = serverDice, let p = pendingDiceRequest, let id = activeMatchID,
+              !serverDiceInFlight, !isMatchOver else { return }
+        serverDiceInFlight = true
+        Task { @MainActor [weak self] in
+            let answer = try? await server.changeDice(matchID: id, whiteLevel: p.whiteLevel, baseRev: p.baseRev)
+            guard let self else { return }
+            self.serverDiceInFlight = false
+            guard self.activeMatchID == id else { return }
+            if let answer {
+                self.adoptDice(answer)
+                if self.pendingDiceRequest == p { self.pendingDiceRequest = nil }
+                self.reconcileDice()
+            } else {
+                // Refused (stale) or not sent: drop this change and take the server's value.
+                if self.pendingDiceRequest == p { self.pendingDiceRequest = nil }
+                self.reconcileDice()
+                self.refresh(quiet: true)
+            }
+        }
+    }
+
+    /// Our server's dice for a local roll (#286, `GameSession.remoteRoller`): the 21 roll
+    /// values go along when the agreed dice are weighted (or when the server says they are).
+    private func serverRoll(_ request: GameSession.RemoteRollRequest) async throws -> GameSession.RemoteRoll {
+        guard let server = serverDice, let id = activeMatchID else { throw OnlineServerDiceError.noMatch }
+        let gameIndex = syncedGameIndex
+        var values = confirmedDice.isFair ? nil : await request.rollValues()
+        do {
+            return try await server.roll(matchID: id, gameIndex: gameIndex, plyIndex: request.plyIndex,
+                                         rollValues: values)
+        } catch OnlineServerDiceError.rollValuesRequired where values == nil {
+            values = await request.rollValues()
+            guard values != nil else { throw OnlineServerDiceError.rollValuesRequired }
+            return try await server.roll(matchID: id, gameIndex: gameIndex, plyIndex: request.plyIndex,
+                                         rollValues: values)
+        }
+    }
+
     /// `data` with the newest dice value (a resent turn may predate a change).
     private func withCurrentDice(_ op: PendingOp) -> PendingOp {
         guard confirmedDice.rev > 0, var p = try? OnlineMatchPayload.decoded(from: op.data),
@@ -531,6 +617,8 @@ public final class OnlineMatchController: ObservableObject {
         let changed = snapshot.data != lastSnapshotData
         lastSnapshotData = snapshot.data
         defer { schedulePoll(changed: changed) }
+        // Our server holds the shared dice (#286): its value is the newest there is.
+        if let dice = snapshot.serverDice { adoptDice(dice) }
 
         guard let payload = snapshot.payload else {
             // No state yet: the creator (holding the opening turn) writes it; anyone
@@ -608,6 +696,11 @@ public final class OnlineMatchController: ObservableObject {
         pollTask = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard let self, !Task.isCancelled, self.activeMatchID == id else { return }
+            // Our server's socket is up (#286): events arrive live, the poll rests.
+            if self.serverDice?.deliversEventsLive == true {
+                self.schedulePoll(changed: false)
+                return
+            }
             self.refresh(quiet: true)
         }
     }
@@ -671,6 +764,13 @@ public final class OnlineMatchController: ObservableObject {
         // match's current value (it is match-wide, so it carries into the next game).
         next.recordsDiceWeighting = true
         applyDice(to: next)
+        // Our server draws every local roll (#286); the session tumbles while it asks.
+        if serverDice != nil {
+            next.remoteRoller = { [weak self] request in
+                guard let self else { throw OnlineServerDiceError.noMatch }
+                return try await self.serverRoll(request)
+            }
+        }
         session = next
         syncedGameIndex = index
         syncedPlyCount = next.record.plies.count
@@ -725,7 +825,9 @@ public final class OnlineMatchController: ObservableObject {
     /// it over) and open the local session.
     private func initializeNewMatch(_ snapshot: OnlineMatchSnapshot, targetWins: Int, variantID: String) {
         self.variantID = variantID
-        let starter = GameConfig(variantID: variantID).variant.startingPlayer(default: .white)
+        // Our server draws the starter at creation (#286); with Game Center the creator does.
+        let starter = snapshot.startingPlayer
+            ?? GameConfig(variantID: variantID).variant.startingPlayer(default: .white)
         var colors: [String: Color] = [localPlayerID: .white]
         if let opponentID = opponent(in: snapshot)?.playerID { colors[opponentID] = .black }
         colorByPlayerID = colors
@@ -1034,6 +1136,7 @@ public final class OnlineMatchController: ObservableObject {
         confirmedDice = .fair
         pendingDiceRequest = nil
         diceRequestInFlight = false
+        serverDiceInFlight = false
         lastDiceRequestKey = nil
         sentDiceRev = 0
         diceHandicap = .fair

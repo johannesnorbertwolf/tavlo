@@ -520,9 +520,28 @@ public final class AuthClient: ObservableObject {
         }
     }
 
+    /// A valid access token (refreshed first when it is about to expire), e.g. for the
+    /// match WebSocket's upgrade request (#286). Throws `.notSignedIn` without a session.
+    public func accessToken() async throws -> String {
+        guard var current = session else { throw AuthError.notSignedIn }
+        if Double(current.accessExpiresAt - nowMillis) / 1000 < refreshMargin {
+            current = try await refreshed(from: current)
+        }
+        return current.accessToken
+    }
+
+    /// `baseURL` + `path`, which may carry a query (`/v1/matches?state=active`).
+    public func url(for path: String) -> URL {
+        let parts = path.split(separator: "?", maxSplits: 1).map(String.init)
+        let url = baseURL.appendingPathComponent(String((parts.first ?? "").dropFirst()))
+        guard parts.count == 2, var c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        c.percentEncodedQuery = parts[1]
+        return c.url ?? url
+    }
+
     private func perform<B: Encodable, R: Decodable>(method: String, path: String, body: B?,
                                                      token: String?) async throws -> R {
-        var request = URLRequest(url: baseURL.appendingPathComponent(String(path.dropFirst())))
+        var request = URLRequest(url: url(for: path))
         request.httpMethod = method
         request.timeoutInterval = 20
         request.setValue(clientHeader, forHTTPHeaderField: ServerAPI.clientHeader)

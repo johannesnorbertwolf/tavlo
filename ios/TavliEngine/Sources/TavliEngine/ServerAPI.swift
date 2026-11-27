@@ -285,11 +285,14 @@ public enum ServerAPI {
         public var createdAt: Int64
         public var updatedAt: Int64
 
-        /// The engine's view of the match (what `OnlineMatchController` consumes).
+        /// The engine's view of the match (what `OnlineMatchController` consumes): with the
+        /// server-drawn starter and the server-held dice slider (#286).
         public var onlineSnapshot: OnlineMatchSnapshot {
             OnlineMatchSnapshot(matchID: matchID, data: data,
                                 participants: participants.map(\.online),
-                                currentPlayerID: currentPlayerID, isEnded: isEnded)
+                                currentPlayerID: currentPlayerID, isEnded: isEnded,
+                                startingPlayer: Color(rawValue: startingPlayer),
+                                serverDice: diceHandicap.online)
         }
     }
 
