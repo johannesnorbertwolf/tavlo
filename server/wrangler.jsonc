@@ -15,7 +15,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": { "ENVIRONMENT": "development", "GIT_COMMIT": "dev", "GOOGLE_CLIENT_IDS": "" },
+  "vars": { "ENVIRONMENT": "development", "GIT_COMMIT": "dev", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com" },
   "durable_objects": {
     "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
   },
@@ -38,7 +38,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true, "head_sampling_rate": 1 },
-      "vars": { "ENVIRONMENT": "staging", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "" },
+      "vars": { "ENVIRONMENT": "staging", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com" },
       "durable_objects": {
         "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
       },
@@ -62,7 +62,7 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true, "head_sampling_rate": 1 },
-      "vars": { "ENVIRONMENT": "production", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "" },
+      "vars": { "ENVIRONMENT": "production", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com" },
       "durable_objects": {
         "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
       },
