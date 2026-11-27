@@ -1,0 +1,136 @@
+# Server v1 (server/, #284): test on PRs, deploy staging on main, production by hand.
+# Deploy jobs need the repository secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID and
+# real D1 ids in server/wrangler.jsonc; until then they skip with a notice and stay green
+# (server/REFERENCE.md, "Runbook").
+name: server
+
+on:
+  pull_request:
+    paths: ["server/**", ".github/workflows/server.yml"]
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/server.yml"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy (production only from main)
+        type: choice
+        options: [production, staging]
+        default: production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - name: Bundle check (no upload)
+        run: npm run build:check
+
+  deploy-staging:
+    needs: test
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency: { group: deploy-staging, cancel-in-progress: false }
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deploy prerequisites
+        id: pre
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice title=Staging deploy skipped::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set (server/REFERENCE.md, Runbook)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif grep -q REPLACE_WITH_STAGING_D1_ID wrangler.jsonc; then
+            echo "::notice title=Staging deploy skipped::server/wrangler.jsonc still has the placeholder staging D1 id."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.pre.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - if: steps.pre.outputs.ready == 'true'
+        run: npm ci
+      - if: steps.pre.outputs.ready == 'true'
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts/deploy.sh staging
+
+  deploy-production:
+    needs: test
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.environment == 'production' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency: { group: deploy-production, cancel-in-progress: false }
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check deploy prerequisites
+        id: pre
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice title=Production deploy skipped::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set (server/REFERENCE.md, Runbook)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif grep -q REPLACE_WITH_PRODUCTION_D1_ID wrangler.jsonc; then
+            echo "::notice title=Production deploy skipped::server/wrangler.jsonc still has the placeholder production D1 id."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.pre.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - if: steps.pre.outputs.ready == 'true'
+        run: npm ci
+      - if: steps.pre.outputs.ready == 'true'
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bash scripts/deploy.sh production

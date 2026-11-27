@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "rate_limited",
+    "message": "Too many requests, slow down.",
+    "requestId": "8c1f2e3d4b5a6979-FRA",
+    "retryAfter": 60
+  }
+}
