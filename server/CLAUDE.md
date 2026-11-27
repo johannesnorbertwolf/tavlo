@@ -29,7 +29,7 @@ dice + WebSocket · #287 invites/auto-match/lobby/push · #288 remove Game Cente
 | `worker-configuration.d.ts` | Generated (`npm run types`); don't edit |
 
 Swift mirror: `ios/TavliEngine/Sources/TavliEngine/ServerAPI.swift` (`ServerAPI.*`).
-CI: `.github/workflows/server.yml`.
+CI: `.github/workflows/server.yml`; `server-session-key.yml` sets `SESSION_KEY` per environment (manual).
 
 ## Commands (run in `server/`)
 

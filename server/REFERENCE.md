@@ -480,9 +480,13 @@ Non-secret config lives in `wrangler.jsonc` `vars` (per environment): `GOOGLE_CL
      (and the top level for `wrangler dev`), then `npm run types`.
    No client secret and no URL-scheme registration are needed (ASWebAuthenticationSession
    catches the `com.googleusercontent.apps.<id>` redirect itself).
-3. **`SESSION_KEY`** for each environment:
-   `openssl rand -base64 48 | npx wrangler secret put SESSION_KEY --env staging` (and
-   `--env production`). Without it sign-in answers 503.
+3. **`SESSION_KEY`** for each environment: run the GitHub Actions workflow
+   **server-session-key** (Actions → server-session-key → Run workflow → environment). It
+   generates the key on the runner and pipes it into `wrangler secret put`, so nobody sees it,
+   and only sets it when missing (tick `rotate` to replace it, which signs every access token
+   out). Locally the equivalent is
+   `openssl rand -base64 48 | npx wrangler secret put SESSION_KEY --env staging`. Without it
+   sign-in answers 503. Production needs a first deploy before its secret can be set.
 4. **Sign in with Apple key** (for revocation on account deletion, optional but recommended for
    App Review): developer.apple.com → Certificates, Identifiers & Profiles → Keys → **+** →
    enable *Sign in with Apple* → Configure → primary App ID `com.plakoto.TavliApp` → Register →
