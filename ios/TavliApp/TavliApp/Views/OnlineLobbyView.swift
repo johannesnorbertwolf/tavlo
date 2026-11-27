@@ -29,7 +29,8 @@ private struct OnlineRootContent: View {
 
     var body: some View {
         if let session = controller.session {
-            OnlineGameView(coordinator: coordinator, controller: controller, session: session)
+            OnlineGameView(controller: controller, session: session,
+                           onClose: { coordinator.closeMatch() }, onForfeit: { coordinator.forfeitMatch() })
         } else {
             OnlineLobbyView(coordinator: coordinator, controller: controller, onExit: onExit)
         }
@@ -55,13 +56,22 @@ enum OnlineStatusText {
 
 /// A live online game: the ordinary `GameView` with an `Online` context, so the chrome
 /// locks the board off-turn, shows the waiting state, offers Back (keeps the match) and
-/// a confirmed forfeit. `isLocalTurn` comes from the controller on every publish.
-private struct OnlineGameView: View {
-    @ObservedObject var coordinator: GameKitCoordinator
+/// a confirmed forfeit. `isLocalTurn` comes from the controller on every publish. Shared
+/// by the Game Center and the server path (#286).
+struct OnlineGameView: View {
     @ObservedObject var controller: OnlineMatchController
     @ObservedObject var session: GameSession
+    /// Back to the lobby (the match is kept).
+    let onClose: () -> Void
+    /// Leave the match (forfeit).
+    let onForfeit: () -> Void
 
     private var opponentName: String { controller.opponentName ?? String(localized: "Opponent") }
+
+    /// The server's roll didn't arrive (#286) comes first; otherwise the controller's status.
+    private var banner: String? {
+        session.remoteRollFailed ? ServerOnlineCopy.rollFailed : OnlineStatusText.text(controller.status)
+    }
 
     /// Best-of-three context (#145), present only for a multi-game match. The session
     /// advances behind the overlay, so the result overlay is driven by the controller's
@@ -76,7 +86,7 @@ private struct OnlineGameView: View {
             showResultOverlay: controller.pendingGameResult != nil,
             onNextGame: { controller.continueToNextGame() },
             onRematch: nil,
-            onExit: { coordinator.closeMatch() }
+            onExit: onClose
         )
     }
 
@@ -84,16 +94,16 @@ private struct OnlineGameView: View {
         GameView(
             session: session,
             humanColor: controller.localColor,
-            onBack: { coordinator.closeMatch() },
+            onBack: onClose,
             showsBackButton: true,
             online: GameView.Online(
                 localColor: controller.localColor,
                 isLocalTurn: controller.isLocalTurn,
                 isMatchOver: controller.isMatchOver,
                 opponentName: opponentName,
-                banner: OnlineStatusText.text(controller.status),
-                onBack: { coordinator.closeMatch() },
-                onLeave: { coordinator.forfeitMatch() },
+                banner: banner,
+                onBack: onClose,
+                onLeave: onForfeit,
                 controller: controller   // the shared weighted dice (#272)
             ),
             match: matchContext
