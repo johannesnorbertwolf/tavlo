@@ -119,7 +119,9 @@ tavli,ταβλι,πλακωτο,φευγα,πορτες,επιτραπέζιο,�
 
 ## German (de-DE)
 
-**Name:** Tavtav: Tavli & Backgammon
+**Name:** Tavtav: Tavli und Backgammon
+
+(App Store Connect rejected "Tavtav: Tavli & Backgammon" for German as "already being used" on 2026-11-27 — probably a reservation left by a failed save; try the "&" form again with a later version.)
 
 **Subtitle:** Plakoto, Fevga und Portes
 
