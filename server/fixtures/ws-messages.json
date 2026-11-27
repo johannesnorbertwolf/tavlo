@@ -1,0 +1,94 @@
+[
+  {
+    "type": "hello",
+    "matchID": "m_7f3a9c21d4e5",
+    "revision": 5,
+    "serverTime": 1795000062000
+  },
+  {
+    "type": "match",
+    "event": "turnSaved",
+    "match": {
+      "matchID": "m_7f3a9c21d4e5",
+      "revision": 5,
+      "variant": "plakoto",
+      "targetWins": 2,
+      "startingPlayer": "W",
+      "data": "eyJzY2hlbWFWZXJzaW9uIjoyLCJ0YXJnZXRXaW5zIjoyLCJzdGFydGluZ1BsYXllciI6IlciLCJjb2xvckJ5UGxheWVySUQiOnsiYWNjX2FsaWNlMDAwMSI6IlciLCJhY2NfYm9iMDAwMDAyIjoiQiJ9LCJnYW1lcyI6W3sicGxpZXMiOlt7ImRpZTEiOjMsImRpZTIiOjEsImhhbGZNb3ZlcyI6W1sxLDRdLFsxLDJdXX0seyJkaWUxIjo2LCJkaWUyIjo1LCJoYWxmTW92ZXMiOltbMjQsMThdLFsyNCwxOV1dLCJ3ZWlnaHRlZCI6LTJ9XX1dLCJ2YXJpYW50IjoicGxha290byIsImxpdmVUdXJuIjp7ImdhbWVJbmRleCI6MCwicGx5SW5kZXgiOjIsInBsYXllciI6IlciLCJkaWUxIjo0LCJkaWUyIjoyLCJoYWxmTW92ZXMiOltbNCw4XV0sInNlcSI6N30sImRpY2VIYW5kaWNhcCI6eyJ3aGl0ZUxldmVsIjotMiwicmV2IjoxLCJieSI6IkIifX0=",
+      "participants": [
+        {
+          "playerID": "acc_alice0001",
+          "displayName": "Alice",
+          "color": "W",
+          "status": "active",
+          "outcome": "none"
+        },
+        {
+          "playerID": "acc_bob000002",
+          "displayName": "Βασίλης",
+          "color": "B",
+          "status": "active",
+          "outcome": "none"
+        }
+      ],
+      "currentPlayerID": "acc_alice0001",
+      "isEnded": false,
+      "diceHandicap": {
+        "whiteLevel": -2,
+        "rev": 1,
+        "by": "B"
+      },
+      "lastRoll": {
+        "gameIndex": 0,
+        "plyIndex": 2,
+        "player": "W",
+        "die1": 4,
+        "die2": 2,
+        "weighted": -2,
+        "beta": -11.25,
+        "rolledAt": 1795000060000
+      },
+      "requests": [
+        {
+          "id": "rq_01",
+          "from": "acc_bob000002",
+          "data": "eyJraW5kIjoiZGljZSIsIndoaXRlTGV2ZWwiOjEsImJhc2VSZXYiOjEsImJ5IjoiVyJ9",
+          "sentAt": 1795000061000
+        }
+      ],
+      "createdAt": 1795000000000,
+      "updatedAt": 1795000062000
+    }
+  },
+  {
+    "type": "roll",
+    "matchID": "m_7f3a9c21d4e5",
+    "roll": {
+      "gameIndex": 0,
+      "plyIndex": 2,
+      "player": "W",
+      "die1": 4,
+      "die2": 2,
+      "weighted": -2,
+      "beta": -11.25,
+      "rolledAt": 1795000060000
+    }
+  },
+  {
+    "type": "request",
+    "matchID": "m_7f3a9c21d4e5",
+    "request": {
+      "id": "rq_01",
+      "from": "acc_bob000002",
+      "data": "eyJraW5kIjoiZGljZSIsIndoaXRlTGV2ZWwiOjEsImJhc2VSZXYiOjEsImJ5IjoiVyJ9",
+      "sentAt": 1795000061000
+    }
+  },
+  {
+    "type": "error",
+    "error": {
+      "code": "forbidden",
+      "message": "Not a participant."
+    }
+  }
+]

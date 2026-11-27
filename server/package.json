@@ -1,0 +1,28 @@
+{
+  "name": "tavtav-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "types": "wrangler types --strict-vars=false",
+    "lint": "wrangler types --strict-vars=false --check && tsc --noEmit",
+    "build:check": "wrangler deploy --dry-run --env staging --outdir .wrangler/dry-run",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "deploy:staging": "bash scripts/deploy.sh staging",
+    "deploy:production": "bash scripts/deploy.sh production",
+    "backup:staging": "bash scripts/d1-backup.sh staging",
+    "backup:production": "bash scripts/d1-backup.sh production"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.8.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.161.0"
+  }
+}

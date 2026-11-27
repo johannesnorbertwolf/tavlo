@@ -1,0 +1,37 @@
+{
+  "matchID": "m_0b1c2d3e4f50",
+  "revision": 0,
+  "variant": "fevga",
+  "targetWins": 1,
+  "startingPlayer": "B",
+  "data": null,
+  "participants": [
+    {
+      "playerID": "acc_alice0001",
+      "displayName": "Alice",
+      "color": "W",
+      "status": "active",
+      "outcome": "none"
+    },
+    {
+      "playerID": null,
+      "displayName": null,
+      "color": "B",
+      "status": "matching",
+      "outcome": "none"
+    }
+  ],
+  "currentPlayerID": "acc_alice0001",
+  "isEnded": false,
+  "diceHandicap": {
+    "whiteLevel": 0,
+    "rev": 0
+  },
+  "lastRoll": null,
+  "requests": [],
+  "createdAt": 1795000000000,
+  "updatedAt": 1795000000000,
+  "futureField": {
+    "ignored": true
+  }
+}

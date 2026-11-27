@@ -1,0 +1,41 @@
+{
+  "matches": [
+    {
+      "matchID": "m_7f3a9c21d4e5",
+      "variant": "plakoto",
+      "targetWins": 2,
+      "state": "yourTurn",
+      "opponent": {
+        "playerID": "acc_bob000002",
+        "displayName": "Βασίλης"
+      },
+      "outcome": "none",
+      "updatedAt": 1795000062000
+    },
+    {
+      "matchID": "m_0b1c2d3e4f50",
+      "variant": "fevga",
+      "targetWins": 1,
+      "state": "waitingForOpponent",
+      "opponent": {
+        "playerID": null,
+        "displayName": null
+      },
+      "outcome": "none",
+      "updatedAt": 1795000000000
+    },
+    {
+      "matchID": "m_99aa88bb77cc",
+      "variant": "portes",
+      "targetWins": 1,
+      "state": "ended",
+      "opponent": {
+        "playerID": "acc_bob000002",
+        "displayName": "Βασίλης"
+      },
+      "outcome": "won",
+      "updatedAt": 1794999995000
+    }
+  ],
+  "nextCursor": null
+}

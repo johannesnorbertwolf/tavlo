@@ -1,0 +1,11 @@
+{
+  "code": "K7Q4MZ",
+  "from": {
+    "playerID": "acc_alice0001",
+    "displayName": "Alice"
+  },
+  "variant": "plakoto_standard",
+  "targetWins": 2,
+  "status": "open",
+  "expiresAt": 1795604800000
+}

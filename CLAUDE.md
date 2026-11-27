@@ -42,6 +42,15 @@ Tests use `unittest` — run from repo root:
 
 Test config is at `config-test.yml` (minimal: 1 epoch, 1 game, no gold eval).
 
+Online server (`server/`, TypeScript on Cloudflare Workers; see `server/CLAUDE.md`):
+```bash
+cd server && npm ci && npm test        # vitest in workerd/Miniflare (local D1 + Durable Objects)
+cd server && npm run lint              # generated types current + tsc
+cd server && npm run deploy:staging    # migrate + deploy + /health check (CI deploys staging on main)
+```
+CI (`.github/workflows/server.yml`): tests on PRs touching `server/`, staging deploy on `main`,
+production via manual "Run workflow". Deploys skip with a notice until the Cloudflare secrets exist.
+
 ## Architecture
 
 Reimplementation-grade detail — training pipeline, encoder versions, checkpoint
@@ -54,8 +63,10 @@ training or eval internals. Quick map:
 - **Network** `ai/board_evaluator.py` — MLP; `hidden_sizes` from `config.yml`.
 - **Checkpoints** `ai/checkpoint_io.py` — use `load_agent_from_checkpoint()`; back-compat across encoder versions.
 - **Tournaments** `tournaments/` — round-robin gold-vs-gold eval.
+- **Online server** `server/` — Cloudflare Worker + Durable Objects + D1 replacing Game Center
+  (epic #278); API contract + runbook in `server/REFERENCE.md`.
 
-Each top-level package (`ai/`, `domain/`, `game/`, `play/`, `ios/`) has its own `CLAUDE.md`
+Each top-level package (`ai/`, `domain/`, `game/`, `play/`, `ios/`, `server/`) has its own `CLAUDE.md`
 that indexes its modules and points to its reference doc(s).
 
 ## Model files and gold standards

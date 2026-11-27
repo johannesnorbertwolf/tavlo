@@ -1,0 +1,13 @@
+{
+  "status": "ok",
+  "service": "tavtav-server",
+  "version": "0.1.0",
+  "commit": "3169e96",
+  "environment": "staging",
+  "apiVersion": 1,
+  "time": 1795000000000,
+  "checks": {
+    "d1": "ok",
+    "durableObjects": "ok"
+  }
+}

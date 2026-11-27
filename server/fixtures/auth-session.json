@@ -1,0 +1,15 @@
+{
+  "accessToken": "at_eyJ2IjoxLCJzdWIiOiJhY2NfYWxpY2UwMDAxIn0",
+  "accessExpiresAt": 1795003600000,
+  "refreshToken": "rt_9QeLk2mZ0pXr7sVb4nTw",
+  "refreshExpiresAt": 1800184000000,
+  "account": {
+    "id": "acc_alice0001",
+    "displayName": "Alice",
+    "providers": [
+      "apple"
+    ],
+    "createdAt": 1794913600000
+  },
+  "isNewAccount": false
+}
