@@ -27,6 +27,8 @@ export interface AccessClaims {
 export interface AuthContext {
   accountID: string;
   sessionID: string;
+  /** Access-token expiry (ms): the match socket closes with 4401 after it (#286). */
+  expiresAt?: number;
 }
 
 const keyCache = new Map<string, Promise<CryptoKey>>();
@@ -70,7 +72,7 @@ export async function verifyAccessToken(env: Env, token: string, now: number): P
   if (typeof claims.exp !== "number" || claims.exp <= now) {
     throw new HttpError("token_expired", "Access token expired; refresh it.");
   }
-  return { accountID: claims.sub, sessionID: claims.sid };
+  return { accountID: claims.sub, sessionID: claims.sid, expiresAt: claims.exp };
 }
 
 /** Reads `Authorization: Bearer …` and verifies it. */

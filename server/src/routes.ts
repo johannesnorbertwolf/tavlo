@@ -14,7 +14,7 @@ export interface RouteContext {
   url: URL;
   requestId: string;
   /** The verified caller, set by the entry point on `auth: "required"` routes (#285). */
-  auth?: { accountID: string; sessionID: string };
+  auth?: { accountID: string; sessionID: string; expiresAt?: number };
 }
 
 export interface Route {
