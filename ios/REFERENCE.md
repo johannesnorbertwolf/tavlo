@@ -616,7 +616,9 @@ tests, no model/fixtures needed):
   games, in every variant and inside a Full Tavli leg. Online sessions never carry one (their
   state is the Game Center payload, unchanged; their `GameView` has no autosave hook).
 - **`GameSave.swift`** — the `GameRecord` value type (now with a stable `gameId: UUID`, #104) plus
-  the Codable wire format. `PlyRecord { die1, die2, halfMoves: [[Int]] }` and `GameSave {
+  the Codable wire format. `PlyRecord { die1, die2, halfMoves: [[Int]], weighted? }` (`weighted`, #272:
+  the online shared dice the roll was drawn with, signed relative to White; absent = fair and never
+  written offline, so saves encode as before) and `GameSave {
   schemaVersion, gameId?, name, savedAt, startingPlayer, aiColor?, outcome?, history, analysis? }`.
   **Schema versions (#104):** `currentSchemaVersion = 2`. A custom `Codable` keeps full back-compat —
   decoding treats `gameId`/`outcome`/`analysis` as optional (a v1 file has none), and **encoding
@@ -769,7 +771,7 @@ are all "decode + replay", with no board state to reconcile.
     (stays v2), so older builds accept the payload and ignore the key; absent from every `endTurn` /
     `endMatch` / quit payload (they are rebuilt from the ply log), so the authoritative state is still
     just the plies; an unreadable `liveTurn` decodes as `nil` rather than failing the payload. Further
-    match-wide optional keys (the shared handicap, #272) follow the same pattern.
+    match-wide optional keys (the shared dice, #272: `diceHandicap`) follow the same pattern.
   - **Mover (`OnlineMatchController`):** observes the session (`objectWillChange`, read a main-queue
     turn later); its live state exists while it is the local turn in `.picking`/`.moving` (dice
     revealed). Rate limits — Apple documents no numbers, and rapid back-to-back `saveCurrentTurn`
@@ -805,6 +807,75 @@ are all "decode + replay", with no board state to reconcile.
     round trip keeps v2, unreadable key tolerated) and `GameSessionRemoteTurnPreviewTests` (animated
     preview + final ply = replay, a different final ply, illegal/stale states, new dice). **Not
     covered:** real GameKit delivery/latency and throttling — needs two devices.
+
+- **Shared weighted dice (#272): one two-sided slider, mirrored, either player changes it.** The
+  only handicap online (head start, rerolls, hints, moves first and the rule changes stay offline).
+  - **Value:** `OnlineDiceHandicap { whiteLevel, rev, by }` = a **signed hybrid level relative to
+    White** (−4…+4; +n = White favoured at level n, 0 = fair; `WeightedDiceMode.hybrid`, no mode
+    picker online), `rev` (grows with every change), `by` (raw colour of the last changer). Each
+    device reads it from its own side (`level(towards:)`: "favours you" / "favours <name>").
+    Applied through the normal handicap plumbing: the session's setup gets the favoured side's
+    `WeightedDice` (`GameSession.setSharedWeightedDice(favouring:dice:)`), so the #271 mirrored bend
+    reaches the other side's rolls. Match-wide: every game of a best-of-three starts with it.
+  - **Wire:** `OnlineMatchPayload.diceHandicap` — optional and additive like `liveTurn` (no schema
+    bump, stays v2; older builds ignore it; unreadable → `nil`; absent = fair, `dice`). Written only
+    once someone changed it (`rev > 0`), so a match that never used it encodes exactly as before;
+    unlike `liveTurn` it is in **every** write (it is match state). `PlyRecord.weighted` (optional,
+    absent = fair, never written offline) records the value **each roll was drawn with**.
+  - **Who writes (what GameKit allows):** only the participant **holding the turn** can write match
+    data (`saveCurrentTurn` / `endTurn` / `endMatchInTurn`); the waiting one cannot. So the turn
+    holder is the authority and is the only device that mints a `rev`: its own change rides on its
+    next write (`saveTurn` at once — the live-write path, also with live turns off — or the
+    `endTurn`; `performSend` patches a resent turn to the newest value). The **waiting** player's
+    change becomes a `pendingDiceRequest` (`OnlineDiceRequest { whiteLevel, baseRev, by }`), shown
+    on its own screen at once and sent with `OnlineMatchService.sendRequest` — in the app a GameKit
+    **turn-based exchange** (`sendExchange`, which any participant may send out of turn). The turn
+    holder's device takes it in `receiveRequest` if `isAccepted(over:)` — `baseRev >= current.rev`,
+    or the current value was set by the requester itself (so a quick second change lands after the
+    first) — i.e. never over a change by the *other* player the requester had not seen; it mints
+    `rev + 1, by: requester`, applies it to its session (its next roll uses it) and writes it. A
+    device that is not holding the turn (or has a real op in flight) ignores requests.
+  - **Requester side:** a payload whose `rev` passed the request's `baseRev` settles it — by the
+    requester with the same value = confirmed; by the other player = theirs stands, the request is
+    dropped (`reconcileDice`). If the request never landed (no channel, the exchange limit, the
+    opponent not holding the turn yet, an older build that never answers), the change stays pending
+    and the requester **mints it itself as soon as it holds the turn**, before it can roll. One
+    request in flight; sent once per change and turn (`DiceRequestKey`), never retried in a loop.
+  - **Which value a roll uses:** each device rolls its own dice on its turn with the value its
+    session holds then — the agreed (`confirmedDice`) value, never a pending one — and stamps it
+    (`GameSession.recordsDiceWeighting` → `PlyRecord.weighted`, taken when the dice are **drawn**,
+    so a change after the roll never rewrites it; a remote ply keeps the roller's stamp). The value
+    in force is in the payload before the roll (the holder writes a change at once), so the waiting
+    device sees the same number on its tag; the ply log is the record of which bend every roll used.
+    A change counts **from the next roll**; the waiting player's change counts from the turn
+    holder's next roll once received, and from the requester's own next roll at the latest.
+  - **Session:** a fair match plays with `handicap == nil` (no state until someone turns it on);
+    `setSharedWeightedDice` creates the state when needed (needs a `handicapAgent`: the controller's
+    `handicapAgent` provider, the app's `GameSession.makeAgent(config:)`, cached per variant; no net
+    = `canChangeDice == false`, the card says so), sets the other side to off, marks the setup
+    `adjusted` for a change after the first ply. `showRemoteTurn` now accepts a handicap session
+    (it only refuses while a weighted roll is being prepared). Online games have no review or game
+    log; the plies' stamps in the match data are the record.
+  - **GameKit adapter (`GameKitCoordinator`):** `sendRequest` = `sendExchange` to the active
+    opponent (fails — so the change waits for the local turn — without one, when the data exceeds
+    `exchangeDataMaximumSize` or the player already has `exchangeMaxInitiatedExchangesPerPlayer`
+    active exchanges); push text key "%@ changed the shared dice." (`GKExchangeTimeoutDefault`).
+    `receivedExchangeRequest` → `controller.receiveRequest`, then `reply` at once ("The shared dice
+    were updated."). Apple: the current participant must resolve completed exchanges with
+    `saveMergedMatch(_:withResolvedExchanges:)` before ending its turn — every write (`saveTurn`,
+    `endTurn`, `endMatch`, quit in turn) first resolves `completedExchanges` with the same data (the
+    controller already merged the value), and `receivedExchangeReplies` keeps the fresh match for it.
+    (Rejected: letting only the turn holder edit — the user wants either player to change it any
+    time; a real-time `GKMatch` — needs both connected.)
+  - Tests: `OnlineDiceHandicapTests` (fair by default + nothing new on the wire; old payloads /
+    unreadable key / round trip / clamping; the acceptance rule; holder's change reaches the waiting
+    device; waiting player's change via the request + a quick second one; without the channel the
+    change is minted on the requester's turn before it rolls; the other player's unseen change wins;
+    both sides' rolls use the agreed value (own and mirrored β, exact faces) and every ply is
+    stamped on both devices + the server; a change after the roll counts from the next roll, 0 =
+    fair; reopen restores it; no net = unavailable). `FakeDevice.sendRequest` delivers like an
+    exchange (`dropRequests` = no channel). **Not covered:** real exchange delivery, push texts,
+    `saveMergedMatch` behaviour and limits — needs two devices.
 
 - **Best-of-three flow (#145).** When a local move wins the current game, the coordinator appends the
   winner to `matchState` and the finished `GameLog` to its history. If the **match** is now decided it
@@ -915,7 +986,9 @@ for m = 0…8 both sides. Every replay from the start goes through
 **Session hooks** (`GameSession`, all inert without `handicap`):
 - `init(..., handicap:, handicapAgent:)` — normalises, restricts it to the variant (#246), applies
   `forcedStarter` (overrides `startingPlayer`), lays out the head start. `handicapAgent` (default
-  the session's `agent`) is the net for dice/rerolls/hints — a two-player game passes one.
+  the session's `agent`) is the net for dice/rerolls/hints — a two-player game passes one; one passed
+  explicitly is kept even without a setup (#272: an online game switches weighted dice on mid-game
+  with `setSharedWeightedDice`, see "Online multiplayer" → "Shared weighted dice").
   `resume(from:..., handicapAgent:)` restores setup + tokens; `newGame` keeps the setup with
   fresh tokens.
 - **Weighted dice** — when either side has weighted dice on (`currentRollIsWeighted`; and no
@@ -985,6 +1058,13 @@ the game from the start position and rules, which therefore stay valid.
 - Tests: `HandicapAdjustTests` (next human / computer roll uses the new dice, computer rerolls with
   tokens added mid-game, tokens + marks, save/resume and game-log round trips, old JSON, My Record
   count, next game, favoured side).
+
+**Online (#272).** Online games have exactly one handicap: the shared two-sided weighted-dice slider
+(hybrid, one favoured side, mirrored) that either player changes for both —
+`GameSession.setSharedWeightedDice(favouring:dice:)` (creates the state when needed, the other side
+off, `adjusted` after the first ply) plus the per-roll stamp `PlyRecord.weighted`
+(`recordsDiceWeighting`, `HandicapSetup.whiteWeightedLevel`). Sync and rules: "Online multiplayer" →
+"Shared weighted dice".
 
 **Dice maths (`HandicapDice`) — keep in sync with the Python** (`domain/handicap.py`
 `roll_spread`/`lean_beta`/`gain_beta`/`hybrid_beta`/`turn_beta`/`mirrored_turn_beta`/`tilted_roll_probs`/

@@ -274,6 +274,13 @@ public final class GameSession: ObservableObject {
     private var handicapEpoch = 0
     /// Bumped whenever a pending hint goes stale (a checker moved, a new turn).
     private var hintEpoch = 0
+    /// Online (#272): stamp every ply with the weighted dice its roll was drawn with
+    /// (`PlyRecord.weighted`). Off offline, so offline plies never carry the key.
+    public var recordsDiceWeighting = false
+    /// The weighted dice the current roll was drawn with (signed level relative to White,
+    /// `nil` = fair) — set when the dice are drawn, so a change made after the roll never
+    /// rewrites what the roll used.
+    private var rollWeighting: Int?
 
     /// Fired exactly once, when the session first enters `.gameOver`, with the
     /// winning color. The app layer uses this to record the human's win/loss
@@ -346,7 +353,9 @@ public final class GameSession: ObservableObject {
         self.game = game
         self.agent = agent
         self.handicap = setup.map(HandicapGameState.init(setup:))
-        self.handicapAgent = setup == nil ? nil : (handicapAgent ?? agent)
+        // An explicitly passed net is kept even without a setup, so an online game can
+        // switch the shared weighted dice on mid-game (#272, `setSharedWeightedDice`).
+        self.handicapAgent = handicapAgent ?? (setup == nil ? nil : agent)
         // The computer's level (#231) only means something with a computer side.
         self.record = GameRecord(startingPlayer: starter, aiColor: aiColor,
                                  variantID: config.variant.id, handicap: setup,
@@ -459,6 +468,7 @@ public final class GameSession: ObservableObject {
         diceReplays.removeAll()
         restoreRollOnStart = false
         game.dice.set(d1, d2)
+        rollWeighting = nil
         markRolled()
         beginTurn()
     }
@@ -1203,6 +1213,33 @@ public final class GameSession: ObservableObject {
         record.handicap = state.setup
     }
 
+    /// The online shared slider (#272): `favouring` holds `dice` (its mirrored bend,
+    /// #271, reaches the opponent's rolls too), the other side holds none; `nil` or an
+    /// off level = fair dice for both. Unlike `adjustHandicap` it also works in a game
+    /// that started without a handicap — it creates the state (needs a `handicapAgent`
+    /// to switch weighted dice on). From the next roll, exactly like `adjustHandicap`; a
+    /// change after the first ply marks the setup `adjusted` (`alteredDiceEarlier` when
+    /// the dice were already bent). No-op after the game ended or when nothing changes.
+    public func setSharedWeightedDice(favouring color: Color?, dice: WeightedDice) {
+        guard !isTerminal else { return }
+        let dice = dice.clamped
+        let on = color != nil && dice.isOn
+        if handicap == nil && (!on || handicapAgent == nil) { return }
+        var state = handicap ?? HandicapGameState(setup: HandicapSetup())
+        let before = handicap
+        let diceWereAltered = state.setup.altersDice
+        for c in [Color.white, .black] {
+            state.setup[c].weightedDice = (on && c == color) ? dice : .off
+        }
+        guard state != before else { return }
+        if !record.plies.isEmpty {
+            state.setup.adjusted = true
+            state.setup.alteredDiceEarlier = state.setup.alteredDiceEarlier || diceWereAltered
+        }
+        handicap = state
+        record.handicap = state.setup
+    }
+
     /// Whether the human on move may ask for a hint now: hints left, a net to search
     /// with, their own turn with the dice rolled, and no hint already showing.
     public var canHint: Bool {
@@ -1379,6 +1416,8 @@ public final class GameSession: ObservableObject {
         let (d1, d2) = HandicapDice.weightedFaces(u1: handicapUniform(), u2: handicapUniform(),
                                                   values: values, beta: beta)
         game.dice.set(d1, d2)
+        // The bend in force when the roll was drawn (no values = the net failed: fair).
+        rollWeighting = values == nil ? nil : handicap?.setup.whiteWeightedLevel
         markRolled()
     }
 
@@ -1474,6 +1513,7 @@ public final class GameSession: ObservableObject {
         guard phase == .awaitingRoll else { return false }
 
         game.dice.set(ply.die1, ply.die2)
+        rollWeighting = ply.weighted   // what the roller drew it with (#272)
         let mover = game.currentPlayer
         let legal = game.variant.legalMoves(on: game.board, color: mover, dice: game.dice)
 
@@ -1572,7 +1612,9 @@ public final class GameSession: ObservableObject {
     /// Returns whether the state was accepted.
     @discardableResult
     public func showRemoteTurn(plyIndex: Int, die1: Int, die2: Int, halfMoves: [[Int]]) -> Bool {
-        guard aiColor == nil, onMoveAttempt == nil, handicap == nil,
+        // A shared-dice online game (#272) has a handicap state too; the preview never
+        // rolls, so only a weighted roll being prepared here would be in the way.
+        guard aiColor == nil, onMoveAttempt == nil, !preparingDice,
               plyIndex == record.plies.count,
               (1...6).contains(die1), (1...6).contains(die2),
               phase == .awaitingRoll || isShowingRemoteTurn else { return false }
@@ -1735,6 +1777,7 @@ public final class GameSession: ObservableObject {
             let (d1, d2) = diceReplays.removeFirst()
             game.dice.set(d1, d2)
         }
+        rollWeighting = nil
         markRolled()
     }
 
@@ -1772,8 +1815,10 @@ public final class GameSession: ObservableObject {
         record.plies.append(PlyRecord(
             die1: game.dice.die1.value,
             die2: game.dice.die2.value,
-            halfMoves: (move?.halfMoves ?? []).map { [$0.from.position, $0.to.position] }
+            halfMoves: (move?.halfMoves ?? []).map { [$0.from.position, $0.to.position] },
+            weighted: recordsDiceWeighting ? rollWeighting : nil
         ))
+        rollWeighting = nil
         undoHistory.append(UndoRecord(
             mover: mover,
             move: move,

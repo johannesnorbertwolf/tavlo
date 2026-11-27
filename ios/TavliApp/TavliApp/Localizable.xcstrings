@@ -10744,6 +10744,400 @@
           }
         }
       }
+    },
+    "Fair dice" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faire Würfel"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δίκαια ζάρια"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس منصفانه"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eerlijke dobbelstenen"
+          }
+        }
+      }
+    },
+    "Fair" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fair"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Δίκαια"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "منصفانه"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eerlijk"
+          }
+        }
+      }
+    },
+    "Favours you · %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Begünstigt dich · %@"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ευνοεί εσένα · %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "به نفع تو، %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In jouw voordeel · %@"
+          }
+        }
+      }
+    },
+    "Favours %@ · %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Begünstigt %1$@ · %2$@"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ευνοεί: %1$@ · %2$@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "به نفع %1$@، %2$@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In het voordeel van %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "Weighted dice: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewichtete Würfel: %@"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ευνοϊκά ζάρια: %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌های وزن‌دار: %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewogen dobbelstenen: %@"
+          }
+        }
+      }
+    },
+    "Shared with %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gemeinsam mit %@"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Κοινά με: %@"
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مشترک با %@"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gedeeld met %@"
+          }
+        }
+      }
+    },
+    "Good rolls for one side are bad rolls for the other. Either of you can change it; it counts for both players from the next roll." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gute Würfe für die eine Seite sind schlechte für die andere. Jeder von euch kann es ändern; es gilt für beide ab dem nächsten Wurf."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Οι καλές ζαριές για τη μία πλευρά είναι κακές για την άλλη. Μπορεί να το αλλάξει οποιοσδήποτε από τους δύο· ισχύει και για τους δύο παίκτες από την επόμενη ζαριά."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس خوب برای یک طرف، تاس بد برای طرف دیگر است. هر کدام از شما می‌تواند آن را تغییر دهد؛ از تاس بعدی برای هر دو بازیکن اعمال می‌شود."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goede worpen voor de een zijn slechte voor de ander. Jullie kunnen het allebei veranderen; het geldt voor beide spelers vanaf de volgende worp."
+          }
+        }
+      }
+    },
+    "Other handicaps are only for games on this device." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andere Handicaps gibt es nur für Spiele auf diesem Gerät."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα άλλα χάντικαπ υπάρχουν μόνο για παιχνίδια σε αυτή τη συσκευή."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "هندیکپ‌های دیگر فقط برای بازی‌های روی همین دستگاه هستند."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andere handicaps zijn er alleen voor spellen op dit apparaat."
+          }
+        }
+      }
+    },
+    "Weighted dice need the computer’s model for this variant." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewichtete Würfel brauchen das Computermodell für diese Variante."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα ευνοϊκά ζάρια χρειάζονται το μοντέλο του υπολογιστή για αυτή την παραλλαγή."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌های وزن‌دار برای این نوع بازی به مدل کامپیوتر نیاز دارند."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gewogen dobbelstenen hebben het computermodel voor deze variant nodig."
+          }
+        }
+      }
+    },
+    "Sent to %@. It counts from their next roll once it arrives, and from your next roll at the latest." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An %@ gesendet. Es gilt ab dem nächsten Wurf der Gegenseite, sobald es ankommt, spätestens ab deinem nächsten Wurf."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Στάλθηκε: %@. Ισχύει από την επόμενη ζαριά του αντιπάλου μόλις φτάσει, και το αργότερο από τη δική σου επόμενη ζαριά."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "برای %@ فرستاده شد. وقتی برسد از تاس بعدی او اعمال می‌شود و حداکثر از تاس بعدی خودت."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verstuurd naar %@. Het geldt vanaf hun volgende worp zodra het aankomt, en uiterlijk vanaf jouw volgende worp."
+          }
+        }
+      }
+    },
+    "Last changed by you." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt von dir geändert."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τελευταία αλλαγή από εσένα."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "آخرین تغییر را تو دادی."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het laatst door jou gewijzigd."
+          }
+        }
+      }
+    },
+    "Last changed by %@." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuletzt von %@ geändert."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τελευταία αλλαγή από: %@."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "آخرین تغییر را %@ داد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Het laatst gewijzigd door %@."
+          }
+        }
+      }
+    },
+    "%@ changed the shared dice." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ hat die gemeinsamen Würfel geändert."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@: άλλαξαν τα κοινά ζάρια."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ تاس‌های مشترک را تغییر داد."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ heeft de gedeelde dobbelstenen aangepast."
+          }
+        }
+      }
+    },
+    "The shared dice were updated." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die gemeinsamen Würfel wurden aktualisiert."
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Τα κοινά ζάρια ενημερώθηκαν."
+          }
+        },
+        "fa" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تاس‌های مشترک به‌روز شدند."
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "De gedeelde dobbelstenen zijn bijgewerkt."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -80,6 +80,20 @@ public protocol OnlineMatchService: AnyObject {
     func acceptInvite(matchID: String, completion: @escaping OnlineSnapshotCompletion)
     /// Reload the match's current state from the server.
     func load(matchID: String, completion: @escaping OnlineSnapshotCompletion)
+    /// Send a small request to the other participant **out of turn** (#272: GameKit's
+    /// turn-based exchange — the waiting player cannot write the match data). Delivered
+    /// to the other device's `OnlineMatchController.receiveRequest(matchID:data:)`.
+    func sendRequest(matchID: String, data: Data, completion: @escaping OnlineCompletion)
+}
+
+/// A service without an out-of-turn channel: every request fails, so a waiting player's
+/// dice change waits for their own turn (`OnlineMatchController`, #272).
+public struct OnlineRequestUnsupported: Error {}
+
+public extension OnlineMatchService {
+    func sendRequest(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
+        completion(OnlineRequestUnsupported())
+    }
 }
 
 /// What the online chrome should tell the player. The app maps each case to localized
@@ -153,6 +167,20 @@ public struct LiveTurnTiming: Equatable, Sendable {
 ///   device shows it read-only via `GameSession.showRemoteTurn` and the finished ply
 ///   continues from it. A live write never blocks or replaces a real turn: `endTurn`
 ///   waits for an in-flight live write, and a failed live write is just dropped.
+/// - **Shared weighted dice (#272):** one match-wide `OnlineDiceHandicap` (signed hybrid
+///   level relative to White, mirrored) either player may change with
+///   `setDiceHandicap(levelTowardsMe:)`, no confirmation. Only the player **holding the
+///   Game Center turn** can write the match data, so it is the authority: its change gets
+///   the next `rev` and rides on its next write (a live write at once, or the `endTurn`);
+///   every write carries the current value. The **waiting** player's change is a
+///   `pendingDiceRequest` sent to the turn holder with `sendRequest` (a GameKit exchange),
+///   which takes it (`OnlineDiceRequest.isAccepted(over:)`: never over a change by the
+///   other player the requester had not seen) and writes it; if the request is lost or
+///   refused by the channel, the requester applies it itself as soon as its own turn
+///   comes. Each device rolls with the value it holds when it rolls (the roller's view
+///   counts) and stamps it into the ply (`PlyRecord.weighted`), so the log records
+///   exactly which bend every roll used. The dice need the variant's value net
+///   (`handicapAgent`); without one the control is unavailable (`canChangeDice`).
 @MainActor
 public final class OnlineMatchController: ObservableObject {
 
@@ -174,11 +202,26 @@ public final class OnlineMatchController: ObservableObject {
     @Published public private(set) var isMatchOver = false
     /// A local turn is written locally but not yet confirmed by the service.
     @Published public private(set) var hasUnsentTurn = false
+    /// The shared weighted dice as this device has them (#272): the agreed value, or the
+    /// local player's own change while it is on its way (`isDiceChangePending`). On the
+    /// local turn it is always the agreed value the session rolls with.
+    @Published public private(set) var diceHandicap = OnlineDiceHandicap.fair
+    /// The local player changed the dice while waiting and the turn holder has not
+    /// written it yet (it applies from the opponent's next roll once received, and from
+    /// the local player's own next roll at the latest).
+    @Published public private(set) var isDiceChangePending = false
 
     /// Whether the local player may act on the board right now.
     public var isLocalTurn: Bool {
         guard let session, !isMatchOver else { return false }
         return session.currentPlayer == localColor && !session.isTerminal
+    }
+
+    /// Whether the shared dice can be changed: a running match and a value net for its
+    /// variant (weighted dice rate every roll with it).
+    public var canChangeDice: Bool {
+        guard let session, !isMatchOver else { return false }
+        return session.handicapAgent != nil
     }
 
     // ── Private match state ─────────────────────────────────────────────────────
@@ -221,20 +264,57 @@ public final class OnlineMatchController: ObservableObject {
     private var pollDelay: TimeInterval = 0
     private var lastSnapshotData: Data?
 
+    // Shared weighted dice (#272).
+    /// The newest authoritative value known (minted by a turn holder; revs only grow).
+    private var confirmedDice = OnlineDiceHandicap.fair
+    /// The local player's change made while not holding the turn, not yet written.
+    private var pendingDiceRequest: OnlineDiceRequest?
+    private var diceRequestInFlight = false
+    /// The last request sent and how far the match was then: a request is sent once per
+    /// change and turn (a lost one waits for the local turn instead of retrying).
+    private var lastDiceRequestKey: DiceRequestKey?
+    /// The highest dice rev a successful write carried.
+    private var sentDiceRev = 0
+    /// The value net per variant id (loaded once per match).
+    private let handicapAgentProvider: (@MainActor (GameConfig) -> Agent?)?
+    private var handicapAgents: [String: Agent] = [:]
+
+    private struct DiceRequestKey: Equatable {
+        let request: OnlineDiceRequest
+        let progress: Progress
+    }
+
     private enum PendingOp {
         case endTurn(Data), saveTurn(Data), endMatch(Data, localWon: Bool)
+
+        var data: Data {
+            switch self {
+            case .endTurn(let d), .saveTurn(let d), .endMatch(let d, _): return d
+            }
+        }
+
+        func with(data: Data) -> PendingOp {
+            switch self {
+            case .endTurn: return .endTurn(data)
+            case .saveTurn: return .saveTurn(data)
+            case .endMatch(_, let won): return .endMatch(data, localWon: won)
+            }
+        }
     }
 
     private var localPlayerID: String { service.localPlayerID }
 
     /// `liveTurns`: how the turn in progress is shared (#269); `nil` turns it off (only
-    /// finished turns are sent, as before).
+    /// finished turns are sent, as before). `handicapAgent`: the value net for a variant
+    /// (#272, the shared weighted dice rate every roll with it); `nil` = no weighted dice.
     public init(service: OnlineMatchService, animationTimings: AnimationTimings = .standard,
-                retryDelay: TimeInterval? = 10, liveTurns: LiveTurnTiming? = .standard) {
+                retryDelay: TimeInterval? = 10, liveTurns: LiveTurnTiming? = .standard,
+                handicapAgent: (@MainActor (GameConfig) -> Agent?)? = nil) {
         self.service = service
         self.animationTimings = animationTimings
         self.retryDelay = retryDelay
         self.liveTiming = liveTurns
+        self.handicapAgentProvider = handicapAgent
     }
 
     // ── Entry points ────────────────────────────────────────────────────────────
@@ -314,6 +394,133 @@ public final class OnlineMatchController: ObservableObject {
         pendingGameResult = nil
     }
 
+    // ── Shared weighted dice (#272) ─────────────────────────────────────────────
+
+    /// Change the shared dice: `level` −4…+4 from the local player's side (positive
+    /// favours the local player, negative the opponent, 0 = fair). No confirmation: it
+    /// changes for both players, from the next roll. Holding the turn, the value is
+    /// minted and written at once; waiting, it goes to the turn holder as a request (and
+    /// is applied by this device on its own turn if that request does not land).
+    public func setDiceHandicap(levelTowardsMe level: Int) {
+        let white = localColor == .white ? level : -level
+        setDiceHandicap(whiteLevel: white)
+    }
+
+    /// `setDiceHandicap(levelTowardsMe:)` with the level relative to White.
+    public func setDiceHandicap(whiteLevel: Int) {
+        guard canChangeDice else { return }
+        let level = OnlineDiceHandicap.clamp(whiteLevel)
+        guard level != diceHandicap.whiteLevel else { return }
+        if holdsTurn {
+            pendingDiceRequest = nil
+            confirmedDice = OnlineDiceHandicap(whiteLevel: level, rev: confirmedDice.rev + 1,
+                                               by: localColor)
+        } else {
+            // Keep the base of a change already on its way, so the holder still takes
+            // this newer one after the first (`OnlineDiceRequest.isAccepted`).
+            let base = pendingDiceRequest?.baseRev ?? confirmedDice.rev
+            pendingDiceRequest = OnlineDiceRequest(whiteLevel: level, baseRev: base, by: localColor)
+        }
+        reconcileDice()
+    }
+
+    /// A request from the other player (`OnlineMatchService.sendRequest`; the app's
+    /// GameKit exchange). Taken only while this device holds the turn — the only one that
+    /// can write it — and unless it would override a change the requester had not seen;
+    /// otherwise ignored (the requester applies it on its own turn, or sees the newer
+    /// value). Requests for other matches are ignored.
+    public func receiveRequest(matchID: String, data: Data) {
+        guard matchID == activeMatchID, let request = OnlineDiceRequest.decoded(from: data),
+              let requester = request.requester, requester != localColor,
+              canChangeDice, holdsTurn, request.isAccepted(over: confirmedDice) else { return }
+        confirmedDice = OnlineDiceHandicap(whiteLevel: request.whiteLevel,
+                                           rev: confirmedDice.rev + 1, by: requester)
+        reconcileDice()
+    }
+
+    /// This device holds the Game Center turn with nothing of its own in flight: it may
+    /// mint a dice change and write it.
+    private var holdsTurn: Bool {
+        session != nil && !isMatchOver && currentPlayerID == localPlayerID
+            && pendingOp == nil && !realOpInFlight
+    }
+
+    /// Take a newer authoritative value from a payload (revs only grow).
+    private func adoptDice(_ dice: OnlineDiceHandicap) {
+        if dice.rev > confirmedDice.rev { confirmedDice = dice }
+        sentDiceRev = max(sentDiceRev, dice.rev)   // it is on the service already
+    }
+
+    /// Settle the local change against the newest value, mint it when this device holds
+    /// the turn, publish what the board rolls with, and get the change out (a write as
+    /// the turn holder, else a request).
+    private func reconcileDice() {
+        if let p = pendingDiceRequest, confirmedDice.rev > p.baseRev {
+            if confirmedDice.changedBy?.rawValue != p.by {
+                pendingDiceRequest = nil   // the other player changed it meanwhile: theirs stands
+            } else if confirmedDice.whiteLevel == p.whiteLevel {
+                pendingDiceRequest = nil   // taken and written
+            }
+            // else: an earlier change of ours landed, this newer one is still on its way
+        }
+        if let p = pendingDiceRequest, holdsTurn, canChangeDice {
+            confirmedDice = OnlineDiceHandicap(whiteLevel: p.whiteLevel, rev: confirmedDice.rev + 1,
+                                               by: localColor)
+            pendingDiceRequest = nil
+        }
+        let shown = pendingDiceRequest.map {
+            OnlineDiceHandicap(whiteLevel: $0.whiteLevel, rev: confirmedDice.rev, by: localColor)
+        } ?? confirmedDice
+        if diceHandicap != shown { diceHandicap = shown }
+        let pending = pendingDiceRequest != nil
+        if isDiceChangePending != pending { isDiceChangePending = pending }
+        if let session { applyDice(to: session) }
+        if holdsTurn, confirmedDice.rev > sentDiceRev {
+            scheduleLiveSend(after: 0)
+        } else {
+            sendDiceRequestIfNeeded()
+        }
+    }
+
+    /// The session carries the agreed value (a pending change of the waiting player is
+    /// only shown: this device does not roll before it is minted on its own turn), so its
+    /// `record.handicap` says what the rolls really used.
+    private func applyDice(to session: GameSession) {
+        session.setSharedWeightedDice(favouring: confirmedDice.favoured, dice: confirmedDice.weightedDice)
+    }
+
+    /// Send the pending change to the turn holder: once per change and turn, one at a
+    /// time (a newer change made meanwhile follows when the first completes). Not while
+    /// this device itself holds the turn (it mints instead once its write is done).
+    private func sendDiceRequestIfNeeded() {
+        guard let p = pendingDiceRequest, let id = activeMatchID, !diceRequestInFlight,
+              !isMatchOver, currentPlayerID != localPlayerID else { return }
+        let key = DiceRequestKey(request: p, progress: localProgress())
+        guard key != lastDiceRequestKey, let data = try? p.encoded() else { return }
+        lastDiceRequestKey = key
+        diceRequestInFlight = true
+        service.sendRequest(matchID: id, data: data) { [weak self] _ in
+            guard let self else { return }
+            self.diceRequestInFlight = false
+            guard self.activeMatchID == id else { return }
+            // A failure leaves the change pending: it is applied on the local turn.
+            self.sendDiceRequestIfNeeded()
+        }
+    }
+
+    /// `data` with the newest dice value (a resent turn may predate a change).
+    private func withCurrentDice(_ op: PendingOp) -> PendingOp {
+        guard confirmedDice.rev > 0, var p = try? OnlineMatchPayload.decoded(from: op.data),
+              p.dice.rev < confirmedDice.rev else { return op }
+        p.diceHandicap = confirmedDice
+        guard let data = try? p.encoded() else { return op }
+        return op.with(data: data)
+    }
+
+    private func diceRev(of data: Data) -> Int {
+        (try? OnlineMatchPayload.decoded(from: data))?.dice.rev ?? 0
+    }
+
     // ── Applying a snapshot ─────────────────────────────────────────────────────
 
     private func apply(_ snapshot: OnlineMatchSnapshot,
@@ -337,6 +544,9 @@ public final class OnlineMatchController: ObservableObject {
             }
             return
         }
+        // The shared dice (#272): newest rev wins, so a stale snapshot never takes it back.
+        adoptDice(payload.dice)
+        defer { reconcileDice() }
 
         // The local log is ahead of this snapshot: an unsent local turn (resend it) or
         // a late, stale update (ignore it). The board never goes backwards.
@@ -455,7 +665,12 @@ public final class OnlineMatchController: ObservableObject {
 
     private func startGame(_ index: Int, from payload: OnlineMatchPayload) {
         let next = GameSession.resume(from: payload.gameSave(forGameIndex: index),
-                                      animationTimings: animationTimings)
+                                      animationTimings: animationTimings,
+                                      handicapAgent: handicapAgent(forVariant: payload.variant))
+        // The shared dice (#272): every roll is stamped, and the game starts with the
+        // match's current value (it is match-wide, so it carries into the next game).
+        next.recordsDiceWeighting = true
+        applyDice(to: next)
         session = next
         syncedGameIndex = index
         syncedPlyCount = next.record.plies.count
@@ -563,24 +778,30 @@ public final class OnlineMatchController: ObservableObject {
                         seq: 0)
     }
 
+    /// A dice change (#272) minted here that no write has carried yet.
+    private var hasUnsentDice: Bool { holdsTurn && confirmedDice.rev > sentDiceRev }
+
     private func localTurnStateChanged() {
-        guard let timing = liveTiming, let live = currentLocalLiveTurn(),
-              !live.sameState(as: lastSentLive) else { return }
-        // A new roll goes out at once; half-moves / undos are coalesced.
-        let isNewRoll = lastSentLive.map {
-            $0.gameIndex != live.gameIndex || $0.plyIndex != live.plyIndex
-                || $0.die1 != live.die1 || $0.die2 != live.die2
-        } ?? true
-        scheduleLiveSend(after: isNewRoll ? 0 : timing.debounce)
+        let live = currentLocalLiveTurn()
+        let liveChanged = live.map { !$0.sameState(as: lastSentLive) } ?? false
+        guard liveChanged || hasUnsentDice else { return }
+        // A new roll and a dice change go out at once; half-moves / undos are coalesced.
+        let isNewRoll = liveChanged && (lastSentLive.map {
+            $0.gameIndex != live!.gameIndex || $0.plyIndex != live!.plyIndex
+                || $0.die1 != live!.die1 || $0.die2 != live!.die2
+        } ?? true)
+        let urgent = isNewRoll || hasUnsentDice
+        scheduleLiveSend(after: urgent ? 0 : (liveTiming?.debounce ?? 0))
     }
 
-    /// Arm the live write. A write already scheduled is kept (it sends whatever the
-    /// state is when it fires) unless this one is due sooner (a new roll).
+    /// Arm the live write (also used for a dice change, #272, with live turns off). A
+    /// write already scheduled is kept (it sends whatever the state is when it fires)
+    /// unless this one is due sooner (a new roll, a dice change).
     private func scheduleLiveSend(after delay: TimeInterval) {
-        guard let timing = liveTiming else { return }
+        let minInterval = liveTiming?.minInterval ?? LiveTurnTiming.standard.minInterval
         if liveSendTask != nil, delay > 0 { return }
         liveSendTask?.cancel()
-        let spacing = lastLiveSendAt.addingTimeInterval(timing.minInterval).timeIntervalSinceNow
+        let spacing = lastLiveSendAt.addingTimeInterval(minInterval).timeIntervalSinceNow
         let wait = max(delay, spacing)
         liveSendTask = Task { @MainActor [weak self] in
             if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
@@ -590,14 +811,22 @@ public final class OnlineMatchController: ObservableObject {
         }
     }
 
-    /// Write the latest live state, unless it is already on the service or another
-    /// write is busy (its completion comes back here).
+    /// Write the latest live state (and the current dice, #272), unless both are already
+    /// on the service or another write is busy (its completion comes back here).
     private func flushLiveTurn() {
-        guard let id = activeMatchID, let session, var live = currentLocalLiveTurn(),
-              !live.sameState(as: lastSentLive),
+        guard let id = activeMatchID, let session,
               !liveSaveInFlight, !realOpInFlight, pendingOp == nil else { return }
-        liveSeq += 1
-        live.seq = liveSeq
+        var live = currentLocalLiveTurn()
+        let liveChanged = live.map { !$0.sameState(as: lastSentLive) } ?? false
+        let dice = confirmedDice
+        let diceChanged = hasUnsentDice
+        guard liveChanged || diceChanged else { return }
+        if liveChanged {
+            liveSeq += 1
+            live?.seq = liveSeq
+        } else if live != nil {
+            live = lastSentLive   // unchanged turn: the same state and seq again
+        }
         let current = GameLog(plies: session.record.plies, result: nil)
         guard let data = try? payload(games: completedGameLogs + [current], liveTurn: live).encoded()
         else { return }
@@ -608,7 +837,8 @@ public final class OnlineMatchController: ObservableObject {
             self.liveSaveInFlight = false
             guard self.activeMatchID == id else { return }
             if error == nil {
-                self.lastSentLive = live
+                if let live { self.lastSentLive = live }
+                self.sentDiceRev = max(self.sentDiceRev, dice.rev)
                 self.liveFailures = 0
             } else {
                 self.liveFailures += 1   // a preview only: dropped, never retried as a turn
@@ -674,6 +904,10 @@ public final class OnlineMatchController: ObservableObject {
     }
 
     private func performSend(_ op: PendingOp, matchID: String) {
+        // Every write carries the newest dice (#272), a resent one too.
+        let op = withCurrentDice(op)
+        if pendingOp != nil { pendingOp = op }
+        let sentDice = diceRev(of: op.data)
         realOpInFlight = true
         let done: OnlineCompletion = { [weak self] error in
             guard let self else { return }
@@ -687,7 +921,10 @@ public final class OnlineMatchController: ObservableObject {
                 self.hasUnsentTurn = false
                 self.consecutiveFailures = 0
                 self.retryTask?.cancel()
+                self.sentDiceRev = max(self.sentDiceRev, sentDice)
                 if self.status == .sendFailed { self.status = nil }
+                // A dice change made while the write was out is minted / sent now (#272).
+                self.reconcileDice()
                 self.localTurnStateChanged()   // a roll made meanwhile can go out now
                 self.schedulePoll(changed: true)
             }
@@ -724,6 +961,14 @@ public final class OnlineMatchController: ObservableObject {
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
 
+    /// The variant's value net, loaded once per match (`nil` = no weighted dice).
+    private func handicapAgent(forVariant id: String) -> Agent? {
+        if let agent = handicapAgents[id] { return agent }
+        guard let agent = handicapAgentProvider?(GameConfig(variantID: id)) else { return nil }
+        handicapAgents[id] = agent
+        return agent
+    }
+
     private func currentPayload() -> OnlineMatchPayload? {
         guard let session else { return nil }
         let current = GameLog(plies: session.record.plies, result: session.record.result)
@@ -736,7 +981,8 @@ public final class OnlineMatchController: ObservableObject {
                            colorByPlayerID: colorByPlayerID,
                            games: games,
                            variant: variantID,
-                           liveTurn: liveTurn)
+                           liveTurn: liveTurn,
+                           diceHandicap: confirmedDice)
     }
 
     /// (games, plies in the last game) — how far a log has got.
@@ -785,6 +1031,13 @@ public final class OnlineMatchController: ObservableObject {
         lastSentLive = nil
         liveFailures = 0
         shownLive = nil
+        confirmedDice = .fair
+        pendingDiceRequest = nil
+        diceRequestInFlight = false
+        lastDiceRequestKey = nil
+        sentDiceRev = 0
+        diceHandicap = .fair
+        isDiceChangePending = false
         session = nil
         activeMatchID = nil
         opponentName = nil

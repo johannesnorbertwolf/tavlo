@@ -1028,6 +1028,12 @@ too), and `match.recordGame(winner:points:)`.
     `-settings.appearance light|dark` and `-AppleLanguages "(fa)"` (argument-domain
     overrides) for screenshots, e.g.
     `xcrun simctl launch <udid> com.plakoto.TavliApp -debugReviewSample -settings.appearance dark`.
+  - **`-debugOnlineDice`** (#272, DEBUG only, `DebugOnlineDice.swift`): a full-screen online
+    `GameView` over an in-memory one-device match (`DebugOnlineService`: every write succeeds; you =
+    White on turn vs "Eleni", best of 3, house Plakoto unless `-debugOnlineDiceVariant <id>`), with
+    the real `OnlineMatchController` + value net, so the shared-dice tag, the card and weighted rolls
+    can be checked without Game Center. `-debugOnlineDiceLevel N` (−4…4 from your side) sets the dice
+    first, `-debugOnlineDiceCard` opens the card over the game. Nothing is saved or sent.
   - **`-debugHandicapBearOff`** (#236, `#if DEBUG` only, checked first): you (White) vs the
     computer in a handicap game (you: head start 2, rerolls 2, hints 3; computer: moderate weighted
     dice) seeded straight into a bear-off with 12 White / 10 Red off — for checking the two-digit
@@ -1377,6 +1383,34 @@ only when a handicap is active / exists.
   adjusted; adjusted down to nothing = a normal game) and its starter is `HandicapSetup.startingPlayer(for:default:)` ("moves
   first" beats the alternation); "Rematch" re-reads the settings via `beginGame`. Full Tavli legs
   never get one.
+- **Online: the shared weighted dice (#272, `HandicapOnlineViews.swift`).** The only handicap
+  online; everything else above stays offline (the card says "Other handicaps are only for games
+  on this device."). `GameView.Online.controller` (set by `OnlineGameView`) makes
+  `GameView.handicapTag(compact:)` show `OnlineDiceTagButton` in all three tag places (iPad panel
+  label form, iPad portrait bar and the phone's nav bar compact) instead of `HandicapTagButton`. The
+  tag is **always** there online (fair = the scale alone on a phone, "⚖ Fair dice" in the iPad
+  panel) because it is how either player turns the dice on; when not fair it carries the favoured
+  side's `HandicapSideDot` + the level digit (compact, `ChromeDigits`) or "You · Strong" /
+  "<name> · Slight" (panel), plus an `arrow.up.circle` while your change is on its way
+  (`isDiceChangePending`). VoiceOver: "Weighted dice: Favours you · Strong". It opens
+  `OnlineDiceSheet` (`[.medium, .large]` detents): title "Weighted dice" (`statsTitle`) + "Shared
+  with <name>" + Done; one card with the summary line (dot or `equal.circle` + "Fair dice" /
+  "Favours you · Strong" / "Favours <name> · Slight", `OnlineDiceCopy.summary`), the slider
+  (−4…+4 from **your** side, step 1; the opponent's end leading, yours trailing, so it mirrors with
+  the layout in Persian; `ChromeKit.trackColor` tint so there is no fill from one end, a 2 × 16 pt
+  `inkSecondary` tick behind the middle; labels "<name> · Fair · You"), the caption "Good rolls for
+  one side are bad rolls for the other. Either of you can change it; it counts for both players
+  from the next roll." and a status line: "Sent to <name>. It counts from their next roll once it
+  arrives, and from your next roll at the latest." (pending) / "Last changed by you." / "Last
+  changed by <name>." / "Weighted dice need the computer’s model for this variant." (no net; the
+  card is disabled, also once the match is over). The slider edits a local `draft` and commits on
+  drag end (one change = one message to the opponent, not one per step); a value change without a
+  drag (VoiceOver adjust) commits at once; a change from the other device moves the draft unless
+  you are dragging. `ControlsView` shows no reroll/hint row for an online session (it has neither;
+  `session.recordsDiceWeighting`). Strings: `ios/scripts/add_online_dice_strings.py` (de/nl/el/fa;
+  the two GameKit exchange push keys "%@ changed the shared dice." / "The shared dice were
+  updated." are `extractionState: manual`). Checked (DEBUG `-debugOnlineDice`, see
+  `DebugOnlineDice.swift`) on an iPhone 17 Pro light + dark and an iPad Pro 13" light.
 
 ## Localization (`Localizable.xcstrings`)
 

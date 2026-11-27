@@ -24,6 +24,14 @@ import TavliEngine
 /// match data"), which routes here like any event; the controller's poll covers missed
 /// ones.
 ///
+/// **Shared weighted dice (#272).** The turn holder writes the value with its normal
+/// writes. The waiting player's change goes out with `sendExchange` (any participant may
+/// send one out of turn); the turn holder's device applies it from
+/// `receivedExchangeRequest` and replies at once. GameKit then hands the completed
+/// exchange to the current participant, who must resolve it with `saveMergedMatch` before
+/// ending its turn: every write below resolves the completed exchanges first (their data
+/// is already in the payload, the controller applied it on receipt).
+///
 /// Sign-in starts at launch without UI (`authenticate(presentUI: false)`) so the
 /// listener is registered before a notification is tapped; the Game Center sign-in
 /// sheet is shown only when the player opens Play Online. Returning to the foreground
@@ -57,7 +65,9 @@ final class GameKitCoordinator: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        controller = OnlineMatchController(service: self)
+        // The value net per variant, for the shared weighted dice (#272).
+        controller = OnlineMatchController(service: self,
+                                           handicapAgent: { GameSession.makeAgent(config: $0) })
         foregroundObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -267,16 +277,20 @@ extension GameKitCoordinator: OnlineMatchService {
 
     func endTurn(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
         guard let match = liveMatch(matchID, completion) else { return }
-        match.endTurn(withNextParticipants: opponents(of: match),
-                      turnTimeout: GKTurnTimeoutDefault, match: data) { error in
-            Task { @MainActor in completion(error) }
+        resolvingExchanges(match, data: data) {
+            match.endTurn(withNextParticipants: self.opponents(of: match),
+                          turnTimeout: GKTurnTimeoutDefault, match: data) { error in
+                Task { @MainActor in completion(error) }
+            }
         }
     }
 
     func saveTurn(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
         guard let match = liveMatch(matchID, completion) else { return }
-        match.saveCurrentTurn(withMatch: data) { error in
-            Task { @MainActor in completion(error) }
+        resolvingExchanges(match, data: data) {
+            match.saveCurrentTurn(withMatch: data) { error in
+                Task { @MainActor in completion(error) }
+            }
         }
     }
 
@@ -286,17 +300,57 @@ extension GameKitCoordinator: OnlineMatchService {
             let isLocal = p.player?.gamePlayerID == localPlayerID
             p.matchOutcome = (isLocal == localWon) ? .won : .lost
         }
-        match.endMatchInTurn(withMatch: data) { error in
+        resolvingExchanges(match, data: data) {
+            match.endMatchInTurn(withMatch: data) { error in
+                Task { @MainActor in completion(error) }
+            }
+        }
+    }
+
+    /// The waiting player's dice change (#272) as a turn-based exchange to the opponent.
+    /// Fails (the controller then applies the change on the local turn) when there is no
+    /// active opponent, the data is too large or the exchange limit is reached.
+    func sendRequest(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
+        guard let match = liveMatch(matchID, completion) else { return }
+        let recipients = opponents(of: match).filter { $0.status == .active }
+        let mine = (match.exchanges ?? []).filter {
+            $0.sender.player?.gamePlayerID == localPlayerID && $0.status == .active
+        }
+        guard !recipients.isEmpty, data.count <= match.exchangeDataMaximumSize,
+              mine.count < match.exchangeMaxInitiatedExchangesPerPlayer else {
+            completion(GKError(.invalidParameter))
+            return
+        }
+        // The recipient's push text when the app is in the background (its own strings).
+        match.sendExchange(to: recipients, data: data,
+                           localizableMessageKey: "%@ changed the shared dice.",
+                           arguments: [GKLocalPlayer.local.displayName],
+                           timeout: GKExchangeTimeoutDefault) { _, error in
             Task { @MainActor in completion(error) }
+        }
+    }
+
+    /// Before a write by the current participant: resolve the completed exchanges with
+    /// `saveMergedMatch` (GameKit requires it before the turn ends; their data is already
+    /// merged into `data`). A failure doesn't hold the write up.
+    private func resolvingExchanges(_ match: GKTurnBasedMatch, data: Data,
+                                    then write: @escaping @MainActor () -> Void) {
+        let completed = match.completedExchanges ?? []
+        guard !completed.isEmpty,
+              match.currentParticipant?.player?.gamePlayerID == localPlayerID else { write(); return }
+        match.saveMergedMatch(data, withResolvedExchanges: completed) { _ in
+            Task { @MainActor in write() }
         }
     }
 
     func quit(matchID: String, data: Data, inTurn: Bool, completion: @escaping OnlineCompletion) {
         guard let match = liveMatch(matchID, completion) else { return }
         if inTurn {
-            match.participantQuitInTurn(with: .quit, nextParticipants: opponents(of: match),
-                                        turnTimeout: GKTurnTimeoutDefault, match: data) { error in
-                Task { @MainActor in completion(error) }
+            resolvingExchanges(match, data: data) {
+                match.participantQuitInTurn(with: .quit, nextParticipants: self.opponents(of: match),
+                                            turnTimeout: GKTurnTimeoutDefault, match: data) { error in
+                    Task { @MainActor in completion(error) }
+                }
             }
         } else {
             match.participantQuitOutOfTurn(with: .quit) { error in
@@ -342,6 +396,28 @@ extension GameKitCoordinator: GKLocalPlayerListener {
     /// move (or the opponent's forfeit) instead of freezing a move early.
     nonisolated func player(_ player: GKPlayer, matchEnded match: GKTurnBasedMatch) {
         Task { @MainActor in self.handleEvent(match, didBecomeActive: false) }
+    }
+
+    /// The opponent changed the shared dice while waiting (#272). Applied when this
+    /// device holds the turn of the open match (otherwise the opponent applies it on its
+    /// own turn); always answered at once so the exchange completes.
+    nonisolated func player(_ player: GKPlayer, receivedExchangeRequest exchange: GKTurnBasedExchange,
+                            for match: GKTurnBasedMatch) {
+        Task { @MainActor in
+            self.liveMatches[match.matchID] = match
+            if let data = exchange.data {
+                self.controller.receiveRequest(matchID: match.matchID, data: data)
+            }
+            exchange.reply(withLocalizableMessageKey: "The shared dice were updated.",
+                           arguments: [], data: Data()) { _ in }
+        }
+    }
+
+    /// An exchange completed: keep the fresh match so the next write resolves it
+    /// (`resolvingExchanges`).
+    nonisolated func player(_ player: GKPlayer, receivedExchangeReplies replies: [GKTurnBasedExchangeReply],
+                            forCompletedExchange exchange: GKTurnBasedExchange, for match: GKTurnBasedMatch) {
+        Task { @MainActor in self.liveMatches[match.matchID] = match }
     }
 
     /// The **local** player quit this match from Game Center's own interface while it

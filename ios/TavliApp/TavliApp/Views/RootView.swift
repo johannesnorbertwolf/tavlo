@@ -239,6 +239,7 @@ struct RootView: View {
         }
         #if DEBUG
         .debugReviewSample()   // `-debugReviewSample`: straight into a sample review (#232)
+        .debugOnlineDice()     // `-debugOnlineDice`: an offline online game with the shared dice (#272)
         .screenshotScenes()    // `-screenshotReview` / `-screenshotDrill` / `-screenshotHandicap` (#184)
         #endif
         // Online (#134): sign in to Game Center at launch without UI, so a tapped turn
