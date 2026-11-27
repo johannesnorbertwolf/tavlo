@@ -123,6 +123,12 @@ export const AppleSignInRequest = object({
   nonce: str({ min: 16, max: 128 }),
   /** Apple sends the name only on the very first sign-in; the app forwards it. */
   displayName: optional(DisplayName),
+  /**
+   * Apple's one-time authorization code (ASAuthorizationAppleIDCredential). With the
+   * APPLE_* secrets set the server exchanges it for an Apple refresh token, revoked when
+   * the account is deleted; without them it is ignored.
+   */
+  authorizationCode: optional(str({ min: 1, max: 2048 })),
 });
 export type AppleSignInRequest = Infer<typeof AppleSignInRequest>;
 
@@ -149,6 +155,17 @@ export type AuthSession = Infer<typeof AuthSession>;
 
 export const UpdateAccountRequest = object({ displayName: DisplayName });
 export type UpdateAccountRequest = Infer<typeof UpdateAccountRequest>;
+
+/**
+ * `POST /v1/auth/dev` body — **development only** (`ENVIRONMENT = "development"`, i.e.
+ * `wrangler dev` and tests; 404 everywhere else): signs in as a made-up Apple subject
+ * `dev:<subject>` without a token, so the app can be checked against a local server.
+ */
+export const DevSignInRequest = object({
+  subject: ID,
+  displayName: optional(DisplayName),
+});
+export type DevSignInRequest = Infer<typeof DevSignInRequest>;
 
 // ── Matches (#286) ────────────────────────────────────────────────────────────
 

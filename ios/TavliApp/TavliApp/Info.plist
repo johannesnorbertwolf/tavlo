@@ -35,6 +35,19 @@
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
+    <key>TavtavServerURL</key>
+    <string>$(TAVTAV_SERVER_URL)</string>
+    <key>TavtavServerURLStaging</key>
+    <string>$(TAVTAV_SERVER_URL_STAGING)</string>
+    <key>TavtavServerURLProduction</key>
+    <string>$(TAVTAV_SERVER_URL_PRODUCTION)</string>
+    <key>TavtavGoogleClientID</key>
+    <string>$(GOOGLE_IOS_CLIENT_ID)</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
     <key>UIAppFonts</key>
     <array>
         <string>CormorantGaramond.ttf</string>

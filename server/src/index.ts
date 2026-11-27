@@ -1,11 +1,24 @@
 // Worker entry point: routing, rate limiting, error format, request logs, /health,
 // the hourly usage check, and the MatchRoom Durable Object export.
 
+import {
+  deleteAccount,
+  getAccount,
+  logout,
+  pruneSessions,
+  refresh,
+  signInForDevelopment,
+  signInWithApple,
+  signInWithGoogle,
+  updateAccount,
+} from "./accounts";
 import { API_VERSION, type HealthResponse } from "./api";
 import { HttpError, errorResponse, json, withStandardHeaders } from "./http";
 import { Logger } from "./log";
 import { clientIP, enforceRateLimit } from "./rate-limit";
 import { CONTRACT_ROUTES, Router, type Route, type RouteContext } from "./routes";
+import { identityDeps } from "./identity";
+import { authenticate } from "./sessions";
 import { checkUsage } from "./usage";
 import { SERVER_VERSION, SERVICE_NAME } from "./version";
 
@@ -39,6 +52,14 @@ async function health(rc: RouteContext): Promise<Response> {
 
 const HANDLERS: Partial<Record<string, Route["handler"]>> = {
   "GET /health": health,
+  "POST /v1/auth/apple": signInWithApple,
+  "POST /v1/auth/google": signInWithGoogle,
+  "POST /v1/auth/refresh": refresh,
+  "POST /v1/auth/dev": signInForDevelopment,
+  "POST /v1/auth/logout": logout,
+  "GET /v1/account": getAccount,
+  "PATCH /v1/account": updateAccount,
+  "DELETE /v1/account": deleteAccount,
 };
 
 export const ROUTES: Route[] = CONTRACT_ROUTES.map((route) => ({
@@ -59,12 +80,15 @@ async function dispatch(rc: RouteContext): Promise<Response> {
   }
   const { route, params } = found;
   if (route.path !== "/health") await enforceRateLimit(env, { kind: "ip", ip: clientIP(request) });
-  // #285: verify the bearer token for `auth: "required"` routes here, then
-  // enforceRateLimit(env, { kind: "account", accountID }).
   if (!route.handler) {
     throw new HttpError("not_implemented", `${route.method} ${route.path} arrives with ${route.ticket}.`, {
       ticket: route.ticket,
     });
+  }
+  if (route.auth === "required") {
+    const auth = await authenticate(env, request, identityDeps.now());
+    await enforceRateLimit(env, { kind: "account", accountID: auth.accountID });
+    return route.handler({ ...rc, params, auth });
   }
   return route.handler({ ...rc, params });
 }
@@ -100,5 +124,10 @@ export default {
   async scheduled(controller, env, ctx): Promise<void> {
     const log = new Logger({ service: SERVICE_NAME, env: env.ENVIRONMENT, cron: controller.cron });
     ctx.waitUntil(checkUsage(env, log, { now: controller.scheduledTime }));
+    ctx.waitUntil(
+      pruneSessions(env, controller.scheduledTime)
+        .then((pruned) => log.info("sessions.pruned", { pruned }))
+        .catch((error) => log.error("sessions.prune_failed", { error })),
+    );
   },
 } satisfies ExportedHandler<Env>;

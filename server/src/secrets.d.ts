@@ -8,6 +8,16 @@ interface TavtavSecrets {
   CF_ACCOUNT_ID?: string;
   /** Where usage alerts go (ntfy.sh topic URL, Slack or Discord webhook). */
   ALERT_WEBHOOK_URL?: string;
+  /**
+   * HMAC key for our access tokens (#285). Required in staging/production (sign-in
+   * answers 503 without it); `wrangler dev` falls back to a fixed development key.
+   */
+  SESSION_KEY?: string;
+  /** Sign in with Apple key (.p8) for token revocation on account deletion (#285). */
+  APPLE_TEAM_ID?: string;
+  APPLE_KEY_ID?: string;
+  /** The .p8 file's PEM text (BEGIN/END lines included). */
+  APPLE_PRIVATE_KEY?: string;
 }
 
 interface Env extends TavtavSecrets {}

@@ -1,5 +1,6 @@
 {
   "identityToken": "eyJraWQiOiJXNldjT0tCIiwiYWxnIjoiUlMyNTYifQ.e30.c2ln",
   "nonce": "6f1d0c9b8a7e6d5c4b3a2f1e",
-  "displayName": "Alice"
+  "displayName": "Alice",
+  "authorizationCode": "c1a2b3c4d5e6f7.0.nrxyz.AbCdEfGhIjKlMnOp"
 }

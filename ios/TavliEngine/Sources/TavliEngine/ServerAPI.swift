@@ -93,6 +93,12 @@ public enum ServerAPI {
         /// "apple" / "google".
         public var providers: [String]
         public var createdAt: Int64
+        public init(id: String, displayName: String, providers: [String], createdAt: Int64) {
+            self.id = id
+            self.displayName = displayName
+            self.providers = providers
+            self.createdAt = createdAt
+        }
     }
 
     public struct AppleSignInRequest: Codable, Equatable, Sendable {
@@ -101,10 +107,15 @@ public enum ServerAPI {
         public var nonce: String
         /// Apple's name, sent only on the first sign-in.
         public var displayName: String?
-        public init(identityToken: String, nonce: String, displayName: String? = nil) {
+        /// Apple's one-time authorization code; the server exchanges it (when configured)
+        /// so it can revoke the Apple grant when the account is deleted (#285).
+        public var authorizationCode: String?
+        public init(identityToken: String, nonce: String, displayName: String? = nil,
+                    authorizationCode: String? = nil) {
             self.identityToken = identityToken
             self.nonce = nonce
             self.displayName = displayName
+            self.authorizationCode = authorizationCode
         }
     }
 
@@ -129,11 +140,31 @@ public enum ServerAPI {
         public var refreshExpiresAt: Int64
         public var account: Account
         public var isNewAccount: Bool
+        public init(accessToken: String, accessExpiresAt: Int64, refreshToken: String,
+                    refreshExpiresAt: Int64, account: Account, isNewAccount: Bool) {
+            self.accessToken = accessToken
+            self.accessExpiresAt = accessExpiresAt
+            self.refreshToken = refreshToken
+            self.refreshExpiresAt = refreshExpiresAt
+            self.account = account
+            self.isNewAccount = isNewAccount
+        }
     }
 
     public struct UpdateAccountRequest: Codable, Equatable, Sendable {
         public var displayName: String
         public init(displayName: String) { self.displayName = displayName }
+    }
+
+    /// `POST /v1/auth/dev` — **development servers only** (`wrangler dev`; 404 elsewhere):
+    /// signs in as the made-up subject without a provider token, for simulator checks.
+    public struct DevSignInRequest: Codable, Equatable, Sendable {
+        public var subject: String
+        public var displayName: String?
+        public init(subject: String, displayName: String? = nil) {
+            self.subject = subject
+            self.displayName = displayName
+        }
     }
 
     // ── Matches (#286) ──────────────────────────────────────────────────────────
