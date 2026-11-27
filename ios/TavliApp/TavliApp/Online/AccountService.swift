@@ -6,7 +6,8 @@ import TavliEngine
 // `AuthClient` (Keychain-backed), and the two provider flows (Sign in with Apple via
 // AuthenticationServices, Google via ASWebAuthenticationSession + PKCE, no Google SDK).
 // The state machine and the HTTP logic live in TavliEngine (`ServerAuth.swift`).
-// Not wired into online play yet: Game Center stays the live path until #286/#287; the
+// Online play through the server (#286) uses it behind a developer switch; Game Center stays
+// the default path until #287/#288. The
 // account screen is reachable from Settings while developer tools are on.
 
 /// Which server and which Google client the build talks to. Values come from Info.plist,

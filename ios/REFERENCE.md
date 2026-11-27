@@ -754,7 +754,8 @@ are all "decode + replay", with no board state to reconcile.
   sign-in sheet is held until Play Online opens). `wantsToQuitMatch` = the *local* player quit from
   Game Center's own UI → forfeit in turn. Foreground (`didBecomeActive`) reloads the list and the open
   match. Lobby: your-turn first, then their turn, then finished (context menu "Remove"). **Dice** stay
-  local-roll-and-broadcast; there is no shared RNG. Events for the open match reload the lobby list
+  local-roll-and-broadcast on Game Center; there is no shared RNG (our server draws them, #286:
+  "Online play through our server"). Events for the open match reload the lobby list
   only when the turn passes to us or the match ends (live-turn events arrive several times a turn).
 
 - **Live turn (#269): the waiting player sees the roll and every half-move / undo.** GameKit's
@@ -905,7 +906,8 @@ Plakoto, so both players need this build.
 ## Server accounts (#285)
 
 The app side of Server v1 accounts (contract + server behaviour: `server/REFERENCE.md`
-"Accounts"). Game Center stays the live online path until #286/#287; this only adds the account.
+"Accounts"). Online play through the server (#286) uses this account; Game Center stays the
+default path until #287/#288.
 
 **Engine (`ServerAuth.swift`, tested by `AuthClientTests` + `AuthHelpersTests`).**
 - `AuthClient(baseURL:clientHeader:transport:store:now:)`, `@MainActor ObservableObject`.
@@ -961,6 +963,85 @@ Entitlement `com.apple.developer.applesignin = [Default]` in `TavliApp.entitleme
 `wrangler dev` in the simulator with the DEBUG development sign-in (`-debugAccount…` launch
 arguments), light + dark. The real Apple / Google flows need a signed build with the
 capability and the Google client (setup: `server/REFERENCE.md` "Accounts setup").
+
+## Online play through our server (#286)
+
+The same `OnlineMatchController` runs on our server instead of Game Center (contract +
+server behaviour: `server/REFERENCE.md` "Match operations", "Server dice", "WebSocket"). For
+now behind a developer switch; Game Center stays the default until #287/#288.
+
+**Engine (`ServerMatchService.swift`, tested by `ServerMatchServiceTests`; `ServerE2ETests`
+against `wrangler dev`).**
+- `ServerMatchService(client:sockets:)` implements `OnlineMatchService` +
+  `OnlineServerDiceService` over `ServerMatchClient` (the app's `AuthClient`: bearer, refresh,
+  `accessToken()`) and `ServerSocketFactory` (`URLSessionSocketFactory`:
+  `URLSessionWebSocketTask`, `{"type":"ping"}` every 30 s). `weak var controller` gets the open
+  match's events; `onMatchChanged` every newer snapshot (lobby refresh); `describeError` maps
+  errors to player copy (wrapped as `ServerMatchError {code, status, message}`).
+- **Revisions:** the service caches the newest `ServerAPI.MatchSnapshot` per match; every data
+  write (`endTurn`/`saveTurn`/`endMatch`/in-turn `quit`) sends `baseRevision` = the cached
+  revision. On `409 stale_revision` it reloads and resends **once** if the caller still holds
+  the turn and the server's log is not ahead of the outgoing payload (`isAhead`: games, then
+  plies); otherwise the error goes to the controller (its unsent-turn path: reload → resend or
+  drop). An identical resend of a write whose answer got lost is answered by the server (200).
+- **Socket:** `watch(matchID)` keeps one socket for the match on screen (`nil` closes it).
+  `hello` → `isSocketConnected` + one reload (whatever happened while away); `match` events go
+  to `controller.receive` when newer than the cache (lower revision or equal snapshot =
+  ignored); **while a write of ours is out, events wait for its answer** (`heldEvents`), so the
+  controller never sees its own write echoed before the write completes. `request` →
+  `receiveRequest`; `roll`/`error` ignored. Close: 4403/4410 → stay closed; 4401 → reconnect at
+  once (fresh token); anything else → reconnect with backoff `reconnectBase` 1 s doubling to
+  60 s; `reconnectNow()` on foreground. `deliversEventsLive` = connected: the controller's
+  fallback poll rests while it is true and loads again when it is not.
+- Lobby helpers: `listMatches(state:cursor:)`, `createMatch(variant:targetWins:opponentID:)`,
+  `loadSnapshot(matchID:)`, `decline(matchID:)`.
+- `AuthClient` gained `accessToken()` and query support in paths (`url(for:)`).
+
+**Controller (`OnlineMatchController`, server mode = the service is an
+`OnlineServerDiceService`).**
+- **Server dice:** `startGame` sets `GameSession.remoteRoller` → `serverRoll`: `roll(matchID,
+  gameIndex: syncedGameIndex, plyIndex)`, with the 21 roll values when the agreed dice are
+  weighted (computed off the main actor by the session, `HandicapDice.rollValues`); if the
+  server says weighted while this device thought fair (`rollValuesRequired`), it computes them
+  and asks again. The ply is stamped with the server's `weighted`.
+- **Slider:** `setDiceHandicap` from either player at any time becomes a pending change sent
+  straight to the server (`changeDice`, one at a time, `baseRev` = the newest rev seen); the
+  answer is adopted (`adoptDice`, newest rev wins); refused (stale) or failed → the change is
+  dropped and the match reloaded (the other player's unseen change stands). Snapshots carry the
+  server value (`OnlineMatchSnapshot.serverDice`), adopted before the payload's. No minting by
+  the turn holder, no out-of-turn requests (`receiveRequest` ignores them in server mode).
+- **Starter:** a new match's game-1 starter is the server's (`OnlineMatchSnapshot.startingPlayer`).
+
+**Session (`GameSession`, server dice).** `remoteRoller` set → `roll()` (and auto-roll)
+starts the tumble at once (`humanDiceRolling`), asks the roller, and reveals the dice when the
+answer is in and at least `aiDiceRollDuration` has passed, then `beginTurn` as after any roll;
+`rollWeighting` = the server's level. A failure stops the tumble, stays in `.awaitingRoll` and
+raises `remoteRollFailed` (cleared by the next attempt; tapping again gets the same roll, the
+server is idempotent per ply). A late answer for a turn that moved on is dropped
+(`remoteRollEpoch`, bumped by `newGame`/`surrender`/`setDice`). The roll is requested on tap
+(not prefetched at turn start), so a slider change before the tap still counts for that roll;
+one round trip (~10–100 ms) sits inside the tumble.
+
+**App.** `TavliApp/Online/ServerOnlineCoordinator.swift` (inert until its lobby appears: then
+one service + controller per signed-in account of `AccountStore.shared`, the lobby list,
+challenge by player id, open/close/forfeit, foreground reload + socket reconnect;
+`ServerOnlineCopy` = error copy + the failed-roll banner) and `Views/ServerLobbyView.swift`
+(`ServerOnlineRootView`: lobby ↔ the shared `OnlineGameView`). The switch: Settings → Online
+account → "Play online via the server" (`debug.onlineViaServer`, developer tools on; DEBUG
+launch argument `-debug.onlineViaServer YES`), read by `RootView` when Play Online opens.
+
+**Tests.** `ServerMatchServiceTests`: two devices (real controller + session) on
+`FakeTavtavServer` (the contract in memory: revisions, idempotent resend, scripted server
+rolls checked against every ply, slider rule, outcomes) + `FakeSockets` — the server's dice
+are used turn after turn and both logs agree, the waiting device sees the roll live, a roll
+failing offline then working, a ply with self-chosen dice refused, a lost reply recognised
+without a resend, an identical resend answered, a stale revision reloaded and resent, socket
+drop → poll → reconnect, 4401 reconnects / 4403 stays closed, the waiting player's slider
+change through the server with the bend stamped into the ply, a roll asking again with the
+values, the other player's unseen change winning, a forfeit. `ServerE2ETests` (skipped unless
+`TAVTAV_E2E_SERVER`): the same against `wrangler dev` over real HTTP + WebSocket. **Not
+covered:** two real devices on staging (latency, background/foreground, flaky networks), the
+lobby UI beyond a manual two-simulator check.
 
 ## Human game stats (#64)
 

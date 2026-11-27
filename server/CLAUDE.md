@@ -16,10 +16,11 @@ dice + WebSocket · #287 invites/auto-match/lobby/push · #288 remove Game Cente
 | `src/routes.ts` | Route table = every contract endpoint + its ticket; unbuilt ones answer 501 `not_implemented` |
 | `src/api.ts` | **Wire contract**: runtime schemas + types for every body and WebSocket message, error codes |
 | `src/schema.ts` | Mini schema kit (`parse` validates, `Infer` types; unknown keys dropped) |
-| `src/match-room.ts` | `MatchRoom` Durable Object: append-only storage migrations, ping/pong auto-response |
+| `src/match-room.ts` | `MatchRoom` Durable Object (#286): the match (seats, turn, payload + revision, slider, roll log, requests), every operation as `RoomResult`, dice verification, `match_index` writes, hibernatable sockets, deletion hook; append-only storage migrations |
+| `src/matches.ts` · `src/dice.ts` · `src/payload.ts` | #286 match handlers + lobby list + socket hand-off + deletion hook · server dice (crypto + hybrid bend port) · reads the plies' dice from a payload |
 | `src/accounts.ts` · `src/sessions.ts` | #285 account handlers + display-name rule · our access/refresh tokens |
 | `src/identity.ts` · `src/jwt.ts` | Apple/Google token verification (JWKS cache, nonce) · WebCrypto JWT helpers |
-| `src/apple-revoke.ts` · `src/account-hooks.ts` | Apple token exchange/revocation (only with `APPLE_*` secrets) · deletion hooks for #286/#287 |
+| `src/apple-revoke.ts` · `src/account-hooks.ts` | Apple token exchange/revocation (only with `APPLE_*` secrets) · deletion hooks (#286 matches; #287 push) |
 | `src/http.ts` · `src/log.ts` · `src/rate-limit.ts` | Error format/JSON helpers · JSON-line logger · per-IP/per-account limiter |
 | `src/usage.ts` | Free-plan usage check (GraphQL Analytics) + once-a-day webhook alert |
 | `migrations/` | D1 migrations (`0001_initial.sql`: accounts, identities, match_index, ops_alerts; `0002_sessions.sql`) |
@@ -50,8 +51,14 @@ npm run deploy:staging    # needs wrangler login or CLOUDFLARE_API_TOKEN (CI doe
   changes are additive only; readers ignore unknown keys and values.
 - **Building an endpoint**: add its handler in `src/index.ts` (`HANDLERS`), keep the row in
   `routes.ts` and the REFERENCE.md table in sync, remove nothing from the contract silently.
-- **The match payload is opaque** (base64 `OnlineMatchPayload`); the server reads only new
-  plies' dice to enforce server rolls (#286). Server-held state lives in the envelope.
+- **The match payload is opaque** (base64 `OnlineMatchPayload`); the server reads only the
+  plies' dice (`payload.ts`) to enforce server rolls (#286). Server-held state lives in the envelope.
+- **MatchRoom** changes state synchronously (one SQLite transaction), then fans out + writes
+  the D1 index; RPC methods return `RoomResult` (exceptions lose fields over RPC). Its
+  `random` / `now` are test seams (`runInDurableObject`).
+- **Dice bend = the app's** (`dice.ts` ↔ `HandicapDice.swift` ↔ `domain/handicap.py`): change
+  them together and rerun `ios/scripts/make_weighted_dice_parity.py` (writes the Swift table
+  and `test/data/weighted-dice-parity.json`).
 - **Bindings are not inherited** by wrangler environments: every `env.*` block repeats vars,
   D1, DO, ratelimits and `migrations`. Rerun `npm run types` after editing.
 - **Migrations are append-only** (D1 files and `ROOM_MIGRATIONS`) and must stay compatible with

@@ -115,19 +115,19 @@ Every endpoint is in the route table (`src/routes.ts`); until its ticket lands i
 | `GET /v1/account` | auth | → `Account` | – | **#285 ✓** |
 | `PATCH /v1/account` | auth | `UpdateAccountRequest` → `Account` | – | **#285 ✓** |
 | `DELETE /v1/account` | auth | → 204 | – | **#285 ✓** |
-| `GET /v1/matches` (`?state=active\|ended&cursor=`) | auth | → `MatchListResponse` | lobby list | #286 (index), #287 (lobby UI) |
-| `POST /v1/matches` | auth | `CreateMatchRequest` → `MatchSnapshot` | create (direct challenge) | #286 |
-| `GET /v1/matches/{id}` | auth | → `MatchSnapshot` | `load` | #286 |
-| `POST /v1/matches/{id}/accept` | auth | – → `MatchSnapshot` | `acceptInvite` | #286 |
-| `POST /v1/matches/{id}/decline` | auth | – → 204 | (invite declined) | #286 |
-| `POST /v1/matches/{id}/end-turn` | auth | `WriteTurnRequest` → `MatchSnapshot` | `endTurn` | #286 |
-| `POST /v1/matches/{id}/save-turn` | auth | `WriteTurnRequest` → `MatchSnapshot` | `saveTurn` (live turn #269) | #286 |
-| `POST /v1/matches/{id}/end-match` | auth | `EndMatchRequest` → `MatchSnapshot` | `endMatch` | #286 |
-| `POST /v1/matches/{id}/quit` | auth | `QuitRequest` → `MatchSnapshot` | `quit` | #286 |
-| `POST /v1/matches/{id}/requests` | auth | `SendRequestRequest` → 202 `{id}` | `sendRequest` | #286 |
-| `POST /v1/matches/{id}/dice` | auth | `DiceChangeRequest` → `DiceHandicap` | shared slider (#272) | #286 |
-| `POST /v1/matches/{id}/roll` | auth | `RollRequest` → `RollRecord` | (was local roll) | #286 |
-| `GET /v1/matches/{id}/socket` | auth | WebSocket upgrade | GameKit turn events | #286 |
+| `GET /v1/matches` (`?state=active\|ended&cursor=`) | auth | → `MatchListResponse` | lobby list | **#286 ✓** (index), #287 (lobby UI) |
+| `POST /v1/matches` | auth | `CreateMatchRequest` → 201 `MatchSnapshot` | create (direct challenge) | **#286 ✓** |
+| `GET /v1/matches/{id}` | auth | → `MatchSnapshot` | `load` | **#286 ✓** |
+| `POST /v1/matches/{id}/accept` | auth | – → `MatchSnapshot` | `acceptInvite` | **#286 ✓** |
+| `POST /v1/matches/{id}/decline` | auth | – → 204 | (invite declined) | **#286 ✓** |
+| `POST /v1/matches/{id}/end-turn` | auth | `WriteTurnRequest` → `MatchSnapshot` | `endTurn` | **#286 ✓** |
+| `POST /v1/matches/{id}/save-turn` | auth | `WriteTurnRequest` → `MatchSnapshot` | `saveTurn` (live turn #269) | **#286 ✓** |
+| `POST /v1/matches/{id}/end-match` | auth | `EndMatchRequest` → `MatchSnapshot` | `endMatch` | **#286 ✓** |
+| `POST /v1/matches/{id}/quit` | auth | `QuitRequest` → `MatchSnapshot` | `quit` | **#286 ✓** |
+| `POST /v1/matches/{id}/requests` | auth | `SendRequestRequest` → 202 `{id}` | `sendRequest` | **#286 ✓** |
+| `POST /v1/matches/{id}/dice` | auth | `DiceChangeRequest` → `DiceHandicap` | shared slider (#272) | **#286 ✓** |
+| `POST /v1/matches/{id}/roll` | auth | `RollRequest` → `RollRecord` | (was local roll) | **#286 ✓** |
+| `GET /v1/matches/{id}/socket` | auth | WebSocket upgrade | GameKit turn events | **#286 ✓** |
 | `DELETE /v1/matches/{id}` | auth | → 204 (hide an ended match) | lobby "Remove" | #287 |
 | `POST /v1/invites` | auth | `CreateInviteRequest` → `Invite` | invite friend | #287 |
 | `GET /v1/invites/{code}` | auth | → `InvitePreview` | – | #287 |
@@ -181,7 +181,10 @@ hooks). App side: `ServerAuth.swift` (`AuthClient`) in TavliEngine.
     HMAC-SHA256>`, 1 h, **stateless** (verified with `SESSION_KEY`; no D1 read per request).
     Consequence: after logout or deletion an access token keeps passing the signature check
     until it expires (≤ 1 h); the account endpoints read the account row and answer 401 when it
-    is gone, and #286's match handlers should do the same where it matters.
+    is gone. The match endpoints (#286) do the same where it matters: create reads the
+    caller's account row (401 when gone); every other match op is refused by the room once
+    the deletion hook marked the seat deleted (401 `unauthorized`); logout leaves the token
+    working on that device for ≤ 1 h (same player, accepted).
   - Refresh token `rt_<32 random bytes base64url>`, 60 days, stored only as SHA-256 hex
     (`refresh_hash`). `POST /v1/auth/refresh` rotates it (new access + refresh token, same
     session row, `previous_hash` = the old hash; the update is conditional on the old hash, so
@@ -198,9 +201,11 @@ hooks). App side: `ServerAuth.swift` (`AuthClient`) in TavliEngine.
   `ACCOUNT_DELETION_HOOKS` with `{accountID, matchIDs}` (from `match_index`; a throwing hook
   aborts with 500 and deletes nothing); deletes the `accounts` row, which cascades identities
   (provider subjects + Apple token), sessions and the account's `match_index` rows; then
-  revokes Apple tokens in the background. The hooks list is empty in #285: **#286 adds** the
-  hook that ends running matches as a quit and anonymises the player in finished ones
-  (`displayName` → null), **#287** the push-token cleanup. Signing in again with the same
+  revokes Apple tokens in the background. **#286's hook** (`endMatchesOfDeletedAccount`,
+  `src/matches.ts`) calls `MatchRoom.accountDeleted` for each match: a running match ends as
+  the player's quit (the opponent wins, event `quit`), the seat's `displayName` → null and
+  `deleted` (refused from then on), its sockets close with 4403; **#287** adds the push-token
+  cleanup. Signing in again with the same
   Apple/Google identity afterwards creates a new, empty account.
 - **Apple token revocation** (App Review 5.1.1(v); `src/apple-revoke.ts`), behind config:
   with the secrets `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (Sign in with Apple
@@ -219,20 +224,39 @@ hooks). App side: `ServerAuth.swift` (`AuthClient`) in TavliEngine.
 ### Match operations (#286) — `OnlineMatchService` semantics
 
 The server keeps per match: two **seats** (`participants`, seat 0 = creator = White, seat 1 =
-Black), `currentPlayerID`, `isEnded`, the opaque `data`, a **revision** (+1 per write), the
-**dice slider**, the **roll log** and pending out-of-turn **requests**. The snapshot is
-`OnlineMatchSnapshot` + these extras, so `ServerMatchService` maps it 1:1
-(`ServerAPI.MatchSnapshot.onlineSnapshot`).
+Black), `currentPlayerID`, `isEnded`, the opaque `data`, a **revision** (the version of
+`data`: +1 per data write — end-turn, save-turn, end-match, in-turn quit; accept/decline, dice
+changes, requests, rolls and out-of-turn quits leave it), the **dice slider**, the **roll
+log** and pending out-of-turn **requests**. The snapshot is `OnlineMatchSnapshot` + these
+extras, so `ServerMatchService` maps it 1:1 (`ServerAPI.MatchSnapshot.onlineSnapshot`, which
+also carries `startingPlayer` and the server's `diceHandicap` as `serverDice`).
 
-- **Create** (`POST /v1/matches`, also used internally by invites/auto-match): caller in seat 0,
-  `currentPlayerID` = caller, `data = null`, `revision 0`; the server draws `startingPlayer`
-  (W/B, crypto RNG) which the creator writes into its first payload. Seat 1 is `invited`
-  (direct challenge / invite) or `matching` (auto-match, `playerID null`). As with GameKit the
-  creator may play its first turn before the seat is filled; the turn then waits on the seat.
+Implementation (`src/match-room.ts`): the room is addressed by match id
+(`MATCH_ROOM.getByName(id)`); storage = `ROOM_MIGRATIONS` step 2 (`match` one row, `seats`,
+`rolls`, `requests`). Each operation is one synchronous SQLite transaction (nothing
+interleaves), then the room fans the event out to its sockets and upserts the lobby rows in
+D1 (`match_index`, `WHERE excluded.updated_at >= updated_at`, so a late index write never
+overwrites a newer one; a failed index write is logged, the op still succeeds). RPC methods
+return `RoomResult` (`{ok, value} | {ok: false, error: {code, message, path?}}`) because
+exceptions lose their fields over RPC; `src/matches.ts` turns it into the error response.
+Checks, in order: match exists (404) → caller is a seat (403) → seat not deleted (401) →
+match running (409 `match_ended`) → holds the turn (409 `not_your_turn`) → seat accepted (403)
+→ `baseRevision` (409 `stale_revision`) → payload size/shape + dice (400/413).
+
+- **Create** (`POST /v1/matches` → **201**, also used internally by invites/auto-match): caller
+  in seat 0, `currentPlayerID` = caller, `data = null`, `revision 0`; the server draws
+  `startingPlayer` (W/B, crypto RNG; house `plakoto` always W, as `GameVariant.startingPlayer`)
+  which the creator writes into its first payload. Seat 1 is `invited` (direct challenge
+  `opponentID` / invite) or `matching` (no opponent, `playerID null`). The Worker reads both
+  account rows from D1 first (caller gone → 401, unknown opponent → 404 `path: opponentID`,
+  yourself → 400). As with GameKit the creator may play its first turn before the seat is
+  filled or accepted; the turn then waits on the seat.
 - **Optimistic concurrency**: every write carries `baseRevision` = the revision it builds on.
   Mismatch → `409 stale_revision` (no change). **Idempotent retry**: if the same caller resends
   the identical write that produced the current revision (`baseRevision == revision − 1`, same
-  bytes, same op), the server answers 200 with the current snapshot instead of 409.
+  bytes, same op), the server answers 200 with the current snapshot instead of 409 (also after
+  the turn passed or the match ended — that is the lost-reply case). Only the turn holder
+  writes data, so a stale write means the writer missed its own last answer.
 - **end-turn**: caller must hold the turn and the match must be running; stores `data`, hands
   the turn to the other seat (unfilled seat → `currentPlayerID null` until it is filled),
   clears requests addressed to the caller. Event `turnEnded`; push "your turn" (#287).
@@ -245,19 +269,28 @@ Black), `currentPlayerID`, `isEnded`, the opaque `data`, a **revision** (+1 per 
   `inTurn: false` requires *not* holding it; the caller's outcome becomes `quit`, status
   `done`. With two seats the match then ends (opponent `won`, `isEnded`) — the opponent's
   controller sees `.quit` and shows `opponentLeft`. Event `quit`.
-- **accept** / **decline**: only the invited seat; accept → `active`, event `accepted`;
-  decline → `declined`, match ends, event `declined`.
+  Out of turn with a seat still `invited`/`matching`, that seat keeps outcome `none`.
+- **accept** / **decline**: only the invited seat; accept → `active`, event `accepted` (again
+  on an active seat = 200, no change); decline → `declined`, the other seat `done`, match
+  ends, outcomes stay `none` (not a forfeit), event `declined`. A seat must be `active` to
+  write or roll (the controller accepts before opening).
 - **requests** (`sendRequest`): opaque `data` from either participant to the other, kept in the
   room until the recipient's turn ends (then dropped) and delivered over the socket at once
-  (`request` message) and in `snapshot.requests` (recipient only). Max 50 pending.
+  (`request` message) and in `snapshot.requests` (recipient only). Max 50 pending (then 429
+  `rate_limited`). With our server the app no longer needs them for the dice (see **dice**).
 - **dice** (shared weighted-dice slider #272): the **server** is now the single writer, so the
   turn-holder/exchange dance is unnecessary. Either player may change it at any time with
   `{whiteLevel, baseRev}`; accepted iff `baseRev >= current.rev || current.by == caller's
   colour` (`OnlineDiceRequest.isAccepted(over:)`), then `rev + 1`, `by` = caller's colour.
   Refused → 409 `stale_revision` with the current value in a reload. Event `diceChanged`.
+  The same value again is answered without a new rev.
   The payload's `diceHandicap` key may still be written by the app but the server's value wins.
-- **load** returns the snapshot; **list** returns `MatchSummary` rows from D1 (your turn,
-  their turn, waiting, invited, ended; newest first; cursor-paged).
+- **load** returns the snapshot; **list** returns `MatchSummary` rows from D1, newest first
+  (`updated_at DESC, match_id DESC`), 50 per page, `nextCursor` = `<updatedAt>~<matchID>`;
+  `?state=active` = not ended, `ended` = ended; the opponent's name is joined from `accounts`
+  (null once deleted). Lobby state per player: `ended` (match over / declined), `invited`
+  (my seat not accepted), `yourTurn` (I hold the turn, even before the seat is accepted),
+  `waitingForOpponent` (other seat unfilled / invited), else `theirTurn`.
 
 ### Server dice (#286)
 
@@ -266,14 +299,22 @@ The roller asks the server for its dice; no client can choose them.
 - `POST /v1/matches/{id}/roll {gameIndex, plyIndex, rollValues?}` — only the turn holder,
   only while the match runs. `plyIndex` = the current game's `plies.count`. **Idempotent per
   `(gameIndex, plyIndex)`**: asking again returns the recorded roll (a reconnect never
-  rerolls). The snapshot's `lastRoll` is the newest roll; the `roll` socket message shows the
-  opponent the dice immediately.
+  rerolls; another player's roll for that ply → 400 `path: plyIndex`). A new roll only for
+  the ply the game waits for: the next ply of the stored last game
+  (`gameIndex = games − 1, plyIndex = its plies`) or the first ply of the game the caller is
+  starting (`gameIndex = games, plyIndex 0`, its write may still be on the way); anything
+  else → 400 `path: plyIndex` (no rolling ahead). The snapshot's `lastRoll` is the newest
+  roll; the `roll` socket message tells the sockets at once (the app shows the dice from the
+  mover's live write, which follows immediately).
 - **Fair dice** (`diceHandicap.whiteLevel == 0`): two independent faces from
   `crypto.getRandomValues` (rejection sampling, no modulo bias); `rollValues` ignored.
 - **Weighted dice**: `rollValues` is **required** — the roller's 21 one-ply values
   (`HandicapDice.rollValues`) in canonical order `11 12 13 14 15 16 22 23 24 25 26 33 34 35
   36 44 45 46 55 56 66` (`HandicapDice.outcomes`), each finite and in [0, 1] (validated: else
-  400). The server ports the app's hybrid bend (`HandicapDice`, keep in sync):
+  400). The server ports the app's hybrid bend (`src/dice.ts`; `HandicapDice`, keep in sync —
+  `test/dice.test.ts` checks every hybrid row of the Python parity table,
+  `test/data/weighted-dice-parity.json`, written by `ios/scripts/make_weighted_dice_parity.py`
+  together with the Swift `WeightedDiceModesTests` table):
   - `level = |whiteLevel|`, favoured = White if `whiteLevel > 0`, else Black; mode hybrid,
     g = `[0.1, 0.2, 0.35, 0.5][level−1]` pp (`WeightedDiceMode.hybrid.strengths`);
     `maxPoints` per variant (`VARIANT_MAX_POINTS`: plakoto 1, others 2).
@@ -286,26 +327,34 @@ The roller asks the server for its dice; no client can choose them.
     `weighted` into its `PlyRecord.weighted`, so the log shows the bend every roll used.
   - The values come from the roller's own model, so a modified client could skew its β by
     lying about values; bounds: values in [0, 1], β capped by the hybrid rule. Accepted risk
-    for v1 (the slider is a friendly handicap both players see); #286 logs the values per roll.
-- **Enforcement**: on `end-turn` / `end-match` / in-turn `quit` the room reads the dice of
-  the plies appended since the last write (`games[g].plies[p].die1/die2`, the only payload
-  fields the server reads) and rejects (`400 bad_request`, `path: "data"`) any ply whose
-  dice differ from the roll log or that has no server roll. Forced passes are plies too and
-  need a roll.
+    for v1 (the slider is a friendly handicap both players see). The room keeps the values
+    per roll (`rolls.roll_values`) and logs them with each weighted roll (`match.roll`).
+- **Enforcement** (`src/payload.ts` reads only `games[g].plies[p].die1/die2`): on **every**
+  data write (`end-turn`, `save-turn` — a finished game rolls into the next one with a
+  save-turn when the winner starts it —, `end-match`, in-turn `quit`) every ply must match the
+  roll log for its `(game, ply)` (either order of the two dice) and a ply new since the
+  stored data must be the caller's own roll; else `400 bad_request`, `path: "data"`. Forced
+  passes are plies too and need a roll. Rewriting an older ply's dice fails the same way.
 
 ### WebSocket (#286)
 
 `GET /v1/matches/{id}/socket` with `Upgrade: websocket` and the bearer header
 (`URLSessionWebSocketTask` with a `URLRequest`). One socket per open match; the room accepts
 it with the hibernation API, tagged with the account id. All writes stay on HTTPS (one path
-for ordering, idempotency and errors); the socket only pushes.
+for ordering, idempotency and errors); the socket only pushes. The Worker verifies the token
+and hands the upgrade to the room with `x-tavtav-account` / `x-tavtav-token-exp` (the client's
+`Authorization` header is dropped); no `Upgrade: websocket` → 400, unknown match → 404 before
+the upgrade. A non-participant (or deleted seat) gets the `error` message + close 4403. The
+attachment keeps the token's expiry: the first event after it closes that socket with
+`error` `token_expired` + 4401 (hibernating sockets have no timers). Each socket gets its own
+viewer's snapshot (`requests` are per recipient).
 
 Server → client (JSON text, `type`-tagged, `ServerMessage`):
 
 | `type` | Fields | When |
 |---|---|---|
-| `hello` | `matchID, revision, serverTime` | right after connecting (client reloads if its revision differs) |
-| `match` | `event, match: MatchSnapshot` | after every state change: `created`, `joined` (seat filled), `accepted`, `declined`, `turnEnded`, `turnSaved`, `matchEnded`, `quit`, `diceChanged` (unknown event → treat as a reload) |
+| `hello` | `matchID, revision, serverTime` | right after connecting (the app reloads once: whatever happened while it was away) |
+| `match` | `event, match: MatchSnapshot` | after every state change: `created`, `joined` (seat filled, #287), `accepted`, `declined`, `turnEnded`, `turnSaved`, `matchEnded`, `quit` (also the deletion hook), `diceChanged` (unknown event → treat as a reload) |
 | `roll` | `matchID, roll: RollRecord` | the turn holder rolled |
 | `request` | `matchID, request: OutOfTurnRequest` | to the recipient only |
 | `error` | `error: {code, message}` | before the server closes the socket (e.g. `forbidden`) |
@@ -355,13 +404,16 @@ and the fixture together.
 | `src/log.ts` | JSON-line `Logger` |
 | `src/rate-limit.ts` | `enforceRateLimit` over the two Rate Limiting bindings |
 | `src/usage.ts` | Hourly free-plan usage check + alert webhook |
-| `src/match-room.ts` | `MatchRoom` DO: storage migrations, keepalive auto-response, `info()` |
+| `src/match-room.ts` | `MatchRoom` DO (#286): storage migrations, the match state + every operation (`RoomResult`), dice verification, lobby index writes, hibernatable sockets + fan-out, `accountDeleted`, keepalive auto-response, `info()`; test seams `random` / `now` |
+| `src/matches.ts` | #286 match handlers (validate → room → response), lobby list from D1, socket hand-off, the account-deletion hook |
+| `src/dice.ts` | #286 server dice: crypto fair dice, the hybrid bend port (`turnBeta`, `mirroredBeta`, `rollBeta`, `weightedFaces`), `drawRoll` |
+| `src/payload.ts` | #286 reads the plies' dice from a base64 payload (the only payload read) + size check |
 | `src/accounts.ts` | #285 handlers: sign-in (Apple/Google/dev), refresh, logout, account get/update/delete, display-name rule, session pruning |
 | `src/identity.ts` | Apple/Google identity-token verification (JWKS cache, claims, nonce); `identityDeps` = test seam for `fetch`/`now` |
 | `src/sessions.ts` | Access tokens (HMAC), refresh-token rotation + reuse detection, `authenticate` |
 | `src/jwt.ts` | base64url, JWT decode, RS256 verify, ES256 sign, `.p8` import (WebCrypto) |
 | `src/apple-revoke.ts` | Apple code exchange + token revocation (skipped without the `APPLE_*` secrets) |
-| `src/account-hooks.ts` | `ACCOUNT_DELETION_HOOKS` (#286/#287 register theirs) |
+| `src/account-hooks.ts` | `ACCOUNT_DELETION_HOOKS` (#286's `endMatchesOfDeletedAccount`; #287 adds push tokens) |
 | `src/version.ts` | `SERVER_VERSION` (= package.json), service name |
 | `src/secrets.d.ts` | Types for the optional secrets |
 | `migrations/` | D1 migrations (`0001_initial.sql`; `0002_sessions.sql`: `sessions`, `account_identities.provider_refresh_token`) |
@@ -382,6 +434,20 @@ forgery/expiry, refresh rotation + reuse revocation, logout scope, per-account r
 name rule, deletion (cascade, hooks, failing hook, re-sign-in = new account), Apple
 exchange + revocation with a generated `.p8` (client secret verified), dev sign-in gating.
 Vitest sets `GOOGLE_CLIENT_IDS` = the test client id (`vitest.config.ts`).
+**Matches** (`test/matches.test.ts`, players from the dev sign-in, a fresh `cf-connecting-ip`
+per request so the IP limiter stays out of the way): create (seats, starter, index rows,
+random starter for Fevga, open seat), strangers / unknown match / unknown opponent / yourself,
+accept + decline, turn rules (only the turn holder rolls and writes), idempotent rolls, the
+"next ply only" roll rule, refused dice (wrong, missing, rewritten, someone else's), stale
+revision + identical resend, next game's first roll, payload checks, end-match outcomes and
+locking, quit in/out of turn, requests (recipient only, dropped after its turn), the dice
+slider rule + weighted rolls (values required, mirrored β, deterministic draw via
+`runInDurableObject`, values stored), lobby list paging/filter/cursor, WebSocket (hello,
+roll/match/request fan-out, 4403 refusal, 4401 after token expiry, upgrade/auth checks),
+account deletion (quit + anonymised + stale token refused). **Dice** (`test/dice.test.ts`):
+parity with the Python/Swift table (β, mirrored β, faces for 8 uniform pairs × 4 vectors × 4
+levels × 2 maxPoints), fair at level 0 / flat values, χ² of crypto fair dice and of the bent
+distribution against `p·exp(βv)` for both sides.
 
 **Rate limits**: `IP_LIMITER` 120 req/min per IP on everything but `/health`;
 `ACCOUNT_LIMITER` 240 req/min per account (after token verification, #285).
@@ -444,7 +510,7 @@ colo. Never tokens, payloads or IPs. Workers Logs (`observability.enabled`) keep
   backward-compatible with the previous release (add columns/tables; drop only a release later).
 - Bad migration / data: D1 Time Travel (below). DO storage: SQLite-backed objects keep 30 days
   of point-in-time history (`ctx.storage.getBookmarkForTime` + `onNextSessionRestoreBookmark`);
-  #286 adds an admin path if needed.
+  no admin path yet (add one when a restore is needed).
 
 ### Secrets
 
@@ -504,6 +570,20 @@ server is `http://localhost:8787`, `NSAllowsLocalNetworking`): Settings → Onli
 Developer → "Development sign-in", or launch arguments `-debugAccount
 -debugAccountDevSubject sim-a -debugAccountName "Alex K."` (see `AccountViews.swift`).
 Sign in with Apple / Google need a signed build and real provider setup.
+
+### Online play against the local server (#286)
+
+- **Engine end to end** (two "devices" = `AuthClient` + `ServerMatchService` +
+  `OnlineMatchController` + `GameSession`, real HTTP + WebSocket):
+  `npm run db:migrate:local && npm run dev`, then in `ios/TavliEngine`
+  `TAVTAV_E2E_SERVER=http://127.0.0.1:8787 swift test --filter ServerE2ETests` (8 turns, the
+  dice on the other device, a stale write, the slider + a weighted roll, a forfeit).
+- **Two simulators**: launch each DEBUG build with `-debug.onlineViaServer YES -debugAccount
+  -debugAccountDevSubject sim-a -debugAccountName "Alex K."` (and `sim-b` / `"Sam"`), or turn
+  on Settings → Online account → "Play online via the server". Play Online then opens the
+  server lobby: copy one player's ID ("Your player ID") into the other's "Challenge a player".
+  The id of a dev subject: `curl -s -X POST localhost:8787/v1/auth/dev -H 'content-type:
+  application/json' -d '{"subject":"sim-b"}'`.
 
 ### Migrations (D1)
 

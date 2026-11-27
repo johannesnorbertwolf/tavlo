@@ -19,6 +19,21 @@ import { clientIP, enforceRateLimit } from "./rate-limit";
 import { CONTRACT_ROUTES, Router, type Route, type RouteContext } from "./routes";
 import { identityDeps } from "./identity";
 import { authenticate } from "./sessions";
+import {
+  acceptMatch,
+  changeDice,
+  createMatch,
+  declineMatch,
+  endMatch,
+  endTurn,
+  listMatches,
+  loadMatch,
+  matchSocket,
+  quitMatch,
+  rollDice,
+  saveTurn,
+  sendRequest,
+} from "./matches";
 import { checkUsage } from "./usage";
 import { SERVER_VERSION, SERVICE_NAME } from "./version";
 
@@ -60,6 +75,19 @@ const HANDLERS: Partial<Record<string, Route["handler"]>> = {
   "GET /v1/account": getAccount,
   "PATCH /v1/account": updateAccount,
   "DELETE /v1/account": deleteAccount,
+  "GET /v1/matches": listMatches,
+  "POST /v1/matches": createMatch,
+  "GET /v1/matches/:matchID": loadMatch,
+  "POST /v1/matches/:matchID/accept": acceptMatch,
+  "POST /v1/matches/:matchID/decline": declineMatch,
+  "POST /v1/matches/:matchID/end-turn": endTurn,
+  "POST /v1/matches/:matchID/save-turn": saveTurn,
+  "POST /v1/matches/:matchID/end-match": endMatch,
+  "POST /v1/matches/:matchID/quit": quitMatch,
+  "POST /v1/matches/:matchID/requests": sendRequest,
+  "POST /v1/matches/:matchID/dice": changeDice,
+  "POST /v1/matches/:matchID/roll": rollDice,
+  "GET /v1/matches/:matchID/socket": matchSocket,
 };
 
 export const ROUTES: Route[] = CONTRACT_ROUTES.map((route) => ({

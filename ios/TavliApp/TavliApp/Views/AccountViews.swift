@@ -6,7 +6,8 @@ import TavliEngine
 // Google), the display-name prompt after the first sign-in, and the account page (name,
 // sign out, delete with confirmation). Presentation only over the engine's `AuthClient`
 // (`AccountStore.shared`, `Online/AccountService.swift`). Reached from Settings →
-// "Online account" while developer tools are on; not part of online play until #286/#287.
+// "Online account" while developer tools are on; online play through the server (#286) uses it
+// when the developer switch on this sheet is on.
 
 /// The account sheet's root: sign-in, name prompt or account page by the client's state.
 struct AccountView: View {
@@ -36,6 +37,9 @@ struct AccountView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .chromeCard(padding: 20)
                     }
+                    // #286: online play through the server instead of Game Center (the
+                    // sheet itself is reachable only with developer tools on).
+                    ServerPlayDeveloperCard()
                     #if DEBUG
                     AccountDeveloperCard(store: store)
                     #endif
@@ -457,6 +461,28 @@ enum AccountCopy {
             default: return "Something went wrong. Please try again."
             }
         }
+    }
+}
+
+/// Developer switch (#286): Play Online runs through our server (the server lobby) instead
+/// of Game Center. Off by default; Game Center stays the path until #287/#288.
+private struct ServerPlayDeveloperCard: View {
+    @AppStorage(ServerOnlineCoordinator.switchKey) private var onlineViaServer = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $onlineViaServer) {
+                Text(verbatim: "Play online via the server")
+                    .font(ChromeType.body)
+                    .foregroundStyle(ChromeTheme.ink)
+            }
+            .tint(ChromeTheme.undoTint)
+            Text(verbatim: "Developer: Play Online uses this account and the server above instead of Game Center.")
+                .font(ChromeType.caption)
+                .foregroundStyle(ChromeKit.inkSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .chromeCard(padding: 20)
     }
 }
 

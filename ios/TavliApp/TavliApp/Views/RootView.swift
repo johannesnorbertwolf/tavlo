@@ -17,6 +17,11 @@ struct RootView: View {
     /// Online multiplayer (#134). Lives at the root so its lifetime spans the lobby
     /// and a live match; inert until the player opens the online lobby.
     @StateObject private var online = GameKitCoordinator()
+    /// Online play through our own server (#286), behind the developer switch (Settings →
+    /// Online account); inert until its lobby appears. Game Center stays the default.
+    @StateObject private var serverOnline = ServerOnlineCoordinator()
+    @AppStorage(ServerOnlineCoordinator.switchKey) private var onlineViaServer = false
+    @AppStorage(SettingsKey.developerTools) private var developerToolsSetting = false
     /// Whether the online lobby/game is on screen (entered from the mode picker).
     @State private var showOnline = false
     @State private var session: GameSession?
@@ -100,7 +105,11 @@ struct RootView: View {
                 // Online multiplayer (#134) is a self-contained branch: the coordinator
                 // owns its own session, so the offline save/resume/stats wiring below is
                 // bypassed entirely (online results don't touch the vs-AI record).
-                OnlineRootView(coordinator: online, onExit: { showOnline = false })
+                if onlineViaServer && DeveloperTools.isEnabled(setting: developerToolsSetting) {
+                    ServerOnlineRootView(coordinator: serverOnline, onExit: { showOnline = false })
+                } else {
+                    OnlineRootView(coordinator: online, onExit: { showOnline = false })
+                }
             } else if let session {
                 GameView(
                     session: session,

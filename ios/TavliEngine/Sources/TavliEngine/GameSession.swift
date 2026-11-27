@@ -282,6 +282,42 @@ public final class GameSession: ObservableObject {
     /// rewrites what the roll used.
     private var rollWeighting: Int?
 
+    // ── Server dice (#286) ────────────────────────────────────────────────────
+
+    /// What a networked roll asks the server for: the ply the roll starts (= `record.plies.count`),
+    /// the roller, and a way to rate the roller's 21 rolls (`HandicapDice.rollValues`, off the
+    /// main actor; `nil` without a value net) — needed only when the shared dice are weighted.
+    public struct RemoteRollRequest {
+        public let plyIndex: Int
+        public let player: Color
+        public let rollValues: @MainActor () async -> [Float]?
+    }
+
+    /// The server's answer: the dice and the bend they were drawn with (`PlyRecord.weighted`).
+    public struct RemoteRoll: Equatable, Sendable {
+        public var die1: Int
+        public var die2: Int
+        public var weighted: Int?
+        public init(die1: Int, die2: Int, weighted: Int? = nil) {
+            self.die1 = die1
+            self.die2 = die2
+            self.weighted = weighted
+        }
+    }
+
+    public typealias RemoteRoller = @MainActor (RemoteRollRequest) async throws -> RemoteRoll
+
+    /// Online with our server (#286): the human's roll asks this for the dice instead of
+    /// drawing them here (no client chooses its dice). `roll()` starts the tumble at once
+    /// (`humanDiceRolling`) and reveals the server's roll when it arrives (after at least the
+    /// usual tumble); a failure stops the tumble and raises `remoteRollFailed` (tap again —
+    /// the server answers the same roll for the same ply). `nil` = local dice.
+    public var remoteRoller: RemoteRoller?
+    /// The last server roll failed (no connection, …); cleared by the next attempt.
+    @Published public private(set) var remoteRollFailed = false
+    /// Bumped whenever a pending server roll must be dropped (new game, scripted dice).
+    private var remoteRollEpoch = 0
+
     /// Fired exactly once, when the session first enters `.gameOver`, with the
     /// winning color. The app layer uses this to record the human's win/loss
     /// (issue #64); the engine itself stays unaware of stats persistence.
@@ -444,6 +480,10 @@ public final class GameSession: ObservableObject {
     public func roll() {
         guard phase == .awaitingRoll, !autoRollPassing, !humanDiceRolling, !preparingDice else { return }
         if restoreRollOnStart { resumePendingRoll(); return }
+        if remoteRoller != nil, !isAITurn {
+            startRemoteRoll()
+            return
+        }
         if currentRollIsWeighted {
             // Weighted dice (#148): rate the rolls off the main actor, then draw.
             let pending = startHandicappedRoll()
@@ -465,6 +505,8 @@ public final class GameSession: ObservableObject {
     public func setDice(_ d1: Int, _ d2: Int) {
         guard phase == .awaitingRoll else { return }
         if preparingDice { discardPendingHandicapRoll() }
+        remoteRollEpoch += 1
+        humanDiceRolling = false
         diceReplays.removeAll()
         restoreRollOnStart = false
         game.dice.set(d1, d2)
@@ -666,6 +708,8 @@ public final class GameSession: ObservableObject {
         autoRollTask = nil
         autoRollPassing = false
         humanDiceRolling = false
+        remoteRollEpoch += 1
+        remoteRollFailed = false
         remoteTurnTarget = nil
         remoteDriverRunning = false
         isShowingRemoteTurn = false
@@ -890,6 +934,7 @@ public final class GameSession: ObservableObject {
     /// With animation off: goes straight to `roll()`.
     private func maybeAutoRoll() {
         guard autoRoll, !isAITurn, phase == .awaitingRoll else { return }
+        if remoteRoller != nil { roll(); return }   // the server's dice tumble the same way (#286)
         let rollDuration = animationTimings.aiDiceRollDuration
         autoRollTask = Task { @MainActor [weak self] in
             guard let self, !Task.isCancelled else { return }
@@ -1388,6 +1433,55 @@ public final class GameSession: ObservableObject {
             board.restoreStacks(stacks)
             return try? HandicapDice.rollValues(agent: agent, board: board, color: color)
         }.value
+    }
+
+    /// Ask the server for this turn's dice (#286): the tumble starts at once and the dice
+    /// are revealed when the answer is in and the usual tumble time has passed, then the
+    /// turn begins as after any roll. The roll is stamped with the server's bend. A late
+    /// answer for a turn that moved on is dropped; a failure leaves `.awaitingRoll`.
+    private func startRemoteRoll() {
+        guard let roller = remoteRoller else { return }
+        remoteRollEpoch += 1
+        let epoch = remoteRollEpoch
+        let plyIndex = record.plies.count
+        let player = currentPlayer
+        let tumble = animationTimings.aiDiceRollDuration
+        let started = Date()
+        remoteRollFailed = false
+        humanDiceRolling = true
+        let request = RemoteRollRequest(plyIndex: plyIndex, player: player, rollValues: { [weak self] in
+            guard let self else { return nil }
+            return await self.computeRollValues()
+        })
+        Task { @MainActor [weak self] in
+            let result: Result<RemoteRoll, Error>
+            do { result = .success(try await roller(request)) } catch { result = .failure(error) }
+            guard let self, self.remoteRollEpoch == epoch else { return }
+            if case .success = result {
+                let left = tumble - Date().timeIntervalSince(started)
+                if left > 0 { await GameSession.sleep(left) }
+                guard self.remoteRollEpoch == epoch else { return }
+            }
+            self.humanDiceRolling = false
+            guard self.phase == .awaitingRoll, self.record.plies.count == plyIndex,
+                  self.currentPlayer == player else { return }
+            switch result {
+            case .success(let roll) where (1...6).contains(roll.die1) && (1...6).contains(roll.die2):
+                self.game.dice.set(roll.die1, roll.die2)
+                self.rollWeighting = roll.weighted
+                self.markRolled()
+                self.beginTurn()
+            default:
+                self.remoteRollFailed = true
+            }
+        }
+    }
+
+    /// Await a pending server roll (tests).
+    func awaitRemoteRollForTesting() async {
+        for _ in 0..<2000 where humanDiceRolling && remoteRoller != nil {
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
     }
 
     /// Mark a weighted roll as being prepared (synchronously, so `preparingDice` blocks
