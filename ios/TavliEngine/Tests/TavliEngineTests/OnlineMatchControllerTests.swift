@@ -101,13 +101,31 @@ final class FakeDevice: OnlineMatchService {
     /// Live turns (#269) without delays or polling, so tests only wait a main-queue turn.
     static let instantLive = LiveTurnTiming(debounce: 0, minInterval: 0, pollInterval: nil)
 
+    /// Out-of-turn requests (#272, GameKit exchanges) this device sent, in order.
+    var requests: [Data] = []
+    /// Requests fail (an older build, the exchange limit, no connection).
+    var dropRequests = false
+
     init(_ id: String, server: FakeGameCenter, liveTurns: LiveTurnTiming? = FakeDevice.instantLive,
-         animationTimings: AnimationTimings = .off) {
+         animationTimings: AnimationTimings = .off, handicapAgent: Agent? = nil) {
         localPlayerID = id
         self.server = server
         server.devices[id] = self
         controller = OnlineMatchController(service: self, animationTimings: animationTimings,
-                                           retryDelay: nil, liveTurns: liveTurns)
+                                           retryDelay: nil, liveTurns: liveTurns,
+                                           handicapAgent: handicapAgent.map { agent in { _ in agent } })
+    }
+
+    /// Delivered to every other participant's controller, like an exchange request.
+    func sendRequest(matchID: String, data: Data, completion: @escaping OnlineCompletion) {
+        requests.append(data)
+        guard online, !dropRequests else { completion(Offline()); return }
+        for (pid, device) in server.devices where pid != localPlayerID && device.online && !device.muted {
+            if server.matches[matchID]!.seats.contains(where: { $0.playerID == pid }) {
+                device.controller.receiveRequest(matchID: matchID, data: data)
+            }
+        }
+        completion(nil)
     }
 
     func releaseSaves() {

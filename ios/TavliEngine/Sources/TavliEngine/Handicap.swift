@@ -395,6 +395,12 @@ public struct HandicapSetup: Codable, Equatable, Hashable, Sendable {
 
     /// Whether either side's dice are tilted.
     public var hasWeightedDice: Bool { white.weightedDice.isOn || black.weightedDice.isOn }
+    /// The weighted-dice levels as one signed number relative to White (White's level
+    /// minus Black's; the online stamp, #272, where only one side ever holds them).
+    public var whiteWeightedLevel: Int {
+        (white.weightedDice.isOn ? white.weightedDice.level : 0)
+            - (black.weightedDice.isOn ? black.weightedDice.level : 0)
+    }
     /// Whether either side has rerolls.
     public var hasRerolls: Bool { white.rerolls > 0 || black.rerolls > 0 }
     /// Whether the dice were not fair for the whole game (weighted dice or rerolls):

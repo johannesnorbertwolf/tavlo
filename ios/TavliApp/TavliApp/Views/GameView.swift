@@ -62,6 +62,8 @@ struct GameView: View {
         var onBack: () -> Void
         /// Forfeit the match (after the player confirms) and return to the lobby.
         var onLeave: () -> Void
+        /// The match controller, for the shared weighted-dice tag (#272); `nil` = no tag.
+        var controller: OnlineMatchController? = nil
     }
     var online: Online? = nil
 
@@ -581,7 +583,7 @@ struct GameView: View {
             .chromeCard(padding: 16)
             // Handicap tag (#148): under the status card, where the narrow panel has room
             // for its label; only in a handicap game.
-            HandicapTagButton(session: session)
+            handicapTag(compact: false)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let match {
                 MatchScoreboardView(state: match.state,
@@ -616,6 +618,18 @@ struct GameView: View {
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
+    /// The handicap tag: offline the ⚖ button of a handicap game (#148); online the
+    /// shared weighted-dice tag (#272), always there so either player can change it.
+    @ViewBuilder
+    private func handicapTag(compact: Bool) -> some View {
+        if let online, let controller = online.controller {
+            OnlineDiceTagButton(controller: controller, opponentName: online.opponentName,
+                                compact: compact)
+        } else {
+            HandicapTagButton(session: session, compact: compact)
+        }
+    }
+
     // Portrait: one organized bar (#101) — navigation/actions leading, borne-off
     // counters trailing. The turn status lives down by the board, not here.
     private var portraitTopBar: some View {
@@ -624,7 +638,7 @@ struct GameView: View {
                 BackButton(action: onBack)
             }
             SettingsButton { showSettings = true }
-            HandicapTagButton(session: session, compact: true)   // only in a handicap game (#148)
+            handicapTag(compact: true)   // only in a handicap game (#148) / always online (#272)
             if !session.isTerminal && !(online?.isMatchOver ?? false) {
                 if let online {
                     LeaveButton { showForfeitConfirm = true }
@@ -708,7 +722,7 @@ struct GameView: View {
                 BackButton(action: onBack, iconOnly: true)
             }
             gameMenu
-            HandicapTagButton(session: session, compact: true)   // only in a handicap game (#148)
+            handicapTag(compact: true)   // only in a handicap game (#148) / always online (#272)
             Spacer(minLength: 8)
             BorneOffView(session: session, color: .white, compact: true)
             BorneOffView(session: session, color: .black, compact: true)
@@ -1105,7 +1119,9 @@ private struct ControlsView: View {
     }
 
     var body: some View {
-        if session.handicap != nil {
+        // An online game's handicap is only the shared dice (#272, the session stamps its
+        // rolls): no rerolls or hints, so no actions row.
+        if session.handicap != nil && !session.recordsDiceWeighting {
             // Reroll / Hint above Undo/Done, only in a handicap game (#148).
             VStack(spacing: 10) {
                 HandicapActionsRow(session: session)

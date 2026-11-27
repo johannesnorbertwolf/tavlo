@@ -73,11 +73,19 @@ public struct PlyRecord: Codable, Equatable, Sendable {
     public let die1: Int
     public let die2: Int
     public let halfMoves: [[Int]]
+    /// Online (#272): the shared weighted dice this roll was drawn with, as a signed level
+    /// relative to White (+n favours White, −n Black; see `OnlineDiceHandicap`). Stamped by
+    /// the roller's session (`GameSession.recordsDiceWeighting`), so both devices and the
+    /// match log agree which bend every roll used. Absent = fair dice (and always absent
+    /// offline), so every other save and payload encodes exactly as before; older
+    /// readers ignore it.
+    public let weighted: Int?
 
-    public init(die1: Int, die2: Int, halfMoves: [[Int]]) {
+    public init(die1: Int, die2: Int, halfMoves: [[Int]], weighted: Int? = nil) {
         self.die1 = die1
         self.die2 = die2
         self.halfMoves = halfMoves
+        self.weighted = weighted == 0 ? nil : weighted
     }
 }
 

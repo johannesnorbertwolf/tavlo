@@ -88,6 +88,135 @@ public struct LiveTurn: Codable, Equatable, Sendable {
     }
 }
 
+/// The match's **shared weighted-dice slider** (#272): one value both players see and
+/// either may change, mirrored (#271: dice that lean towards good rolls for the favoured
+/// side lean towards bad rolls for its opponent). Hybrid mode, the four `WeightedDice`
+/// levels, stored as a **signed level relative to White** so each device shows it from
+/// its own side ("favours you" / "favours <opponent>"). Match-wide: it carries over into
+/// the next game of a best-of-three.
+///
+/// Every change gets the next `rev`; only the device **holding the Game Center turn**
+/// mints a rev (it is the only one that can write the match data), so the revs of the
+/// payloads form one sequence. The waiting player's change travels as an
+/// `OnlineDiceRequest` (a GameKit exchange) and is minted by the turn holder, or by the
+/// requester itself when its own turn comes (`OnlineMatchController`).
+public struct OnlineDiceHandicap: Codable, Equatable, Sendable {
+    /// The one mode used online (no mode picker online).
+    public static let mode: WeightedDiceMode = .hybrid
+    /// Fair dice, never changed (an absent key decodes as this).
+    public static let fair = OnlineDiceHandicap()
+
+    /// +n favours White at level n, −n favours Black, 0 = fair (|n| ≤ `WeightedDice.levels`).
+    public var whiteLevel: Int
+    /// Grows by one with every change, so devices agree which value is newest.
+    public var rev: Int
+    /// Raw colour ("W"/"B") of the player who made the latest change (`nil` = never).
+    public var by: String?
+
+    public init(whiteLevel: Int = 0, rev: Int = 0, by: Color? = nil) {
+        self.whiteLevel = Self.clamp(whiteLevel)
+        self.rev = max(0, rev)
+        self.by = by?.rawValue
+    }
+
+    /// `level` (0…4) in favour of `favoured` (`nil` = fair).
+    public init(favouring favoured: Color?, level: Int, rev: Int = 0, by: Color? = nil) {
+        let l = favoured == nil ? 0 : Self.clamp(abs(level))
+        self.init(whiteLevel: favoured == .black ? -l : l, rev: rev, by: by)
+    }
+
+    public static func clamp(_ level: Int) -> Int {
+        min(max(level, -WeightedDice.levels), WeightedDice.levels)
+    }
+
+    /// The side the dice favour, or `nil` for fair dice.
+    public var favoured: Color? { whiteLevel > 0 ? .white : (whiteLevel < 0 ? .black : nil) }
+    /// The strength (0 = fair … 4 = very strong).
+    public var level: Int { abs(whiteLevel) }
+    public var isFair: Bool { whiteLevel == 0 }
+    /// The level seen from `color`'s side: positive = favours `color`.
+    public func level(towards color: Color) -> Int { color == .white ? whiteLevel : -whiteLevel }
+    /// The favoured side's weighted dice (hybrid; off when fair).
+    public var weightedDice: WeightedDice { WeightedDice(mode: Self.mode, level: level) }
+    /// The player who made the latest change, if any.
+    public var changedBy: Color? { by.flatMap(Color.init(rawValue:)) }
+
+    private enum CodingKeys: String, CodingKey { case whiteLevel, rev, by }
+
+    /// Tolerant: a missing field is fair / 0, an out-of-range level is clamped.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        whiteLevel = Self.clamp((try? c.decodeIfPresent(Int.self, forKey: .whiteLevel)) ?? 0)
+        rev = max(0, (try? c.decodeIfPresent(Int.self, forKey: .rev)) ?? 0)
+        by = (try? c.decodeIfPresent(String.self, forKey: .by)) ?? nil
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(whiteLevel, forKey: .whiteLevel)
+        try c.encode(rev, forKey: .rev)
+        try c.encodeIfPresent(by, forKey: .by)
+    }
+}
+
+/// A change to the shared dice made by the player **not** on turn (#272), sent to the
+/// turn holder as a GameKit exchange (the waiting participant cannot write the match
+/// data). `baseRev` = the newest rev the requester knew when it started changing; the
+/// turn holder takes it unless it has a newer change by someone else (`accepts`).
+public struct OnlineDiceRequest: Codable, Equatable, Sendable {
+    /// Kind tag, so a later build can send other requests over the same channel.
+    public static let kind = "dice"
+
+    public var whiteLevel: Int
+    public var baseRev: Int
+    /// Raw colour of the requester.
+    public var by: String
+
+    public init(whiteLevel: Int, baseRev: Int, by: Color) {
+        self.whiteLevel = OnlineDiceHandicap.clamp(whiteLevel)
+        self.baseRev = baseRev
+        self.by = by.rawValue
+    }
+
+    public var requester: Color? { Color(rawValue: by) }
+
+    private enum CodingKeys: String, CodingKey { case kind, whiteLevel, baseRev, by }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(String.self, forKey: .kind) == Self.kind else {
+            throw DecodingError.dataCorruptedError(forKey: .kind, in: c,
+                                                   debugDescription: "not a dice request")
+        }
+        whiteLevel = OnlineDiceHandicap.clamp(try c.decode(Int.self, forKey: .whiteLevel))
+        baseRev = try c.decode(Int.self, forKey: .baseRev)
+        by = try c.decode(String.self, forKey: .by)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(Self.kind, forKey: .kind)
+        try c.encode(whiteLevel, forKey: .whiteLevel)
+        try c.encode(baseRev, forKey: .baseRev)
+        try c.encode(by, forKey: .by)
+    }
+
+    public func encoded() throws -> Data { try JSONEncoder().encode(self) }
+
+    /// `nil` for anything that is not a dice request.
+    public static func decoded(from data: Data) -> OnlineDiceRequest? {
+        try? JSONDecoder().decode(OnlineDiceRequest.self, from: data)
+    }
+
+    /// The turn holder's rule: take the request unless the value has changed since the
+    /// requester last saw it **by someone else** (last writer wins, but never over a change
+    /// the requester had not seen). The requester's own changes never block it, so a
+    /// quick second request still lands after its first.
+    public func isAccepted(over current: OnlineDiceHandicap) -> Bool {
+        baseRev >= current.rev || current.by == by
+    }
+}
+
 /// The wire payload stored in a Game Center turn-based match's `matchData` (#134, #145).
 ///
 /// The authoritative state of an online match is simply the **list of its games'
@@ -132,8 +261,14 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
     /// The mover's turn in progress (#269), only in `saveCurrentTurn` writes; `nil`
     /// otherwise. An optional, additive key (no schema bump): older builds ignore it,
     /// and an unreadable one decodes as `nil` instead of failing the payload. New
-    /// optional match-wide keys (e.g. a shared handicap, #272) follow the same pattern.
+    /// optional match-wide keys (the shared dice, #272) follow the same pattern.
     public var liveTurn: LiveTurn?
+    /// The shared weighted-dice slider (#272). Optional and additive like `liveTurn` (no
+    /// schema bump; older builds ignore it, an unreadable one decodes as `nil`). Absent =
+    /// fair dice (`dice`); written only once someone has changed it (`rev > 0`), so a
+    /// match that never used it encodes exactly as before. Unlike `liveTurn` it is in
+    /// **every** write (it is match state, not a preview).
+    public var diceHandicap: OnlineDiceHandicap?
 
     public init(schemaVersion: Int = OnlineMatchPayload.currentSchemaVersion,
                 targetWins: Int = 1,
@@ -141,10 +276,12 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
                 colorByPlayerID: [String: Color],
                 games: [GameLog] = [GameLog()],
                 variant: String = GameVariants.defaultID,
-                liveTurn: LiveTurn? = nil) {
+                liveTurn: LiveTurn? = nil,
+                diceHandicap: OnlineDiceHandicap? = nil) {
         self.schemaVersion = schemaVersion
         self.variant = variant
         self.liveTurn = liveTurn
+        self.diceHandicap = (diceHandicap?.rev ?? 0) > 0 ? diceHandicap : nil
         self.targetWins = max(1, targetWins)
         self.startingPlayer = startingPlayer.rawValue
         self.colorByPlayerID = colorByPlayerID.mapValues(\.rawValue)
@@ -165,6 +302,7 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion, targetWins, startingPlayer, colorByPlayerID, games, plies, variant, liveTurn
+        case diceHandicap
     }
 
     public init(from decoder: Decoder) throws {
@@ -174,6 +312,7 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
         colorByPlayerID = try c.decode([String: String].self, forKey: .colorByPlayerID)
         variant = try c.decodeIfPresent(String.self, forKey: .variant) ?? GameVariants.defaultID
         liveTurn = (try? c.decodeIfPresent(LiveTurn.self, forKey: .liveTurn)) ?? nil
+        diceHandicap = (try? c.decodeIfPresent(OnlineDiceHandicap.self, forKey: .diceHandicap)) ?? nil
         if let games = try c.decodeIfPresent([GameLog].self, forKey: .games) {
             self.games = games.isEmpty ? [GameLog()] : games
             self.targetWins = max(1, try c.decodeIfPresent(Int.self, forKey: .targetWins) ?? 1)
@@ -194,6 +333,7 @@ public struct OnlineMatchPayload: Codable, Equatable, Sendable {
         try c.encode(games, forKey: .games)
         try c.encode(variant, forKey: .variant)
         try c.encodeIfPresent(liveTurn, forKey: .liveTurn)
+        try c.encodeIfPresent(diceHandicap, forKey: .diceHandicap)
     }
 }
 
@@ -210,6 +350,9 @@ public extension OnlineMatchPayload {
         }
         return payload
     }
+
+    /// The shared dice (#272); fair when the key is absent.
+    var dice: OnlineDiceHandicap { diceHandicap ?? .fair }
 
     /// The side that starts game 1, as a `Color` (defaults to `.black` if malformed).
     var startingColor: Color { Color(rawValue: startingPlayer) ?? .black }

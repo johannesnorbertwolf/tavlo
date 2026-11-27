@@ -93,7 +93,8 @@ private struct OnlineGameView: View {
                 opponentName: opponentName,
                 banner: OnlineStatusText.text(controller.status),
                 onBack: { coordinator.closeMatch() },
-                onLeave: { coordinator.forfeitMatch() }
+                onLeave: { coordinator.forfeitMatch() },
+                controller: controller   // the shared weighted dice (#272)
             ),
             match: matchContext
         )
