@@ -280,6 +280,66 @@ public final class ServerMatchService: OnlineServerDiceService {
         let _: Empty? = try await call("DELETE", "/v1/push-tokens/\(token)", body: Optional<Int>.none)
     }
 
+    // MARK: People, presence, challenges, handles (#301)
+
+    /// `GET /v1/people`.
+    public func listPeople() async throws -> ServerAPI.PeopleResponse {
+        try await call("GET", "/v1/people", body: Optional<Int>.none)
+    }
+
+    /// `PATCH /v1/people/{id}` (⭐; pinning someone found by handle adds them).
+    public func setPinned(_ pinned: Bool, playerID: String) async throws {
+        let _: Empty? = try await call("PATCH", peoplePath(playerID), body: ServerAPI.UpdatePersonRequest(pinned: pinned))
+    }
+
+    /// `DELETE /v1/people/{id}`: off the list until the next game.
+    public func removePerson(playerID: String) async throws {
+        let _: Empty? = try await call("DELETE", peoplePath(playerID), body: Optional<Int>.none)
+    }
+
+    /// `POST /v1/people/{id}/block` / `DELETE …/block`.
+    public func setBlocked(_ blocked: Bool, playerID: String) async throws {
+        let _: Empty? = try await call(blocked ? "POST" : "DELETE", peoplePath(playerID) + "/block",
+                                       body: Optional<Int>.none)
+    }
+
+    /// `GET /v1/players?q=` (≥ 3 characters of a handle).
+    public func searchPlayers(_ query: String) async throws -> [ServerAPI.PlayerResult] {
+        let q = query.addingPercentEncoding(withAllowedCharacters: Self.idCharacters) ?? query
+        let answer: ServerAPI.PlayerSearchResponse = try await call("GET", "/v1/players?q=\(q)", body: Optional<Int>.none)
+        return answer.players
+    }
+
+    /// `GET /v1/handles/{handle}`.
+    public func checkHandle(_ handle: String) async throws -> ServerAPI.HandleAvailability {
+        let h = handle.addingPercentEncoding(withAllowedCharacters: Self.idCharacters) ?? handle
+        return try await call("GET", "/v1/handles/\(h)", body: Optional<Int>.none)
+    }
+
+    /// `POST /v1/matches/{id}/cancel`: the challenger takes a pending challenge back.
+    public func cancelChallenge(matchID: String) async throws {
+        let _: Empty? = try await call("POST", path(matchID, "cancel"), body: Optional<Int>.none)
+    }
+
+    /// The presence socket's upgrade request (`GET /v1/presence/socket`).
+    public func presenceSocketRequest() async throws -> URLRequest {
+        let token = try await client.accessToken()
+        var c = URLComponents(url: client.baseURL.appendingPathComponent("v1/presence/socket"), resolvingAgainstBaseURL: false)!
+        c.scheme = c.scheme == "https" ? "wss" : "ws"
+        var request = URLRequest(url: c.url!)
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(client.clientHeader, forHTTPHeaderField: ServerAPI.clientHeader)
+        return request
+    }
+
+    private func peoplePath(_ playerID: String) -> String {
+        "/v1/people/" + (playerID.addingPercentEncoding(withAllowedCharacters: Self.idCharacters) ?? playerID)
+    }
+
+    /// Ids, handles and queries go into paths as is; anything else is percent-encoded.
+    private static let idCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+
     private func invitePath(_ code: String, _ action: String? = nil) -> String {
         let c = code.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? code
         return "/v1/invites/\(c)" + (action.map { "/\($0)" } ?? "")

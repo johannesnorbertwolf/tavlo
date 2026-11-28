@@ -319,4 +319,22 @@ public enum PushSupport {
         guard let pushMatchID else { return true }
         return pushMatchID != openMatchID
     }
+
+    /// #301: an incoming challenge's match (nil for every other push).
+    public static func challengeMatchID(fromUserInfo userInfo: [AnyHashable: Any]) -> String? {
+        guard let p = ServerAPI.PushPayload(userInfo: userInfo), p.kind == .challengeReceived else { return nil }
+        return p.matchID
+    }
+
+    /// #301: in front, an incoming challenge shows as the in-app card instead of a banner
+    /// (when the app shows challenges); everything else as before.
+    public static func shouldPresentInForeground(kind: ServerAPI.PushKind?, pushMatchID: String?, openMatchID: String?,
+                                                 showsChallengesInApp: Bool) -> Bool {
+        if kind == .challengeReceived { return !showsChallengesInApp }
+        return shouldPresentInForeground(pushMatchID: pushMatchID, openMatchID: openMatchID)
+    }
+
+    /// #301: notification action identifiers of the CHALLENGE category.
+    public static let acceptAction = "CHALLENGE_ACCEPT"
+    public static let declineAction = "CHALLENGE_DECLINE"
 }
