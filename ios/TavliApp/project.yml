@@ -62,8 +62,8 @@ targets:
         # Server v1 (#285, server/REFERENCE.md). Info.plist reads these: the deployed
         # Workers (subdomain `tavtav`, filled in with #287); a URL containing REPLACE would
         # count as "not configured" (the account screen says the server isn't available).
-        # Debug builds talk to `wrangler dev` on this Mac (the simulator reaches localhost)
-        # and can switch servers in the account screen's Developer card.
+        # Debug builds talk to the staging server (works on a device too); the account
+        # screen's Developer card switches to `wrangler dev` on this Mac ("Local") or production.
         TAVTAV_SERVER_URL_STAGING: "https://tavtav-server-staging.tavtav.workers.dev"
         TAVTAV_SERVER_URL_PRODUCTION: "https://tavtav-server.tavtav.workers.dev"
         TAVTAV_SERVER_URL: "$(TAVTAV_SERVER_URL_PRODUCTION)"
@@ -83,7 +83,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
       configs:
         Debug:
-          TAVTAV_SERVER_URL: "http://localhost:8787"
+          TAVTAV_SERVER_URL: "$(TAVTAV_SERVER_URL_STAGING)"
           APS_ENVIRONMENT: development
           TAVTAV_APPLINKS_HOST: "tavtav-server-staging.tavtav.workers.dev"
   TavliAppUITests:

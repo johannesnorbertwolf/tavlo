@@ -12,8 +12,8 @@ import TavliEngine
 
 /// Which server and which Google client the build talks to. Values come from Info.plist,
 /// which takes them from build settings in `project.yml`:
-///   `TavtavServerURL`            the default server (`TAVTAV_SERVER_URL`: Debug = local
-///                                `wrangler dev`, Release = production)
+///   `TavtavServerURL`            the default server (`TAVTAV_SERVER_URL`: Debug = staging,
+///                                Release = production; Developer card → Local = `wrangler dev`)
 ///   `TavtavServerURLStaging` / `TavtavServerURLProduction`  for the DEBUG server picker
 ///   `TavtavGoogleClientID`       the iOS OAuth client id (`GOOGLE_IOS_CLIENT_ID`; empty or a
 ///                                placeholder = Sign in with Google unavailable)

@@ -946,7 +946,7 @@ default path until #288 (the server lobby, invites and push are #287).
 
 **App (`TavliApp/Online/AccountService.swift`).** `ServerConfig` reads Info.plist keys filled
 from `project.yml` build settings: `TavtavServerURL` (`TAVTAV_SERVER_URL`: Debug =
-`http://localhost:8787`, Release = production), `TavtavServerURLStaging` /
+staging, Release = production; the Developer card's picker switches to Local = `http://localhost:8787`), `TavtavServerURLStaging` /
 `TavtavServerURLProduction` (`https://tavtav-server[-staging].REPLACE_WITH_SUBDOMAIN.workers.dev`
 until deployed; a URL containing "REPLACE" = no server → the sheet says "The online server isn't
 available yet."), `TavtavGoogleClientID` (`GOOGLE_IOS_CLIENT_ID`, empty for now → tapping Google
@@ -1103,7 +1103,7 @@ dev`).**
   `com.apple.developer.associated-domains` = `applinks:$(TAVTAV_APPLINKS_HOST)` (Debug
   `tavtav-server-staging.tavtav.workers.dev`, Release `tavtav-server.tavtav.workers.dev`).
   `project.yml` now has the real server URLs (`TAVTAV_SERVER_URL_STAGING` /
-  `_PRODUCTION`); Debug still defaults to `http://localhost:8787`. The App ID needs the Push
+  `_PRODUCTION`); Debug defaults to staging (Local = `wrangler dev` via the Developer card's picker). The App ID needs the Push
   Notifications + Associated Domains capabilities (`server/REFERENCE.md` "Push + universal
   links setup"); a free personal team cannot sign them.
 - Views: `ServerLobbyView.swift` (lobby, new game, invite + join sheets; Views docs),
