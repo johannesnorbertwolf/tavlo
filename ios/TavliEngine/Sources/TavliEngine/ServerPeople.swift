@@ -476,6 +476,13 @@ public final class ServerPeople: ObservableObject {
         await lobby.refresh()
     }
 
+    /// Follow a challenge sent earlier again (the person's row says "Waiting for answer…").
+    public func resumeWaiting(person: ServerAPI.Person) {
+        guard let c = person.challenge, c.direction == .outgoing else { return }
+        waiting = OutgoingChallenge(matchID: c.matchID, playerID: person.playerID, name: person.displayName,
+                                    variant: c.variant, targetWins: c.targetWins, state: .waiting)
+    }
+
     /// The sheet closed: stop following (the challenge itself stays pending).
     public func clearWaiting() { waiting = nil }
 

@@ -46,6 +46,8 @@ private struct ServerOnlineContent: View {
 /// The sheet the lobby shows (one at a time).
 enum ServerLobbySheet: Identifiable {
     case account, newMatch, join(code: String?), invite(InviteShare)
+    /// #301: challenge a person / answer their challenge; find a player by handle.
+    case challenge(ChallengeTarget), findPlayer
 
     var id: String {
         switch self {
@@ -53,6 +55,8 @@ enum ServerLobbySheet: Identifiable {
         case .newMatch: return "new"
         case .join(let code): return "join-\(code ?? "")"
         case .invite(let invite): return "invite-\(invite.code)"
+        case .challenge(let target): return "challenge-\(target.playerID)"
+        case .findPlayer: return "find"
         }
     }
 }
@@ -69,7 +73,7 @@ private struct ServerLobbyPage: View {
         ZStack {
             ChromeKit.pageColor.ignoresSafeArea()
             if let lobby {
-                ServerLobbyList(lobby: lobby, header: AnyView(header), sheet: $sheet)
+                ServerLobbyList(lobby: lobby, people: coordinator.people, header: AnyView(header), sheet: $sheet)
             } else {
                 ScrollView {
                     VStack(spacing: 24) {
@@ -162,6 +166,17 @@ private struct ServerLobbyPage: View {
                     Task { await lobby.open(matchID: invite.matchID) }
                 })
             }
+        case .challenge(let target):
+            if let people = coordinator.people {
+                ChallengeSheet(people: people, coordinator: coordinator, target: target)
+            }
+        case .findPlayer:
+            if let people = coordinator.people {
+                FindPlayerSheet(people: people) { target in
+                    sheet = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { sheet = .challenge(target) }
+                }
+            }
         }
     }
 }
@@ -174,6 +189,7 @@ enum ServerLobbyMetrics {
 /// The signed-in lobby: a List (for swipe actions) styled as Caramel cards.
 private struct ServerLobbyList: View {
     @ObservedObject var lobby: ServerLobby
+    let people: ServerPeople?
     let header: AnyView
     @Binding var sheet: ServerLobbySheet?
 
@@ -181,6 +197,10 @@ private struct ServerLobbyList: View {
         List {
             centered(header)
                 .padding(.top, ChromeType.isCompact ? 8 : 28)
+            // #301: the people you play, first.
+            if let people {
+                PeopleRows(people: people, sheet: $sheet, centered: { AnyView(centered($0)) })
+            }
             centered(actions)
             if let error = lobby.error {
                 centered(
@@ -230,7 +250,10 @@ private struct ServerLobbyList: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)
-        .refreshable { await lobby.refresh() }
+        .refreshable {
+            await lobby.refresh()
+            await people?.refresh()
+        }
         // While the lobby is on screen it follows the other players (a friend joining, a
         // turn played elsewhere): one list read every 20 s; pull to refresh at once.
         .task {
@@ -464,6 +487,97 @@ private struct OpponentBadge: View {
     }
 }
 
+/// #301: the People section of the lobby: title + Find player, then one row per person
+/// (pinned first), with ⭐ / Remove / Block in the context menu and swipe.
+private struct PeopleRows: View {
+    @ObservedObject var people: ServerPeople
+    @Binding var sheet: ServerLobbySheet?
+    let centered: (AnyView) -> AnyView
+    @State private var blockTarget: ServerAPI.Person?
+
+    var body: some View {
+        Section {
+            ForEach(people.people, id: \.playerID) { person in
+                centered(AnyView(
+                    PersonRow(person: person) { open(person) }
+                        .contextMenu { menu(person) }
+                ))
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) { Task { await people.remove(playerID: person.playerID) } } label: {
+                        Label("Remove", systemImage: "person.crop.circle.badge.minus")
+                    }
+                    Button { Task { await people.setPinned(!person.pinned, playerID: person.playerID) } } label: {
+                        Label(person.pinned ? "Unpin" : "Pin", systemImage: person.pinned ? "star.slash" : "star")
+                    }
+                    .tint(ChromeTheme.undoTint)
+                }
+            }
+            if people.hasLoaded && people.people.isEmpty {
+                centered(AnyView(
+                    Text("People you play show up here. Find a friend by their handle.")
+                        .font(ChromeType.caption)
+                        .foregroundStyle(ChromeKit.inkSecondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                ))
+            }
+        } header: {
+            centered(AnyView(
+                HStack {
+                    Text("People")
+                        .font(ChromeType.subheadline.bold())
+                        .foregroundStyle(ChromeTheme.ink)
+                    Spacer()
+                    Button { sheet = .findPlayer } label: {
+                        Label("Find player", systemImage: "magnifyingglass")
+                            .font(ChromeType.caption.weight(.semibold))
+                    }
+                    .buttonStyle(ChromeButton(role: .quiet))
+                    .accessibilityIdentifier("findPlayer")
+                }
+                .padding(.top, 6)
+            ))
+            .textCase(nil)
+        }
+        .alert(Text("Block \(blockTarget?.displayName ?? "")?"), isPresented: Binding(
+            get: { blockTarget != nil }, set: { if !$0 { blockTarget = nil } })) {
+            Button("Block", role: .destructive) {
+                if let p = blockTarget { Task { await people.block(playerID: p.playerID) } }
+                blockTarget = nil
+            }
+            Button("Cancel", role: .cancel) { blockTarget = nil }
+        } message: {
+            Text("They can’t challenge you, find you or see when you’re online any more. You can unblock them on your account page.")
+        }
+    }
+
+    private func open(_ person: ServerAPI.Person) {
+        let incoming = person.challenge.flatMap { c -> IncomingChallenge? in
+            guard c.direction == .incoming else { return nil }
+            return IncomingChallenge(matchID: c.matchID, fromID: person.playerID, fromName: person.displayName,
+                                     variant: c.variant, targetWins: c.targetWins, expiresAt: c.expiresAt)
+        }
+        if let c = person.challenge, c.direction == .outgoing, people.waiting?.matchID != c.matchID {
+            // Re-open the waiting state of a challenge sent earlier.
+            people.resumeWaiting(person: person)
+        }
+        sheet = .challenge(ChallengeTarget(person: person, incoming: incoming))
+    }
+
+    @ViewBuilder
+    private func menu(_ person: ServerAPI.Person) -> some View {
+        Button { Task { await people.setPinned(!person.pinned, playerID: person.playerID) } } label: {
+            Label(person.pinned ? "Unpin" : "Pin to top", systemImage: person.pinned ? "star.slash" : "star")
+        }
+        Button { Task { await people.remove(playerID: person.playerID) } } label: {
+            Label("Remove", systemImage: "person.crop.circle.badge.minus")
+        }
+        Button(role: .destructive) { blockTarget = person } label: {
+            Label("Block", systemImage: "hand.raised")
+        }
+    }
+}
+
 // MARK: - New game
 
 /// "New online game": variant + length (remembered, as the Game Center lobby's), then
@@ -594,7 +708,7 @@ private struct OpponentChoice: View {
 }
 
 /// Title + close button of the lobby's sheets.
-private struct SheetHeader: View {
+struct SheetHeader: View {
     let title: String
     let onClose: () -> Void
 

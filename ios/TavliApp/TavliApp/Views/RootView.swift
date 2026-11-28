@@ -280,6 +280,19 @@ struct RootView: View {
             serverOnline.openFromPush(matchID: matchID)
             showOnline = true
         }
+        // #301: a tapped challenge notification shows the lobby with its card; with the
+        // server path on, the presence socket + incoming-challenge cards run app-wide.
+        .onReceive(PushRegistrar.shared.$tappedChallengeMatchID.compactMap { $0 }) { matchID in
+            PushRegistrar.shared.tappedChallengeMatchID = nil
+            serverOnline.showIncoming(matchID: matchID)
+            showOnline = true
+        }
+        .onAppear {
+            if onlineViaServer && DeveloperTools.isEnabled(setting: developerToolsSetting) { serverOnline.activate() }
+        }
+        .overlay(alignment: .top) {
+            ChallengeOverlay(coordinator: serverOnline, onOpenOnline: { showOnline = true })
+        }
         // Online (#134): sign in to Game Center at launch without UI, so a tapped turn
         // notification reaches the listener; the sign-in sheet waits for Play Online.
         .onAppear { online.authenticate(presentUI: false) }
