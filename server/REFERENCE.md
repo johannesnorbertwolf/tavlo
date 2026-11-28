@@ -709,8 +709,8 @@ logs) and invite links open the web page instead of the app.
 
 ### Local check with the simulator (#285)
 
-`npm run db:migrate:local && npm run dev` (port 8787), then a DEBUG app build (its default
-server is `http://localhost:8787`, `NSAllowsLocalNetworking`): Settings → Online account →
+`npm run db:migrate:local && npm run dev` (port 8787), then a DEBUG app build with the Developer card's server picker
+set to Local (`http://localhost:8787`, `NSAllowsLocalNetworking`; Debug builds default to staging): Settings → Online account →
 Developer → "Development sign-in", or launch arguments `-debugAccount
 -debugAccountDevSubject sim-a -debugAccountName "Alex K."` (see `AccountViews.swift`).
 Sign in with Apple / Google need a signed build and real provider setup.
