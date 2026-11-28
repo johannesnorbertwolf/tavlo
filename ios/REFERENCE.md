@@ -1123,6 +1123,76 @@ delivery (needs the key; Workers' HTTP/2 to APNs), universal links opening the a
 deployed AASA + Apple's CDN + a signed build — `-debugJoinURL` exercises the same handler), the
 `/join` page on a phone without the app.
 
+## People, presence, challenges (#301)
+
+The family case: open the app, tap "Alex", Alex gets "Alice wants to play · Fevga · Best of 3"
+with Accept / Decline, and you play. Server side: `server/REFERENCE.md` "People, presence,
+challenges" (people from the match index + ⭐ adds, presence hub, challenge lifecycle,
+handles, search, blocks).
+
+**Engine (`ServerPeople.swift`, tested by `ServerPeopleTests`).**
+- `HandleRule`: 3–20 of `[A-Za-z0-9_]`, reserved words (= server `RESERVED_HANDLES`, `tavtav…`);
+  `suggest(from:)` = `.toLatin` + `.stripDiacritics`, spaces / dashes / dots → `_` (so a Greek
+  or Persian name gives a readable handle; nil when < 3 left or reserved); `searchQuery` (drops
+  `@`, lower case, nil under 3 characters — nothing is sent then).
+- `ServerAPI.Person.status(now:)` → `PersonStatus`: a pending challenge first (`wantsToPlay` /
+  `waitingForAnswer`, until it expires), then presence (`online`, `lastSeen(Date)`), else
+  `none` (hidden / never seen / not allowed). `listOrder`: pinned, then newest game, added-only
+  last.
+- `ServerPresenceConnection`: one socket `GET /v1/presence/socket` (`URLSessionSocketFactory`,
+  ping 30 s) **only while the app is in front**: the coordinator calls `start()` on
+  `didBecomeActive` and `stop()` on `didEnterBackground` — no background keep-alive. Reconnects
+  with backoff while running; 4401 at once, 4403 never.
+- `ServerPeople`: `refresh` (people + `blocked`, and pending challenges to the local player
+  from the list and from the lobby's `invited` rows with `challenge.status == pending` — a
+  stranger's challenge is only there); `setPinned` (optimistic; pinning a search result adds
+  them), `remove`, `block` (their cards go) / `unblock`; `search` (later query wins);
+  `challenge(playerID:name:variant:targetWins:)` → `waiting` (`.sending` → `.waiting`, or
+  `.accepted` at once when the server accepted the other side's identical challenge — crossed
+  taps), `cancelWaiting`, `resumeWaiting` (re-open a row's earlier challenge), `openAccepted`;
+  `accept` (closes the card, `lobby.open(matchID:)` — the controller accepts the seat first),
+  `decline`, `dismiss` ("Later"); `handle(PresenceMessage)`: presence changes update rows,
+  `received` → card (+ `onIncoming`), `accepted` → `waiting.state = .accepted` (+ `onAccepted`),
+  `declined` / `expired` / `cancelled` → the waiting state or the card closes, `hello` → refresh.
+- `ChallengeChoice`: the challenge sheet's last variant + length (`people.lastChallenge*`).
+- `PushSupport.challengeMatchID` (a `challengeReceived` push), `shouldPresentInForeground(kind:…
+  showsChallengesInApp:)` (in front a challenge shows as the card, not a banner),
+  `acceptAction` / `declineAction` ids.
+- `ServerMatchService`: `listPeople`, `setPinned`, `removePerson`, `setBlocked`, `searchPlayers`,
+  `checkHandle`, `cancelChallenge`, `presenceSocketRequest`. `AuthClient.updateAccount(handle:
+  hidePresence:whoCanChallenge:)` (`AuthError.invalidHandle` before any request).
+
+**App.**
+- `ServerOnlineCoordinator`: per account also a `ServerPeople` + `ServerPresenceConnection`
+  (started when the app is in front), `acceptedChallenge` (the root's "Alex accepted · Play
+  now" card when the challenge sheet isn't waiting on screen; when it is, the match opens at
+  once), `showIncoming(matchID:)` (a tapped challenge notification), `acceptIncoming`,
+  `playAccepted`; `ServerOnlineCopy.peopleMessage` (refused challenge = "takes challenges only
+  from people they know", closed one, handle errors). `RootView` activates the coordinator at
+  launch when the server switch is on, so presence + cards run app-wide, and overlays
+  `ChallengeOverlay` at the top of every screen.
+- `PushRegistrar`: registers the `CHALLENGE` category at launch — **Accept** (`.foreground`:
+  opens the app, `tappedMatchID` → open = accept), **Decline** (`.destructive,
+  .authenticationRequired`: answered in the background with `AccountStore.shared.client`, the
+  Keychain item is after-first-unlock), a tap on the notification body → `tappedChallengeMatchID`
+  → the lobby with the card. In front a challenge push only refreshes the cards. Answered
+  challenges remove their delivered notification (`removeDelivered(matchID:)`).
+- Views: `PeopleViews.swift` + the People section in `ServerLobbyView.swift` + the account
+  page's `PeopleSettingsCard` / the name prompt's handle field (`AccountViews.swift`); strings
+  from `ios/scripts/add_people_strings.py` (incl. `PUSH_CHALLENGE_*` and the eight
+  `PUSH_GAME_<VARIANT>_<1|2>` bodies).
+
+**Tests.** `ServerPeopleTests`: handle rule + suggestions (Greek transliterated) + search
+queries, row status + order, the remembered choice, challenge push helpers against the shared
+fixture; two devices on `FakeTavtavServer` (#301 endpoints + presence sockets): a challenge
+arrives live as a card, accept opens the match on both, a second tap answers the pending one,
+decline / cancel reach the other side live, crossed taps open at once, a stranger's challenge
+from the lobby rows + block / unblock, presence live, the socket only while started
+(reconnect while running, none after stop), search (nothing under 3 characters) + ⭐ add, pin
+order, remove. **Not verified here** (user checks on device): the UI itself, real APNs with the
+CHALLENGE buttons (Decline in the background from the lock screen), the presence socket on a
+real network / background transitions, two devices end to end against staging.
+
 ## Human game stats (#64)
 
 `HumanGameStats.swift` is the iPad analogue of the CLI's post-game summary box / `human-stats`

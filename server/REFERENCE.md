@@ -7,6 +7,7 @@ server-side design notes, and the **ops runbook**.
 
 Ticket map: **#284** foundation (this scaffold, contract, ops) · **#285** accounts ·
 **#286** matches, server dice, WebSocket · **#287** invites, auto-match, lobby, push ·
+**#301** people, presence, one-tap challenges, handles, search, blocks ·
 **#288** remove Game Center + release.
 
 ## Architecture
@@ -43,6 +44,7 @@ iOS app ──HTTPS /v1/…──► Worker (src/index.ts) ──► D1 "DB": ac
 | DO duration | 13,000 GB-s / day | hibernation, no timers while idle |
 | D1 | 5 M rows read, 100 k rows written / day, 5 GB | one index row per player per state change |
 | Cron triggers | 5 per account | one per environment (usage check) |
+| Presence (#301) | (DO requests + duration) | one hibernatable socket per **foreground** app to one `PresenceHub`; its 30 s pings are auto-answered (free, no wake); the hub wakes only for connect / close / a people lookup / a challenge event; no alarms |
 
 ## API contract
 
@@ -91,7 +93,8 @@ localized copy.
 | `stale_revision` | 409 | `baseRevision` ≠ current: `load`, re-apply, resend (the controller's unsent-turn path). |
 | `not_your_turn` | 409 | In-turn op by the waiting player: `load`. |
 | `match_ended` | 409 | Write to an ended match: `load`. |
-| `invite_unavailable` | 410 | Invite expired, cancelled, declined or used. |
+| `invite_unavailable` | 410 | Invite expired, cancelled, declined or used; #301: a challenge that is no longer pending. |
+| `handle_taken` | 409 | #301: someone else has that handle (case-insensitive). |
 | `payload_too_large` | 413 | `data` over 64 KiB. |
 | `upgrade_required` | 426 | Show "update the app". |
 | `rate_limited` | 429 | Wait `retryAfter` s (also `Retry-After`). |
@@ -116,7 +119,7 @@ Every endpoint is in the route table (`src/routes.ts`); until its ticket lands i
 | `PATCH /v1/account` | auth | `UpdateAccountRequest` → `Account` | – | **#285 ✓** |
 | `DELETE /v1/account` | auth | → 204 | – | **#285 ✓** |
 | `GET /v1/matches` (`?state=active\|ended&cursor=`) | auth | → `MatchListResponse` | lobby list | **#286 ✓** (index), **#287 ✓** (`invite` on waiting rows) |
-| `POST /v1/matches` | auth | `CreateMatchRequest` → 201 `MatchSnapshot` | create (direct challenge) | **#286 ✓** |
+| `POST /v1/matches` | auth | `CreateMatchRequest` → 201 `MatchSnapshot` (#301: 200 = the pending challenge again, or the crossed one accepted; 403 blocked / "only my people") | create (direct challenge) | **#286 ✓**, **#301 ✓** |
 | `GET /v1/matches/{id}` | auth | → `MatchSnapshot` | `load` | **#286 ✓** |
 | `POST /v1/matches/{id}/accept` | auth | – → `MatchSnapshot` | `acceptInvite` | **#286 ✓** |
 | `POST /v1/matches/{id}/decline` | auth | – → 204 | (invite declined) | **#286 ✓** |
@@ -139,6 +142,14 @@ Every endpoint is in the route table (`src/routes.ts`); until its ticket lands i
 | `DELETE /v1/push-tokens/{token}` | auth | → 204 | – | **#287 ✓** |
 | `GET /.well-known/apple-app-site-association` | – | AASA JSON | universal links | **#287 ✓** |
 | `GET /join/{code}` | – | HTML fallback (App Store link) | – | **#287 ✓** |
+| `POST /v1/matches/{id}/cancel` | auth | – → 204 (challenger takes a pending challenge back) | – | **#301 ✓** |
+| `GET /v1/people` | auth | → `PeopleResponse` (people + presence + pending challenges, `blocked`) | – | **#301 ✓** |
+| `PATCH /v1/people/{playerID}` | auth | `UpdatePersonRequest {pinned}` → 204 (⭐; pinning someone found by handle adds them) | – | **#301 ✓** |
+| `DELETE /v1/people/{playerID}` | auth | → 204 (off the list until the next game) | – | **#301 ✓** |
+| `POST` / `DELETE /v1/people/{playerID}/block` | auth | → 204 (block / unblock) | – | **#301 ✓** |
+| `GET /v1/players?q=` | auth | → `PlayerSearchResponse` (handle prefix, ≥ 3 chars, `SEARCH_LIMITER` 30/min) | – | **#301 ✓** |
+| `GET /v1/handles/{handle}` | auth | → `HandleAvailability` | – | **#301 ✓** |
+| `GET /v1/presence/socket` | auth | WebSocket upgrade (`PresenceMessage`) | – | **#301 ✓** |
 
 ### Accounts (#285)
 
@@ -421,8 +432,10 @@ Code: `src/invites.ts`, `src/match-queue.ts` (`MatchQueue` DO), `src/push.ts`, `
   the app calls it before signing out). Which operation pushes whom (`pushesAfter`, pure):
   | Operation | To | `kind` | `loc-key` |
   |---|---|---|---|
-  | create with `opponentID` | the challenged player | `inviteReceived` | `PUSH_INVITE_RECEIVED` |
-  | accept (challenge), invite accept, auto-match join | the creator | `inviteAccepted` | `PUSH_INVITE_ACCEPTED` |
+  | create with `opponentID` (#301: a challenge) | the challenged player | `challengeReceived` (category `CHALLENGE`) | title `PUSH_CHALLENGE_RECEIVED` + body `PUSH_GAME_<VARIANT>_<1\|2>` |
+  | accept of a challenge (#301) | the challenger | `challengeAccepted` | `PUSH_CHALLENGE_ACCEPTED` |
+  | decline of a challenge (#301; not after a block, not on expiry) | the challenger | `challengeDeclined` | `PUSH_CHALLENGE_DECLINED` |
+  | invite accept, auto-match join | the creator | `inviteAccepted` | `PUSH_INVITE_ACCEPTED` |
   | end-turn (the other player now holds the turn) | the other | `yourTurn` | `PUSH_YOUR_TURN` |
   | end-match | the other | `matchEnded` | `PUSH_MATCH_WON` / `_LOST` / `_ENDED` (their outcome) |
   | quit (the other wins), account deletion | the other | `opponentLeft` | `PUSH_OPPONENT_LEFT` |
@@ -446,6 +459,79 @@ Code: `src/invites.ts`, `src/match-queue.ts` (`MatchQueue` DO), `src/push.ts`, `
   negotiates the protocol itself — the `@fivesheepco/cloudflare-apns2` library uses plain
   `fetch` the same way). After setup, check the logs for `push.sent` vs `push.rejected` /
   `push.error`.
+
+### People, presence, challenges (#301)
+
+Code: `src/people.ts`, `src/presence-hub.ts` (`PresenceHub` DO), `src/handles.ts`; D1
+migration `0004_people.sql`. App side: `ServerPeople.swift` (engine) + `Views/PeopleViews.swift`.
+
+- **Who your people are.** `match_index.played` = both seats played in that match (written by
+  the MatchRoom with every index row: both seats filled and each `active`, or `done` with an
+  outcome; sticky via `max()`; the migration backfills it). A declined / cancelled / expired
+  challenge never counts. `GET /v1/people` = every opponent with `played = 1` (newest game =
+  `lastPlayedAt`) **plus** everyone the caller pinned (⭐; how someone found by handle is
+  added, `lastPlayedAt null`), pinned first then newest game, ≤ 100. An **unpinned** person
+  drops off 90 days after the last game (`PEOPLE_MAX_AGE_MS`); `DELETE /v1/people/{id}` sets
+  `contact_prefs.removed_at` (and unpins) — they come back only with a newer game. Blocks in
+  either direction hide a person. Pins live on the server (survive relaunch / other devices).
+- **Presence.** Each app in the **foreground** keeps one socket `GET /v1/presence/socket` to
+  the one `PresenceHub` (`PRESENCE.getByName("global")`; shard later if needed). The Worker
+  verifies the token and passes `x-tavtav-account` / `-token-exp` / `-hidden`. Online = a live
+  socket whose last keepalive (`getWebSocketAutoResponseTimestamp`, app pings every 30 s) or
+  connect is < 2 min old (`PRESENCE_ONLINE_MS`) — a phone that vanished without a close shows
+  offline after ≤ 2 min on the next lookup (live watchers learn it at their next refresh).
+  `lastSeenAt` = the newest of the stored last-seen (connect / close) and the sockets'
+  keepalives. **Visibility**: a person's `presence` is included only when they played with the
+  caller or both ⭐-added each other, and only while they don't hide it (`PATCH /v1/account
+  {hidePresence}`; the hub stores the flag too and never reports or broadcasts a hidden
+  account). The people lookup (`hub.lookup(watcher, ids)`) also replaces the caller's watch
+  list (those ids, hidden or not), so presence changes reach its open app live: `{"type":
+  "presence", playerID, online, lastSeenAt}` when someone's first socket opens / last one
+  closes, or the hide switch flips. Deletion: `forget` (sockets closed 4403, rows gone); a
+  block: `unwatch` both ways.
+- **Challenges** = a direct-challenge match (`POST /v1/matches` with `opponentID`, seat 1
+  `invited`) + a D1 `challenges` row: `pending` → `accepted` / `declined` / `expired` (24 h,
+  `CHALLENGE_TTL_MS`) / `cancelled`. Every transition is **one conditional UPDATE `WHERE
+  status = 'pending'`** (accept / decline / cancel also `AND expires_at > now`, expiry `<=`),
+  so of racing accept / decline / cancel / expiry exactly one wins; then the room follows
+  (`accept`, `decline`, `closeInvitedSeat`). Create: refused (403) when either blocked the
+  other or the opponent's `whoCanChallenge` is `people` and the caller isn't one of theirs
+  (played, or ⭐ by them); the same game again → the pending match (200; a unique partial
+  index allows one pending per direction, so two taps at once give one challenge); another
+  game → the old one is cancelled; the opponent's pending challenge to the caller for the same
+  game → accepted instead (crossed taps, 200). Accept (`/v1/matches/{id}/accept`) of an
+  expired / declined / cancelled challenge → 410 `invite_unavailable` (a pending one past its
+  expiry is expired on the spot); again after accepting → the match (no second push). Decline
+  → 204 (again 204). Cancel (`/v1/matches/{id}/cancel`, challenger only) → 204, answered →
+  410. Cron: `expireChallenges` (≤ 100 per run). The lobby row carries `challenge {status,
+  expiresAt}` (a pending one past expiry reads `expired`); `Person.challenge` = the pending one
+  between caller and person (`incoming` / `outgoing`).
+- **Live events** (`sendLive`, through the hub, `ctx.waitUntil`): `{"type": "challenge",
+  event, challenge}` — `received` → challenged, `accepted` / `declined` → challenger,
+  `expired` → both, `cancelled` → challenged. The **push goes out anyway** (`challengeReceived`
+  with `aps.category = "CHALLENGE"`, `apns-collapse-id: challenge-<matchID>`); the app shows a
+  card instead of the banner while it is in front.
+- **Handles** (`src/handles.ts`): every account has one, separate from the display name: 3–20
+  of `[A-Za-z0-9_]`, shown as typed, unique ignoring case (`accounts.handle_key` = lower case,
+  UNIQUE index: two players taking one at once → one 200, one 409 `handle_taken`), reserved
+  words refused (`RESERVED_HANDLES`, anything starting with `tavtav`) with 400 `path: handle`.
+  Generated on the account's first load (`ensureHandle`: from the display name, else
+  `player` + digits; the migration gave existing accounts `player_<8 hex>`), changeable
+  **once** (`PATCH /v1/account {handle}` while `handleChangeable`; again → 403). `GET
+  /v1/handles/{h}` → `{available, reason?: taken | reserved | invalid | yours}`.
+- **Search** `GET /v1/players?q=`: ≥ 3 characters (a leading `@` dropped, case-insensitive),
+  prefix of the handle (`handle_key` range), exact match first, ≤ 20, never the caller nor
+  anyone blocked either way; strangers get only `handle` + `displayName` (+ `isPerson`,
+  `canChallenge`). Rate-limited per account: `SEARCH_LIMITER` 30/min (429).
+- **Blocking** `POST /v1/people/{id}/block`: the blocked account can't challenge (403), find
+  the blocker or see its status, neither shows in the other's list; the blocked one's pending
+  challenges to the blocker are declined **quietly** (live event, no push), the blocker's to
+  them cancelled. `GET /v1/people` lists `blocked` (unblock: `DELETE …/block`).
+- **"Who can challenge me"** (`PATCH /v1/account {whoCanChallenge: everyone | people}`,
+  default everyone).
+- **Account deletion** (`deletePeopleOfDeletedAccount`, after the matches hook): pending
+  challenges → live `cancelled` to the other side, `challenges` / `contact_prefs` / `blocks`
+  rows of both directions deleted, `hub.forget`.
 
 ### Universal links (#287, `src/web.ts`)
 
@@ -502,9 +588,12 @@ and the fixture together.
 | `src/match-queue.ts` | #287 `MatchQueue` DO: one auto-match queue per variant + length, `enter` serialised with `blockConcurrencyWhile` |
 | `src/push.ts` | #287 device-token endpoints, `pushesAfter` (who gets which push), APNs payload + request, ES256 provider JWT cache, `sendPushes` (dead-token cleanup, skipped without the key), deletion hook; `pushDeps` = test seam |
 | `src/web.ts` | #287 AASA + the `/join/{code}` fallback page (`joinPage`, `pageLanguage`) |
+| `src/people.ts` | #301 people list, presence lookup, pin / remove / block, search, challenge permission + lifecycle helpers (`transition`, `expireOne`, `expireChallenges`), live events (`sendLive`), presence socket hand-off, deletion hook |
+| `src/presence-hub.ts` | #301 `PresenceHub` DO: presence sockets (hibernation, auto-response), `lookup` (+ watch list), `setHidden`, `send`, `unwatch`, `forget`; `now` test seam |
+| `src/handles.ts` | #301 handle rule, suggestion, `ensureHandle`, `chooseHandle` (once, 409 on a taken one), `GET /v1/handles/{h}` |
 | `src/version.ts` | `SERVER_VERSION` (= package.json), service name |
 | `src/secrets.d.ts` | Types for the optional secrets |
-| `migrations/` | D1 migrations (`0001_initial.sql`; `0002_sessions.sql`: `sessions`, `account_identities.provider_refresh_token`; `0003_invites_push.sql`: `invites`, `push_tokens`) |
+| `migrations/` | D1 migrations (`0001_initial.sql`; `0002_sessions.sql`: `sessions`, `account_identities.provider_refresh_token`; `0003_invites_push.sql`: `invites`, `push_tokens`; `0004_people.sql`: `match_index.played` (+ backfill), `accounts.hide_presence` / `challenge_policy` / `handle` / `handle_key` / `handle_chosen` (+ generated handles), `contact_prefs`, `challenges`, `blocks`) |
 | `worker-configuration.d.ts` | Generated by `npm run types` (`wrangler types --strict-vars=false`); CI checks it is current |
 
 **Tests** (`npm test`, vitest + `@cloudflare/vitest-plugin` — the renamed
@@ -555,8 +644,23 @@ parity with the Python/Swift table (β, mirrored β, faces for 8 uniform pairs �
 levels × 2 maxPoints), fair at level 0 / flat values, χ² of crypto fair dice and of the bent
 distribution against `p·exp(βv)` for both sides.
 
+**People, presence, challenges, handles** (`test/people.test.ts`, #301): the list (played
+only — a declined challenge doesn't count —, newest first, handles), pin / 90-day drop-off /
+remove until the next game, ⭐-adding a stranger (no presence unless mutual); presence (live to
+an open app's socket, last seen after close, a stale socket offline after 2 min via the hub's
+`now`, the hide switch live both ways, upgrade/auth checks); challenges (pending on both
+sides, second tap = same match, another game replaces it, accept → push + live, lost-reply
+accept, decline → push + live, 204 again, cancel → live + accept 410, cron + lazy expiry,
+accept vs decline vs cancel racing → exactly one wins, two taps at once → one challenge,
+crossed taps accepted); handles (generated, one change, unique ignoring case, reserved, two
+players racing for one → 200 + 409, availability, suggestion); search (prefix, exact first,
+not yourself, ≥ 3 chars, rate limit 429 after 30); blocking (quiet decline, no challenges /
+search / list, unblock) and "only my people"; account deletion (live cancel, rows, hub).
+Also the #301 fixtures (`people.json`, `presence-messages.json`, `push-payload-challenge.json`, …).
+
 **Rate limits**: `IP_LIMITER` 120 req/min per IP on everything but `/health`;
-`ACCOUNT_LIMITER` 240 req/min per account (after token verification, #285).
+`ACCOUNT_LIMITER` 240 req/min per account (after token verification, #285); `SEARCH_LIMITER`
+30 req/min per account on `GET /v1/players` (#301).
 Counted per Cloudflare location (approximate by design), 429 + `Retry-After: 60`.
 
 **Logs**: one JSON object per line (`level`, `event`, `ts`, `service`, `env`, `requestId`, …);

@@ -6,13 +6,14 @@ one **Durable Object per match** (SQLite storage) + **D1**, on the Free plan.
 — read it before adding or changing an endpoint, a message or a migration.
 
 Tickets: #284 foundation (scaffold, contract, ops) · #285 accounts · #286 matches + server
-dice + WebSocket · #287 invites/auto-match/lobby/push · #288 remove Game Center.
+dice + WebSocket · #287 invites/auto-match/lobby/push · #301 people, presence, challenges,
+handles, search, blocks · #288 remove Game Center.
 
 ## Files
 
 | Path | What |
 |---|---|
-| `src/index.ts` | Worker entry: dispatch, rate limit, error format, request log, `/health`, hourly `scheduled` (usage check, session pruning, invite expiry); exports `MatchRoom` + `MatchQueue` |
+| `src/index.ts` | Worker entry: dispatch, rate limit, error format, request log, `/health`, hourly `scheduled` (usage check, session pruning, invite + challenge expiry); exports `MatchRoom` + `MatchQueue` + `PresenceHub` |
 | `src/routes.ts` | Route table = every contract endpoint + its ticket; unbuilt ones answer 501 `not_implemented` |
 | `src/api.ts` | **Wire contract**: runtime schemas + types for every body and WebSocket message, error codes |
 | `src/schema.ts` | Mini schema kit (`parse` validates, `Infer` types; unknown keys dropped) |
@@ -20,12 +21,14 @@ dice + WebSocket · #287 invites/auto-match/lobby/push · #288 remove Game Cente
 | `src/matches.ts` · `src/dice.ts` · `src/payload.ts` | #286 match handlers + lobby list + socket hand-off + deletion hook (#287: pushes, lobby removal, auto-match handler) · server dice (crypto + hybrid bend port) · reads the plies' dice from a payload |
 | `src/invites.ts` · `src/match-queue.ts` | #287 invite codes (create/preview/accept/decline/revoke, cron expiry; the accept is one conditional D1 UPDATE) · `MatchQueue` DO, one auto-match queue per variant + length (serialised with `blockConcurrencyWhile`) |
 | `src/push.ts` · `src/web.ts` | #287 device tokens + APNs sender (ES256 provider JWT, `loc-key` payloads, skipped without the `APNS_*` key) · AASA + `/join/{code}` fallback page (en/de/nl/el) |
-| `src/accounts.ts` · `src/sessions.ts` | #285 account handlers + display-name rule · our access/refresh tokens |
+| `src/people.ts` · `src/presence-hub.ts` | #301 people list (from `match_index.played` + ⭐ adds), pin / remove / block, search by handle, "who can challenge me", challenge lifecycle (conditional D1 UPDATEs, cron + lazy 24 h expiry, live events), presence socket hand-off, deletion hook · `PresenceHub` DO (one, `getByName("global")`): hibernatable foreground sockets, online = keepalive < 2 min (`getWebSocketAutoResponseTimestamp`), watch lists, live presence + challenge events |
+| `src/handles.ts` | #301 handles: rule (3–20 `[A-Za-z0-9_]`, reserved words), suggestion, generated on first load, one change, unique ignoring case (`handle_key` UNIQUE), `GET /v1/handles/{h}` |
+| `src/accounts.ts` · `src/sessions.ts` | #285 account handlers + display-name rule (#301: handle, `hidePresence`, `whoCanChallenge` on the account) · our access/refresh tokens |
 | `src/identity.ts` · `src/jwt.ts` | Apple/Google token verification (JWKS cache, nonce) · WebCrypto JWT helpers |
-| `src/apple-revoke.ts` · `src/account-hooks.ts` | Apple token exchange/revocation (only with `APPLE_*` secrets) · deletion hooks (#286 matches + "opponent left" pushes; #287 push tokens) |
+| `src/apple-revoke.ts` · `src/account-hooks.ts` | Apple token exchange/revocation (only with `APPLE_*` secrets) · deletion hooks (#286 matches + "opponent left" pushes; #301 people/challenges/presence; #287 push tokens) |
 | `src/http.ts` · `src/log.ts` · `src/rate-limit.ts` | Error format/JSON helpers · JSON-line logger · per-IP/per-account limiter |
 | `src/usage.ts` | Free-plan usage check (GraphQL Analytics) + once-a-day webhook alert |
-| `migrations/` | D1 migrations (`0001_initial.sql`: accounts, identities, match_index, ops_alerts; `0002_sessions.sql`; `0003_invites_push.sql`: invites, push_tokens) |
+| `migrations/` | D1 migrations (`0001_initial.sql`: accounts, identities, match_index, ops_alerts; `0002_sessions.sql`; `0003_invites_push.sql`: invites, push_tokens; `0004_people.sql`: `match_index.played`, account handle/privacy columns, contact_prefs, challenges, blocks) |
 | `fixtures/` | Shared JSON fixtures, decoded by `test/fixtures.test.ts` **and** Swift `ServerAPITests` |
 | `scripts/deploy.sh` · `scripts/d1-backup.sh` | Migrate + deploy + health check · D1 export |
 | `wrangler.jsonc` | Top level = local/test; `env.staging` / `env.production` |
@@ -76,5 +79,9 @@ npm run deploy:staging    # needs wrangler login or CLOUDFLARE_API_TOKEN (CI doe
   `notify(rc, …)` (`ctx.waitUntil`); the text is a `loc-key` the app localizes (`PUSH_*` in
   `Localizable.xcstrings`) — a new kind needs a new key there in all five languages.
 - **New Durable Object classes** need a `migrations` tag in every environment (`v2` added
-  `MatchQueue`).
+  `MatchQueue`, `v3` `PresenceHub`).
+- **Challenges** (#301): every state change of a `challenges` row is one conditional UPDATE
+  `WHERE status = 'pending'` (`transition` in people.ts) before the MatchRoom follows; live
+  events go through `sendLive` (presence hub, `ctx.waitUntil`). Presence is visible only to
+  people played with or mutually ⭐-added, never for `hide_presence`.
 - Dependencies are pinned exactly (no `^`), each ≥ 2 weeks old when added.
