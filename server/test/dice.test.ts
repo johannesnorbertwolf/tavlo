@@ -98,7 +98,7 @@ describe("dice distributions", () => {
     const expected = N / 36;
     const chi2 = counts.reduce((s, c) => s + (c - expected) ** 2 / expected, 0);
     expect(chi2).toBeLessThan(75); // df 35: p ≈ 1e-4
-  });
+  }, 60_000); // statistical: seconds on a slow CI runner
 
   it("the bend tilts the draw to q ∝ p·exp(β v) and its mirror to the other side", () => {
     const values = table.vectors.find((v) => v.name === "steps")!.values;
@@ -124,7 +124,7 @@ describe("dice distributions", () => {
       if (roller === "W") expect(mean).toBeGreaterThan(fairMean + 0.002);
       else expect(mean).toBeLessThan(fairMean - 0.002);
     }
-  });
+  }, 60_000); // statistical: ~7 s on a CI runner (the default 5 s timed out)
 
   it("2-point variants bend less per level (g and σ floor ÷ maxPoints)", () => {
     const values = table.vectors.find((v) => v.name === "tense")!.values;
