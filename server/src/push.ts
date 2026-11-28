@@ -10,7 +10,7 @@
 // var) every push is skipped and logged (`push.skipped`); everything else works the same.
 // Sending never fails the request that caused it (handlers hand it to `ctx.waitUntil`).
 
-import { PushTokenRequest, type MatchSnapshot, type PushKind, type PushPayload } from "./api";
+import { CHALLENGE_CATEGORY, PushTokenRequest, type MatchSnapshot, type PushKind, type PushPayload } from "./api";
 import type { AccountDeletionHook } from "./account-hooks";
 import { HttpError, readJson } from "./http";
 import { APPLE_BUNDLE_ID } from "./identity";
@@ -42,6 +42,14 @@ export interface PushMessage {
   name: string;
   /** matchEnded: the recipient's outcome. */
   outcome?: "won" | "lost" | "tied";
+  /** challengeReceived (#301): what the challenge is for (the notification's body). */
+  variant?: string;
+  targetWins?: number;
+}
+
+/** #301: the body of a challenge push, e.g. `PUSH_GAME_FEVGA_2` = "Fevga · Best of 3". */
+export function gameLocKey(variant: string, targetWins: number): string {
+  return `PUSH_GAME_${variant.toUpperCase()}_${targetWins >= 2 ? 2 : 1}`;
 }
 
 /** The `loc-key` per push (the app's Localizable strings render it with the name). */
@@ -55,15 +63,40 @@ export function locKey(msg: PushMessage): string {
       return "PUSH_INVITE_ACCEPTED";
     case "opponentLeft":
       return "PUSH_OPPONENT_LEFT";
+    case "challengeReceived":
+      return gameLocKey(msg.variant ?? "plakoto", msg.targetWins ?? 1);
+    case "challengeAccepted":
+      return "PUSH_CHALLENGE_ACCEPTED";
+    case "challengeDeclined":
+      return "PUSH_CHALLENGE_DECLINED";
     case "matchEnded":
       return msg.outcome === "won" ? "PUSH_MATCH_WON" : msg.outcome === "lost" ? "PUSH_MATCH_LOST" : "PUSH_MATCH_ENDED";
   }
 }
 
 export function apnsPayload(msg: PushMessage): PushPayload {
+  const name = msg.name.slice(0, 64);
+  if (msg.kind === "challengeReceived") {
+    // "Alex wants to play" / "Fevga · Best of 3", with Accept / Decline buttons (#301).
+    return {
+      aps: {
+        alert: {
+          "title-loc-key": "PUSH_CHALLENGE_RECEIVED",
+          "title-loc-args": [name],
+          "loc-key": locKey(msg),
+          "loc-args": [],
+        },
+        sound: "default",
+        "thread-id": msg.matchID,
+        category: CHALLENGE_CATEGORY,
+      },
+      matchID: msg.matchID,
+      kind: msg.kind,
+    };
+  }
   return {
     aps: {
-      alert: { "loc-key": locKey(msg), "loc-args": [msg.name.slice(0, 64)] },
+      alert: { "loc-key": locKey(msg), "loc-args": [name] },
       sound: "default",
       "thread-id": msg.matchID,
     },
@@ -74,7 +107,7 @@ export function apnsPayload(msg: PushMessage): PushPayload {
 
 // ── Which pushes a match operation causes ─────────────────────────────────────
 
-export type PushOp = "create" | "accept" | "join" | "endTurn" | "endMatch" | "quit";
+export type PushOp = "create" | "accept" | "decline" | "join" | "endTurn" | "endMatch" | "quit";
 
 /**
  * The pushes after `callerID` did `op` and the match is now `snap` (pure; the handler
@@ -88,8 +121,14 @@ export function pushesAfter(op: PushOp, callerID: string, snap: MatchSnapshot): 
   const base = { matchID: snap.matchID, name: me.displayName ?? "?" };
   switch (op) {
     case "create":
-      return other.status === "invited" ? [{ ...base, to: other.playerID, kind: "inviteReceived" }] : [];
+      // #301: a direct challenge, with Accept / Decline buttons.
+      return other.status === "invited"
+        ? [{ ...base, to: other.playerID, kind: "challengeReceived", variant: snap.variant, targetWins: snap.targetWins }]
+        : [];
     case "accept":
+      return [{ ...base, to: other.playerID, kind: "challengeAccepted" }];
+    case "decline":
+      return [{ ...base, to: other.playerID, kind: "challengeDeclined" }];
     case "join":
       return [{ ...base, to: other.playerID, kind: "inviteAccepted" }];
     case "endTurn":
@@ -173,6 +212,8 @@ export function apnsRequest(
   };
   // Several "your turn" pushes of one match replace each other on the lock screen.
   if (msg.kind === "yourTurn") headers["apns-collapse-id"] = `turn-${msg.matchID}`;
+  // A challenge sent again (or answered elsewhere) replaces its notification.
+  if (msg.kind === "challengeReceived") headers["apns-collapse-id"] = `challenge-${msg.matchID}`;
   return {
     url: `${APNS_HOSTS[environment]}/3/device/${token}`,
     init: { method: "POST", headers, body: JSON.stringify(apnsPayload(msg)) },

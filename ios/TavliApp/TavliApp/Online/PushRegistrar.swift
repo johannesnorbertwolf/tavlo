@@ -15,6 +15,10 @@ import TavliEngine
 ///   Localizable.xcstrings) — the app does not need to run;
 /// - in front, a push for the match on screen is not shown (it updates live); others show
 ///   as a banner. A tapped push opens its match (`tappedMatchID` → `RootView`).
+/// - #301: an incoming challenge has the CHALLENGE category: **Accept** opens the app and the
+///   match, **Decline** answers without opening it (handled here in the background), a tap on
+///   the notification itself shows the lobby with the challenge card. In front, a challenge
+///   shows as the in-app card instead of a banner.
 @MainActor
 final class PushRegistrar: NSObject, ObservableObject {
     static let shared = PushRegistrar()
@@ -36,12 +40,49 @@ final class PushRegistrar: NSObject, ObservableObject {
     @Published var tappedMatchID: String?
     /// The match on screen (pushes for it are not shown while the app is in front).
     var openMatchID: () -> String? = { nil }
+    /// #301: a tapped challenge notification (not a button): the lobby shows its card.
+    @Published var tappedChallengeMatchID: String?
+    /// #301: the app shows incoming challenges as its own card (the people list is live).
+    var showsChallengesInApp: () -> Bool = { false }
+    /// #301: a challenge push arrived while in front (the app refreshes its cards).
+    var onForegroundChallenge: ((String) -> Void)?
+
+    /// #301: the CHALLENGE category (Accept opens the app; Decline answers in the background,
+    /// after unlocking).
+    static func registerCategories() {
+        let accept = UNNotificationAction(identifier: PushSupport.acceptAction,
+                                          title: String(localized: "Accept"), options: [.foreground])
+        let decline = UNNotificationAction(identifier: PushSupport.declineAction,
+                                           title: String(localized: "Decline"),
+                                           options: [.destructive, .authenticationRequired])
+        let category = UNNotificationCategory(identifier: ServerAPI.challengeCategory, actions: [accept, decline],
+                                              intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+
+    /// #301: Decline from the notification: answer the server without opening the app.
+    func declineInBackground(matchID: String) async {
+        guard let client = AccountStore.shared.client else { return }
+        let _: Empty? = try? await client.authorized(method: "POST", path: "/v1/matches/\(matchID)/decline",
+                                                     body: Optional<Int>.none)
+    }
+
+    /// #301: a challenge was answered (here or elsewhere): its notification goes.
+    static func removeDelivered(matchID: String) {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { notes in
+            let ids = notes.filter { PushSupport.matchID(fromUserInfo: $0.request.content.userInfo) == matchID }
+                .map(\.request.identifier)
+            if !ids.isEmpty { center.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
+    }
 
     /// Called from `application(_:didFinishLaunchingWithOptions:)`: become the notification
     /// delegate (so a push that launches the app is routed) and refresh the token if the
     /// player already allowed notifications.
     func start() {
         UNUserNotificationCenter.current().delegate = self
+        Self.registerCategories()
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             let allowed = [.authorized, .provisional, .ephemeral].contains(settings.authorizationStatus)
             guard allowed else { return }
@@ -89,18 +130,34 @@ extension PushRegistrar: UNUserNotificationCenterDelegate {
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                             withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
         let userInfo = notification.request.content.userInfo
-        let matchID = PushSupport.matchID(fromUserInfo: userInfo)
+        let payload = ServerAPI.PushPayload(userInfo: userInfo)
+        let matchID = payload?.matchID
         Task { @MainActor in
-            let show = PushSupport.shouldPresentInForeground(pushMatchID: matchID, openMatchID: self.openMatchID())
+            let inApp = self.showsChallengesInApp()
+            let show = PushSupport.shouldPresentInForeground(kind: payload?.kind, pushMatchID: matchID,
+                                                             openMatchID: self.openMatchID(), showsChallengesInApp: inApp)
+            if payload?.kind == .challengeReceived, let matchID, inApp { self.onForegroundChallenge?(matchID) }
             completionHandler(show ? [.banner, .list, .sound] : [])
         }
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
-        let matchID = PushSupport.matchID(fromUserInfo: response.notification.request.content.userInfo)
+        let userInfo = response.notification.request.content.userInfo
+        let matchID = PushSupport.matchID(fromUserInfo: userInfo)
+        let challenge = PushSupport.challengeMatchID(fromUserInfo: userInfo)
+        let action = response.actionIdentifier
         Task { @MainActor in
-            if let matchID { self.tappedMatchID = matchID }
+            switch (action, challenge) {
+            case (PushSupport.declineAction, let id?):
+                await self.declineInBackground(matchID: id)
+            case (PushSupport.acceptAction, let id?):
+                self.tappedMatchID = id   // opening it accepts the seat first
+            case (UNNotificationDefaultActionIdentifier, let id?):
+                self.tappedChallengeMatchID = id
+            default:
+                if let matchID { self.tappedMatchID = matchID }
+            }
             completionHandler()
         }
     }

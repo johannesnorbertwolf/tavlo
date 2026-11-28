@@ -1,0 +1,17 @@
+{
+  "aps": {
+    "alert": {
+      "title-loc-key": "PUSH_CHALLENGE_RECEIVED",
+      "title-loc-args": [
+        "Sam"
+      ],
+      "loc-key": "PUSH_GAME_FEVGA_2",
+      "loc-args": []
+    },
+    "sound": "default",
+    "thread-id": "m_c1a2b3c4d5e6",
+    "category": "CHALLENGE"
+  },
+  "matchID": "m_c1a2b3c4d5e6",
+  "kind": "challengeReceived"
+}

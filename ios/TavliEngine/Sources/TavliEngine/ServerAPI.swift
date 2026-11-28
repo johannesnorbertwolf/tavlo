@@ -76,6 +76,8 @@ public enum ServerAPI {
         case notYourTurn = "not_your_turn"
         case matchEnded = "match_ended"
         case inviteUnavailable = "invite_unavailable"
+        /// #301: someone else has that handle.
+        case handleTaken = "handle_taken"
         case payloadTooLarge = "payload_too_large"
         case upgradeRequired = "upgrade_required"
         case rateLimited = "rate_limited"
@@ -93,12 +95,33 @@ public enum ServerAPI {
         /// "apple" / "google".
         public var providers: [String]
         public var createdAt: Int64
-        public init(id: String, displayName: String, providers: [String], createdAt: Int64) {
+        /// #301: "Show when I'm online" is off.
+        public var hidePresence: Bool?
+        /// #301: the handle others find this account by.
+        public var handle: String?
+        /// #301: the (generated) handle may still be changed, once.
+        public var handleChangeable: Bool?
+        /// #301: `ChallengePolicy` raw value ("everyone" / "people").
+        public var whoCanChallenge: String?
+        public init(id: String, displayName: String, providers: [String], createdAt: Int64,
+                    hidePresence: Bool? = nil, handle: String? = nil, handleChangeable: Bool? = nil,
+                    whoCanChallenge: String? = nil) {
             self.id = id
             self.displayName = displayName
             self.providers = providers
             self.createdAt = createdAt
+            self.hidePresence = hidePresence
+            self.handle = handle
+            self.handleChangeable = handleChangeable
+            self.whoCanChallenge = whoCanChallenge
         }
+
+        public var challengePolicy: ChallengePolicy { whoCanChallenge.flatMap(ChallengePolicy.init(rawValue:)) ?? .everyone }
+    }
+
+    /// "Who can challenge me" (#301).
+    public enum ChallengePolicy: String, Codable, Sendable, CaseIterable {
+        case everyone, people
     }
 
     public struct AppleSignInRequest: Codable, Equatable, Sendable {
@@ -151,9 +174,27 @@ public enum ServerAPI {
         }
     }
 
+    /// `PATCH /v1/account`: any of the fields (nil = unchanged; #301 added all but the name).
     public struct UpdateAccountRequest: Codable, Equatable, Sendable {
-        public var displayName: String
-        public init(displayName: String) { self.displayName = displayName }
+        public var displayName: String?
+        public var hidePresence: Bool?
+        public var handle: String?
+        public var whoCanChallenge: String?
+        public init(displayName: String? = nil, hidePresence: Bool? = nil, handle: String? = nil,
+                    whoCanChallenge: String? = nil) {
+            self.displayName = displayName
+            self.hidePresence = hidePresence
+            self.handle = handle
+            self.whoCanChallenge = whoCanChallenge
+        }
+    }
+
+    /// `GET /v1/handles/{handle}` (#301).
+    public struct HandleAvailability: Codable, Equatable, Sendable {
+        public var handle: String
+        public var available: Bool
+        /// "taken" / "reserved" / "invalid" / "yours".
+        public var reason: String?
     }
 
     /// `POST /v1/auth/dev` — **development servers only** (`wrangler dev`; 404 elsewhere):
@@ -323,9 +364,13 @@ public enum ServerAPI {
         public var updatedAt: Int64
         /// #287: the caller's open invite for this match's empty seat (share it again / cancel).
         public var invite: InviteRef?
+        /// #301: the direct challenge this match started as.
+        public var challenge: ChallengeState?
 
         public init(matchID: String, variant: String, targetWins: Int, state: LobbyState, opponent: Opponent,
-                    outcome: MatchOutcome = .none, updatedAt: Int64, invite: InviteRef? = nil) {
+                    outcome: MatchOutcome = .none, updatedAt: Int64, invite: InviteRef? = nil,
+                    challenge: ChallengeState? = nil) {
+            self.challenge = challenge
             self.matchID = matchID
             self.variant = variant
             self.targetWins = targetWins
@@ -334,6 +379,24 @@ public enum ServerAPI {
             self.outcome = outcome
             self.updatedAt = updatedAt
             self.invite = invite
+        }
+    }
+
+    /// A direct challenge's lifecycle (#301).
+    public enum ChallengeStatus: String, Codable, Sendable, CaseIterable {
+        case pending, accepted, declined, expired, cancelled, unknown
+
+        public init(from decoder: Decoder) throws {
+            self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+        }
+    }
+
+    public struct ChallengeState: Codable, Equatable, Sendable {
+        public var status: ChallengeStatus
+        public var expiresAt: Int64
+        public init(status: ChallengeStatus, expiresAt: Int64) {
+            self.status = status
+            self.expiresAt = expiresAt
         }
     }
 
@@ -476,7 +539,10 @@ public enum ServerAPI {
 
     /// Why a push was sent (#287); an unknown kind still opens its match.
     public enum PushKind: String, Codable, Sendable, CaseIterable {
-        case yourTurn, inviteReceived, inviteAccepted, matchEnded, opponentLeft, unknown
+        case yourTurn, inviteReceived, inviteAccepted, matchEnded, opponentLeft
+        /// #301: one-tap challenges (the received one has Accept / Decline buttons).
+        case challengeReceived, challengeAccepted, challengeDeclined
+        case unknown
 
         public init(from decoder: Decoder) throws {
             self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
@@ -490,16 +556,23 @@ public enum ServerAPI {
             public struct Alert: Codable, Equatable, Sendable {
                 public var locKey: String
                 public var locArgs: [String]
+                /// #301: the challenge push's bold first line.
+                public var titleLocKey: String?
+                public var titleLocArgs: [String]?
                 enum CodingKeys: String, CodingKey {
                     case locKey = "loc-key"
                     case locArgs = "loc-args"
+                    case titleLocKey = "title-loc-key"
+                    case titleLocArgs = "title-loc-args"
                 }
             }
             public var alert: Alert
             public var sound: String?
             public var threadID: String?
+            /// #301: `ServerAPI.challengeCategory` for an incoming challenge.
+            public var category: String?
             enum CodingKeys: String, CodingKey {
-                case alert, sound
+                case alert, sound, category
                 case threadID = "thread-id"
             }
         }
@@ -528,6 +601,183 @@ public enum ServerAPI {
             self.token = token
             self.environment = environment
             self.locale = locale
+        }
+    }
+
+    // ── People, presence, challenges, handles (#301) ────────────────────────────
+
+    /// The APNs category of an incoming challenge (Accept / Decline action buttons).
+    public static let challengeCategory = "CHALLENGE"
+    /// Search needs this many characters of a handle.
+    public static let searchMinChars = 3
+    /// "Online now" = a keepalive within this many seconds (server `PRESENCE_ONLINE_MS`).
+    public static let presenceOnlineSeconds: TimeInterval = 120
+
+    public struct Presence: Codable, Equatable, Sendable {
+        public var online: Bool
+        public var lastSeenAt: Int64?
+        public init(online: Bool, lastSeenAt: Int64?) {
+            self.online = online
+            self.lastSeenAt = lastSeenAt
+        }
+    }
+
+    public struct PersonChallenge: Codable, Equatable, Sendable {
+        public enum Direction: String, Codable, Sendable { case incoming, outgoing }
+        public var matchID: String
+        public var direction: Direction
+        public var variant: String
+        public var targetWins: Int
+        public var expiresAt: Int64
+        public init(matchID: String, direction: Direction, variant: String, targetWins: Int, expiresAt: Int64) {
+            self.matchID = matchID
+            self.direction = direction
+            self.variant = variant
+            self.targetWins = targetWins
+            self.expiresAt = expiresAt
+        }
+    }
+
+    /// Someone you've played with or added (`GET /v1/people`).
+    public struct Person: Codable, Equatable, Sendable {
+        public var playerID: String
+        public var handle: String
+        public var displayName: String
+        public var pinned: Bool
+        /// nil = added by handle, never played.
+        public var lastPlayedAt: Int64?
+        /// nil when they hide it or may not be seen (only people you've played or both added).
+        public var presence: Presence?
+        public var challenge: PersonChallenge?
+        public init(playerID: String, handle: String, displayName: String, pinned: Bool = false,
+                    lastPlayedAt: Int64?, presence: Presence? = nil, challenge: PersonChallenge? = nil) {
+            self.playerID = playerID
+            self.handle = handle
+            self.displayName = displayName
+            self.pinned = pinned
+            self.lastPlayedAt = lastPlayedAt
+            self.presence = presence
+            self.challenge = challenge
+        }
+    }
+
+    /// A player as strangers see them.
+    public struct PlayerCard: Codable, Equatable, Sendable {
+        public var playerID: String
+        public var handle: String
+        public var displayName: String
+        public init(playerID: String, handle: String, displayName: String) {
+            self.playerID = playerID
+            self.handle = handle
+            self.displayName = displayName
+        }
+    }
+
+    public struct PeopleResponse: Codable, Equatable, Sendable {
+        public var people: [Person]
+        /// Whom you blocked.
+        public var blocked: [PlayerCard]?
+        public init(people: [Person], blocked: [PlayerCard]? = nil) {
+            self.people = people
+            self.blocked = blocked
+        }
+    }
+
+    public struct UpdatePersonRequest: Codable, Equatable, Sendable {
+        public var pinned: Bool
+        public init(pinned: Bool) { self.pinned = pinned }
+    }
+
+    /// One search result (`GET /v1/players?q=`).
+    public struct PlayerResult: Codable, Equatable, Sendable {
+        public var playerID: String
+        public var handle: String
+        public var displayName: String
+        public var isPerson: Bool
+        public var canChallenge: Bool
+        public init(playerID: String, handle: String, displayName: String, isPerson: Bool, canChallenge: Bool) {
+            self.playerID = playerID
+            self.handle = handle
+            self.displayName = displayName
+            self.isPerson = isPerson
+            self.canChallenge = canChallenge
+        }
+    }
+
+    public struct PlayerSearchResponse: Codable, Equatable, Sendable {
+        public var players: [PlayerResult]
+    }
+
+    /// A challenge as the presence socket reports it.
+    public struct Challenge: Codable, Equatable, Sendable {
+        public struct Ref: Codable, Equatable, Sendable {
+            public var playerID: String
+            public var displayName: String
+            public init(playerID: String, displayName: String) {
+                self.playerID = playerID
+                self.displayName = displayName
+            }
+        }
+        public var matchID: String
+        public var from: Ref
+        public var to: Ref
+        public var variant: String
+        public var targetWins: Int
+        public var status: ChallengeStatus
+        public var createdAt: Int64
+        public var expiresAt: Int64
+        public init(matchID: String, from: Ref, to: Ref, variant: String, targetWins: Int,
+                    status: ChallengeStatus, createdAt: Int64, expiresAt: Int64) {
+            self.matchID = matchID
+            self.from = from
+            self.to = to
+            self.variant = variant
+            self.targetWins = targetWins
+            self.status = status
+            self.createdAt = createdAt
+            self.expiresAt = expiresAt
+        }
+    }
+
+    /// Why a `.challenge` presence message was sent.
+    public enum ChallengeEvent: String, Sendable, CaseIterable {
+        case received, accepted, declined, expired, cancelled
+    }
+
+    /// Server → client on `/v1/presence/socket` (the foreground app's one socket), by `type`.
+    public enum PresenceMessage: Decodable, Equatable, Sendable {
+        case hello(serverTime: Int64)
+        case presence(playerID: String, presence: Presence)
+        /// `event` raw value (see `ChallengeEvent`).
+        case challenge(event: String, challenge: Challenge)
+        case error(code: String, message: String)
+        case unknown(type: String)
+
+        private enum Keys: String, CodingKey {
+            case type, serverTime, playerID, online, lastSeenAt, event, challenge, error
+        }
+
+        private struct ErrorBody: Decodable { var code: String; var message: String }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: Keys.self)
+            let type = try c.decode(String.self, forKey: .type)
+            switch type {
+            case "hello":
+                self = .hello(serverTime: try c.decode(Int64.self, forKey: .serverTime))
+            case "presence":
+                self = .presence(playerID: try c.decode(String.self, forKey: .playerID),
+                                 presence: Presence(online: try c.decode(Bool.self, forKey: .online),
+                                                    lastSeenAt: try c.decodeIfPresent(Int64.self, forKey: .lastSeenAt)))
+            case "challenge":
+                self = .challenge(event: try c.decode(String.self, forKey: .event),
+                                  challenge: try c.decode(Challenge.self, forKey: .challenge))
+            case "error":
+                let body = try c.decode(ErrorBody.self, forKey: .error)
+                self = .error(code: body.code, message: body.message)
+            default:
+                self = .unknown(type: type)
+            }
         }
     }
 

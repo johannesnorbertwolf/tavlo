@@ -1,0 +1,18 @@
+{
+  "players": [
+    {
+      "playerID": "acc_alex000004",
+      "handle": "alex",
+      "displayName": "Alex",
+      "isPerson": true,
+      "canChallenge": true
+    },
+    {
+      "playerID": "acc_alex000006",
+      "handle": "alex_k",
+      "displayName": "Alex K.",
+      "isPerson": false,
+      "canChallenge": false
+    }
+  ]
+}

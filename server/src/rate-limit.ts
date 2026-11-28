@@ -10,7 +10,11 @@ import { HttpError } from "./http";
 
 export const RATE_LIMIT_WINDOW_SECONDS = 60;
 
-export type RateLimitKey = { kind: "ip"; ip: string } | { kind: "account"; accountID: string };
+export type RateLimitKey =
+  | { kind: "ip"; ip: string }
+  | { kind: "account"; accountID: string }
+  /** #301: player search by handle, SEARCH_LIMITER 30/min per account. */
+  | { kind: "search"; accountID: string };
 
 export function clientIP(req: Request): string {
   return req.headers.get("cf-connecting-ip") ?? "unknown";
@@ -18,12 +22,13 @@ export function clientIP(req: Request): string {
 
 /** Throws `rate_limited` (429 + Retry-After) when the key is over its limit. */
 export async function enforceRateLimit(
-  limiters: { IP_LIMITER?: RateLimit; ACCOUNT_LIMITER?: RateLimit },
+  limiters: { IP_LIMITER?: RateLimit; ACCOUNT_LIMITER?: RateLimit; SEARCH_LIMITER?: RateLimit },
   key: RateLimitKey,
 ): Promise<void> {
-  const limiter = key.kind === "ip" ? limiters.IP_LIMITER : limiters.ACCOUNT_LIMITER;
+  const limiter =
+    key.kind === "ip" ? limiters.IP_LIMITER : key.kind === "search" ? limiters.SEARCH_LIMITER : limiters.ACCOUNT_LIMITER;
   if (!limiter) return;
-  const id = key.kind === "ip" ? `ip:${key.ip}` : `acc:${key.accountID}`;
+  const id = key.kind === "ip" ? `ip:${key.ip}` : key.kind === "search" ? `search:${key.accountID}` : `acc:${key.accountID}`;
   const { success } = await limiter.limit({ key: id });
   if (!success) {
     throw new HttpError("rate_limited", "Too many requests, slow down.", {

@@ -44,7 +44,11 @@ final class FakeTavtavServer {
         func decode<T: Decodable>(_ t: T.Type) throws -> T { try JSONDecoder().decode(T.self, from: body ?? Data()) }
         if parts == ["v1", "matches"], method == "POST" {
             let req = try decode(ServerAPI.CreateMatchRequest.self)
+            if let opponent = req.opponentID { return try enc.encode(challenge(account, opponent, req)) }
             return try enc.encode(create(account, req))
+        }
+        if let answer = try peopleEndpoints(account: account, method: method, parts: parts, path: path, body: body) {
+            return answer
         }
         if let answer = try lobbyEndpoints(account: account, method: method, parts: parts, body: body) {
             return answer
@@ -63,12 +67,35 @@ final class FakeTavtavServer {
         case ("GET", ""):
             return try enc.encode(view())
         case ("POST", "accept"):
+            if let c = challenges[m.snap.matchID], c.to == account {
+                if c.status == "accepted" { return try enc.encode(view()) }
+                guard c.status == "pending" else { throw AuthError.server(code: "invite_unavailable", status: 410) }
+                challenges[m.snap.matchID]?.status = "accepted"
+                presence(to: c.from, event: "accepted", m.snap.matchID)
+            }
             m.snap.participants[seat].status = .active
             m.snap.updatedAt = now()
             save()
             broadcast(m.snap, "accepted")
             return try enc.encode(view())
+        case ("POST", "cancel"):
+            guard let c = challenges[m.snap.matchID], c.from == account else { throw AuthError.server(code: "forbidden", status: 403) }
+            if c.status == "cancelled" { return Data() }
+            guard c.status == "pending" else { throw AuthError.server(code: "invite_unavailable", status: 410) }
+            challenges[m.snap.matchID]?.status = "cancelled"
+            m.snap.participants[1].status = .declined
+            m.snap.participants[0].status = .done
+            m.snap.isEnded = true
+            m.snap.currentPlayerID = nil
+            m.snap.updatedAt = now()
+            save()
+            presence(to: c.to, event: "cancelled", m.snap.matchID)
+            return Data()
         case ("POST", "decline"):
+            if let c = challenges[m.snap.matchID], c.to == account, c.status == "pending" {
+                challenges[m.snap.matchID]?.status = "declined"
+                presence(to: c.from, event: "declined", m.snap.matchID)
+            }
             m.snap.participants[seat].status = .declined
             m.snap.participants[1 - seat].status = .done
             m.snap.isEnded = true
@@ -272,6 +299,123 @@ final class FakeTavtavServer {
         }
     }
 
+    // ── #301: people, challenges, search, blocks ─────────────────────────────────
+
+    /// match id → the direct challenge's lifecycle
+    var challenges: [String: (from: String, to: String, status: String)] = [:]
+    /// account → its people (tests seed them; `challenge` is filled in from `challenges`)
+    var people: [String: [ServerAPI.Person]] = [:]
+    /// "blocker/blocked"
+    var blocks: Set<String> = []
+    /// every account's handle, for search
+    var handles: [String: String] = [:]
+    /// "Who can challenge me: only my people" accounts
+    var peopleOnly: Set<String> = []
+
+    private func challenge(_ account: String, _ opponent: String, _ req: ServerAPI.CreateMatchRequest) throws -> ServerAPI.MatchSnapshot {
+        if blocks.contains("\(opponent)/\(account)") || blocks.contains("\(account)/\(opponent)") {
+            throw AuthError.server(code: "forbidden", status: 403)
+        }
+        if peopleOnly.contains(opponent), !(people[opponent] ?? []).contains(where: { $0.playerID == account }) {
+            throw AuthError.server(code: "forbidden", status: 403)
+        }
+        // Crossed taps: accept theirs.
+        if let (id, _) = challenges.first(where: { $0.value.from == opponent && $0.value.to == account && $0.value.status == "pending" }),
+           let m = matches[id], m.snap.variant == req.variant, m.snap.targetWins == req.targetWins {
+            return try JSONDecoder().decode(ServerAPI.MatchSnapshot.self,
+                                            from: handle(account: account, method: "POST", path: "/v1/matches/\(id)/accept", body: nil))
+        }
+        if let (id, _) = challenges.first(where: { $0.value.from == account && $0.value.to == opponent && $0.value.status == "pending" }),
+           let m = matches[id], m.snap.variant == req.variant, m.snap.targetWins == req.targetWins {
+            return m.snap
+        }
+        let snap = create(account, req)
+        challenges[snap.matchID] = (account, opponent, "pending")
+        presence(to: opponent, event: "received", snap.matchID)
+        return snap
+    }
+
+    /// A challenge event on `to`'s presence socket.
+    func presence(to: String, event: String, _ matchID: String) {
+        guard let c = challenges[matchID], let m = matches[matchID] else { return }
+        let challenge = ServerAPI.Challenge(
+            matchID: matchID, from: .init(playerID: c.from, displayName: names[c.from] ?? c.from),
+            to: .init(playerID: c.to, displayName: names[c.to] ?? c.to), variant: m.snap.variant,
+            targetWins: m.snap.targetWins, status: ServerAPI.ChallengeStatus(rawValue: c.status) ?? .unknown,
+            createdAt: m.snap.createdAt, expiresAt: m.snap.createdAt + 86_400_000)
+        sockets.send(matchID: "socket", to: to, text: Self.json(["type": "challenge", "event": event, "challenge": Self.object(challenge)]))
+    }
+
+    /// `to`'s presence socket hears that `playerID` came online / went.
+    func presenceChange(to: String, playerID: String, online: Bool) {
+        sockets.send(matchID: "socket", to: to, text: Self.json(["type": "presence", "playerID": playerID,
+                                                                 "online": online, "lastSeenAt": 1_800_000_000_000]))
+    }
+
+    private func peopleEndpoints(account: String, method: String, parts: [String], path: String, body: Data?) throws -> Data? {
+        let enc = JSONEncoder()
+        switch (method, parts) {
+        case ("GET", ["v1", "people"]):
+            let list = (people[account] ?? []).filter { !blocks.contains("\(account)/\($0.playerID)") && !blocks.contains("\($0.playerID)/\(account)") }
+                .map { p -> ServerAPI.Person in
+                    var p = p
+                    if let (id, c) = challenges.first(where: { $0.value.status == "pending" && Set([$0.value.from, $0.value.to]) == Set([account, p.playerID]) }),
+                       let m = matches[id] {
+                        p.challenge = .init(matchID: id, direction: c.from == account ? .outgoing : .incoming,
+                                            variant: m.snap.variant, targetWins: m.snap.targetWins,
+                                            expiresAt: m.snap.createdAt + 86_400_000)
+                    }
+                    return p
+                }
+            let blocked = blocks.compactMap { key -> ServerAPI.PlayerCard? in
+                let ab = key.split(separator: "/").map(String.init)
+                guard ab[0] == account else { return nil }
+                return .init(playerID: ab[1], handle: handles[ab[1]] ?? ab[1], displayName: names[ab[1]] ?? ab[1])
+            }
+            return try enc.encode(ServerAPI.PeopleResponse(people: list, blocked: blocked))
+        case ("PATCH", let p) where p.count == 3 && p[1] == "people":
+            let pinned = try JSONDecoder().decode(ServerAPI.UpdatePersonRequest.self, from: body ?? Data()).pinned
+            if let i = people[account]?.firstIndex(where: { $0.playerID == p[2] }) {
+                people[account]![i].pinned = pinned
+            } else if pinned, let name = names[p[2]] {
+                people[account, default: []].append(.init(playerID: p[2], handle: handles[p[2]] ?? p[2], displayName: name,
+                                                          pinned: true, lastPlayedAt: nil))
+            } else {
+                throw AuthError.server(code: "not_found", status: 404)
+            }
+            return Data()
+        case ("DELETE", let p) where p.count == 3 && p[1] == "people":
+            people[account]?.removeAll { $0.playerID == p[2] }
+            return Data()
+        case (_, let p) where p.count == 4 && p[1] == "people" && p[3] == "block":
+            if method == "POST" {
+                blocks.insert("\(account)/\(p[2])")
+                for (id, c) in challenges where c.from == p[2] && c.to == account && c.status == "pending" {
+                    challenges[id]?.status = "declined"
+                }
+            } else {
+                blocks.remove("\(account)/\(p[2])")
+            }
+            return Data()
+        case ("GET", ["v1", "players"]):
+            let q = (URLComponents(string: path)?.queryItems?.first { $0.name == "q" }?.value ?? "").lowercased()
+            guard q.count >= 3 else { throw AuthError.server(code: "bad_request", status: 400) }
+            let found = handles.filter { $0.key != account && $0.value.lowercased().hasPrefix(q) && !blocks.contains("\($0.key)/\(account)") }
+                .sorted { a, b in
+                    let ax = a.value.lowercased() == q, bx = b.value.lowercased() == q
+                    return ax != bx ? ax : a.value < b.value
+                }
+                .map { entry in
+                    ServerAPI.PlayerResult(playerID: entry.key, handle: entry.value, displayName: names[entry.key] ?? entry.key,
+                                           isPerson: (people[account] ?? []).contains { $0.playerID == entry.key },
+                                           canChallenge: !peopleOnly.contains(entry.key))
+                }
+            return try enc.encode(ServerAPI.PlayerSearchResponse(players: Array(found.prefix(20))))
+        default:
+            return nil
+        }
+    }
+
     private func join(_ account: String, _ matchID: String) -> ServerAPI.MatchSnapshot {
         var m = matches[matchID]!
         m.snap.participants[1].playerID = account
@@ -310,12 +454,17 @@ final class FakeTavtavServer {
             else if other.playerID == nil || other.status == .invited || other.status == .matching { state = .waitingForOpponent }
             else { state = .theirTurn }
             let code = invites.first { $0.value.matchID == s.matchID && $0.value.status == "open" && $0.value.creator == account }?.key
+            let challenge = challenges[s.matchID].map {
+                ServerAPI.ChallengeState(status: ServerAPI.ChallengeStatus(rawValue: $0.status) ?? .unknown,
+                                         expiresAt: s.createdAt + 86_400_000)
+            }
             return ServerAPI.MatchSummary(
                 matchID: s.matchID, variant: s.variant, targetWins: s.targetWins, state: state,
                 opponent: .init(playerID: other.playerID, displayName: other.displayName),
                 outcome: me.outcome, updatedAt: s.updatedAt,
                 invite: code.map { ServerAPI.InviteRef(code: $0, url: URL(string: "https://tavtav.test/join/\($0)")!,
-                                                       expiresAt: s.createdAt + 7 * 86_400_000) })
+                                                       expiresAt: s.createdAt + 7 * 86_400_000) },
+                challenge: challenge)
         }
         .sorted { ($0.updatedAt, $0.matchID) > ($1.updatedAt, $1.matchID) }
     }

@@ -282,6 +282,8 @@ public enum AuthError: Error, Equatable, Sendable {
     case providerUnavailable
     /// Fails `DisplayNameRule` (checked before any request).
     case invalidDisplayName
+    /// Fails `HandleRule` (#301, checked before any request).
+    case invalidHandle
     /// Needs a session and there is none (or the server ended it).
     case notSignedIn
 
@@ -433,6 +435,21 @@ public final class AuthClient: ObservableObject {
             $0.account = account
             $0.needsDisplayName = false
         }
+    }
+
+    /// #301: change the handle (once; validated by `HandleRule` first), "show when I'm
+    /// online" or "who can challenge me". Server errors (`handle_taken` 409, a second
+    /// handle change 403) are thrown as `AuthError.server`.
+    public func updateAccount(handle: String? = nil, hidePresence: Bool? = nil,
+                              whoCanChallenge: ServerAPI.ChallengePolicy? = nil) async throws {
+        if let handle, HandleRule.problem(handle) != nil { throw AuthError.invalidHandle }
+        isWorking = true
+        defer { isWorking = false }
+        let account: ServerAPI.Account = try await authorized(
+            method: "PATCH", path: "/v1/account",
+            body: ServerAPI.UpdateAccountRequest(hidePresence: hidePresence, handle: handle,
+                                                 whoCanChallenge: whoCanChallenge?.rawValue))
+        updateStored { $0.account = account }
     }
 
     /// Keeps the server's placeholder name (the prompt was skipped).

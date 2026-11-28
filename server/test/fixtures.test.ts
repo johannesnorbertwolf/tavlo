@@ -40,6 +40,13 @@ const SCHEMAS: Record<string, Schema<unknown>> = {
   "push-token-request.json": api.PushTokenRequest,
   "push-payload.json": api.PushPayload,
   "ws-messages.json": array(api.ServerMessage),
+  // #301
+  "people.json": api.PeopleResponse,
+  "update-person-request.json": api.UpdatePersonRequest,
+  "player-search.json": api.PlayerSearchResponse,
+  "handle-availability.json": api.HandleAvailability,
+  "presence-messages.json": array(api.PresenceMessage),
+  "push-payload-challenge.json": api.PushPayload,
 };
 
 const decodeBase64Json = (b64: string): unknown =>
@@ -78,6 +85,28 @@ describe("shared fixtures", () => {
   it("tags WebSocket messages by type", () => {
     const msgs = array(api.ServerMessage).parse(fixture("ws-messages.json"));
     expect(msgs.map((m) => m.type)).toEqual(["hello", "match", "roll", "request", "error"]);
+  });
+});
+
+describe("#301 contract", () => {
+  it("handles follow the rule", () => {
+    for (const ok of ["abc", "Alice_K", "a".repeat(20), "x_1"]) expect(() => api.Handle.parse(ok)).not.toThrow();
+    for (const bad of ["ab", "a".repeat(21), "alice k", "αβγδ", "a-b", "a.b"]) expect(() => api.Handle.parse(bad)).toThrow();
+  });
+
+  it("tags presence messages and keeps an added person's lastPlayedAt null", () => {
+    const msgs = array(api.PresenceMessage).parse(fixture("presence-messages.json"));
+    expect(msgs.map((m) => m.type)).toEqual(["hello", "presence", "presence", "challenge", "challenge", "error"]);
+    const people = api.PeopleResponse.parse(fixture("people.json"));
+    expect(people.people[2]!.lastPlayedAt).toBeNull();
+    expect(people.people[2]).not.toHaveProperty("presence");
+    expect(people).not.toHaveProperty("futureField");
+  });
+
+  it("the challenge push names its category and the game", () => {
+    const p = api.PushPayload.parse(fixture("push-payload-challenge.json"));
+    expect(p.aps.category).toBe(api.CHALLENGE_CATEGORY);
+    expect(p.aps.alert["title-loc-key"]).toBe("PUSH_CHALLENGE_RECEIVED");
   });
 });
 

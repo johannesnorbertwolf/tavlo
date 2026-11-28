@@ -9,7 +9,11 @@
     "providers": [
       "apple"
     ],
-    "createdAt": 1794913600000
+    "createdAt": 1794913600000,
+    "hidePresence": false,
+    "handle": "Alice_K",
+    "handleChangeable": true,
+    "whoCanChallenge": "everyone"
   },
   "isNewAccount": false
 }

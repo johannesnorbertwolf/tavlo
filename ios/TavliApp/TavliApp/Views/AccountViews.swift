@@ -1,4 +1,5 @@
 import AuthenticationServices
+import UIKit
 import SwiftUI
 import TavliEngine
 
@@ -184,9 +185,14 @@ private struct DisplayNamePromptCard: View {
     let suggested: String
     @State private var name = ""
     @State private var error: LocalizedStringKey?
+    /// #301: the handle, suggested from the name until the player edits it.
+    @State private var handle = ""
+    @State private var handleEdited = false
     @FocusState private var focused: Bool
 
-    private var canSave: Bool { DisplayNameRule.normalize(name) != nil && !client.isWorking }
+    private var canSave: Bool {
+        DisplayNameRule.normalize(name) != nil && !client.isWorking && (handle.isEmpty || HandleRule.problem(handle) == nil)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -198,6 +204,7 @@ private struct DisplayNamePromptCard: View {
                 .foregroundStyle(ChromeKit.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             NameField(text: $name, focused: $focused)
+            HandleField(text: Binding(get: { handle }, set: { handle = $0; handleEdited = true }))
             if let error {
                 Text(error)
                     .font(ChromeType.callout)
@@ -225,15 +232,214 @@ private struct DisplayNamePromptCard: View {
             // Apple's name (first sign-in) arrives as the account name; the server's
             // "Player 1234" placeholder is not worth suggesting.
             if name.isEmpty, !suggested.hasPrefix("Player ") { name = suggested }
+            if handle.isEmpty { handle = HandleRule.suggest(from: name) ?? client.account?.handle ?? "" }
             focused = true
+        }
+        .onChange(of: name) { _, new in
+            if !handleEdited, let s = HandleRule.suggest(from: new) { handle = s }
         }
     }
 
     private func save() async {
+        error = nil
         do {
+            // The handle first: a taken one keeps the prompt open (the name is not saved yet).
+            if !handle.isEmpty, handle != client.account?.handle, client.account?.handleChangeable != false {
+                try await client.updateAccount(handle: handle)
+            }
             try await client.updateDisplayName(name)
         } catch {
             self.error = AccountCopy.message(for: error)
+        }
+    }
+}
+
+/// #301: the handle field ("@" prefix, the 3–20 rule as its hint).
+private struct HandleField: View {
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 2) {
+                Text(verbatim: "@").foregroundStyle(ChromeKit.inkSecondary)
+                TextField("handle", text: $text)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.asciiCapable)
+                    .accessibilityIdentifier("handleField")
+            }
+            .font(ChromeType.body)
+            .foregroundStyle(ChromeTheme.ink)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 48)
+            .background(ChromeKit.secondaryFill, in: RoundedRectangle(cornerRadius: ChromeKit.buttonRadius, style: .continuous))
+            .environment(\.layoutDirection, .leftToRight)
+            Text("Your handle: friends find you by it. 3–20 letters, digits or _.")
+                .font(ChromeType.caption)
+                .foregroundStyle(HandleRule.problem(text) != nil && !text.isEmpty ? ChromeTheme.surrenderTint : ChromeKit.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// #301: the account page's handle (copy / share / change once), "Show when I'm online",
+/// "Who can challenge me" and the blocked players.
+private struct PeopleSettingsCard: View {
+    @ObservedObject var client: AuthClient
+    let account: ServerAPI.Account
+    @State private var editing = false
+    @State private var newHandle = ""
+    @State private var copied = false
+    @State private var error: LocalizedStringKey?
+    @State private var blocked: [ServerAPI.PlayerCard] = []
+
+    private var handle: String { account.handle ?? "" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Handle")
+                .font(ChromeType.headline)
+                .foregroundStyle(ChromeKit.inkSecondary)
+                .textCase(.uppercase)
+            if editing {
+                HandleField(text: $newHandle)
+                Text("You can change your handle once.")
+                    .font(ChromeType.caption)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                HStack(spacing: 12) {
+                    Button("Save") { Task { await saveHandle() } }
+                        .buttonStyle(ChromeButton(role: .primary))
+                        .disabled(HandleRule.problem(newHandle) != nil || client.isWorking)
+                    Button("Cancel") { editing = false }
+                        .buttonStyle(ChromeButton(role: .quiet))
+                }
+            } else {
+                HStack(spacing: 10) {
+                    Text(verbatim: "@\(handle)")
+                        .font(ChromeType.title3.weight(.semibold))
+                        .foregroundStyle(ChromeTheme.ink)
+                        .textSelection(.enabled)
+                        .environment(\.layoutDirection, .leftToRight)
+                        .accessibilityIdentifier("accountHandle")
+                    Spacer(minLength: 4)
+                    Button {
+                        UIPasteboard.general.string = "@\(handle)"
+                        copied = true
+                    } label: {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    }
+                    .buttonStyle(ChromeButton(role: .secondary))
+                    .accessibilityLabel(Text("Copy handle"))
+                    ShareLink(item: String(localized: "Find me on Tavtav: @\(handle) (Play Online → People → Find player)")) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .buttonStyle(ChromeButton(role: .secondary))
+                    .accessibilityLabel(Text("Share handle"))
+                }
+                Text("Friends find you by your handle in Play Online → Find player.")
+                    .font(ChromeType.caption)
+                    .foregroundStyle(ChromeKit.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if account.handleChangeable == true {
+                    Button("Change handle") {
+                        newHandle = handle
+                        editing = true
+                    }
+                    .buttonStyle(ChromeButton(role: .quiet))
+                }
+            }
+            Divider().overlay(ChromeKit.inkDim(0.15))
+            Toggle(isOn: Binding(get: { account.hidePresence != true },
+                                 set: { show in Task { await update { try await client.updateAccount(hidePresence: !show) } } })) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Show when I’m online")
+                        .font(ChromeType.callout.weight(.semibold))
+                        .foregroundStyle(ChromeTheme.ink)
+                    Text("Only people you’ve played with see it.")
+                        .font(ChromeType.caption)
+                        .foregroundStyle(ChromeKit.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .tint(ChromeTheme.undoTint)
+            .accessibilityIdentifier("showOnlineToggle")
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Who can challenge me")
+                    .font(ChromeType.callout.weight(.semibold))
+                    .foregroundStyle(ChromeTheme.ink)
+                SegmentedChoice(options: ChallengePolicyChoice.allCases,
+                                selection: Binding(get: { ChallengePolicyChoice(account.challengePolicy) },
+                                                   set: { choice in Task { await update { try await client.updateAccount(whoCanChallenge: choice.policy) } } }),
+                                label: \.label)
+            }
+            if !blocked.isEmpty {
+                Divider().overlay(ChromeKit.inkDim(0.15))
+                Text("Blocked")
+                    .font(ChromeType.callout.weight(.semibold))
+                    .foregroundStyle(ChromeTheme.ink)
+                ForEach(blocked, id: \.playerID) { card in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(card.displayName).font(ChromeType.callout).foregroundStyle(ChromeTheme.ink)
+                            Text(verbatim: "@\(card.handle)").font(ChromeType.caption).foregroundStyle(ChromeKit.inkSecondary)
+                        }
+                        Spacer()
+                        Button("Unblock") { Task { await unblock(card) } }
+                            .buttonStyle(ChromeButton(role: .quiet))
+                    }
+                }
+            }
+            if let error {
+                Text(error)
+                    .font(ChromeType.callout)
+                    .foregroundStyle(ChromeTheme.surrenderTint)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .chromeCard(padding: 20)
+        .task { await loadBlocked() }
+    }
+
+    private struct Empty: Decodable {}
+
+    private func update(_ work: () async throws -> Void) async {
+        error = nil
+        do { try await work() } catch { self.error = AccountCopy.message(for: error) }
+    }
+
+    private func saveHandle() async {
+        await update {
+            try await client.updateAccount(handle: newHandle)
+            editing = false
+        }
+    }
+
+    private func loadBlocked() async {
+        let answer: ServerAPI.PeopleResponse? = try? await client.authorized(method: "GET", path: "/v1/people",
+                                                                             body: Optional<Int>.none)
+        blocked = answer?.blocked ?? []
+    }
+
+    private func unblock(_ card: ServerAPI.PlayerCard) async {
+        await update {
+            let _: Empty? = try await client.authorized(method: "DELETE", path: "/v1/people/\(card.playerID)/block",
+                                                        body: Optional<Int>.none)
+            blocked.removeAll { $0.playerID == card.playerID }
+        }
+    }
+}
+
+/// "Who can challenge me" as a segmented choice.
+private enum ChallengePolicyChoice: String, CaseIterable, Identifiable {
+    case everyone, people
+    var id: String { rawValue }
+    init(_ policy: ServerAPI.ChallengePolicy) { self = policy == .people ? .people : .everyone }
+    var policy: ServerAPI.ChallengePolicy { self == .people ? .people : .everyone }
+    var label: String {
+        switch self {
+        case .everyone: return String(localized: "Everyone")
+        case .people: return String(localized: "Only my people")
         }
     }
 }
@@ -315,6 +521,8 @@ private struct AccountPageCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .chromeCard(padding: 20)
+
+            PeopleSettingsCard(client: client, account: account)
 
             if let error {
                 Text(error)
@@ -451,6 +659,8 @@ enum AccountCopy {
             return "Sign in with Google isn't available in this version yet."
         case .invalidDisplayName:
             return "1 to 24 characters."
+        case .invalidHandle:
+            return "Handles are 3–20 letters, digits or _ (no spaces)."
         case .notSignedIn:
             return "You were signed out. Please sign in again."
         case .providerFailed:
@@ -461,6 +671,8 @@ enum AccountCopy {
             case .unavailable, .internal: return "The server isn't available right now. Please try again later."
             case .unauthorized, .tokenExpired: return "Sign-in didn't work. Please try again."
             case .upgradeRequired: return "Please update the app to play online."
+            case .handleTaken: return "Someone else has that handle. Try another one."
+            case .forbidden: return "Your handle can be changed only once."
             default: return "Something went wrong. Please try again."
             }
         }

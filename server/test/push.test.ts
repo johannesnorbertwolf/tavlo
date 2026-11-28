@@ -301,8 +301,11 @@ describe("who gets which push", () => {
     const challenge = snap({ currentPlayerID: "acc_a" });
     challenge.participants[1]!.status = "invited";
     expect(pushesAfter("create", "acc_a", challenge)).toEqual([
-      { to: "acc_b", kind: "inviteReceived", matchID: "m_1", name: "Alice" },
+      { to: "acc_b", kind: "challengeReceived", matchID: "m_1", name: "Alice", variant: challenge.variant, targetWins: challenge.targetWins },
     ]);
+    // #301: the challenger hears about the answer.
+    expect(pushesAfter("accept", "acc_b", snap())).toEqual([{ to: "acc_a", kind: "challengeAccepted", matchID: "m_1", name: "Bob" }]);
+    expect(pushesAfter("decline", "acc_b", snap())).toEqual([{ to: "acc_a", kind: "challengeDeclined", matchID: "m_1", name: "Bob" }]);
     // Open seat (auto-match / invite code): nobody to tell.
     const open = snap({ currentPlayerID: "acc_a" });
     open.participants[1] = { playerID: null, displayName: null, color: "B", status: "matching", outcome: "none" };
@@ -320,9 +323,17 @@ describe("who gets which push", () => {
       201,
     );
     await vi.waitFor(() => expect(apns.calls.length).toBe(1));
-    expect(apns.calls[0]!.body).toMatchObject({ aps: { alert: { "loc-key": "PUSH_INVITE_RECEIVED", "loc-args": ["Alice"] } } });
+    expect(apns.calls[0]!.body).toMatchObject({
+      kind: "challengeReceived",
+      aps: {
+        alert: { "title-loc-key": "PUSH_CHALLENGE_RECEIVED", "title-loc-args": ["Alice"], "loc-key": "PUSH_GAME_PLAKOTO_1", "loc-args": [] },
+        category: "CHALLENGE",
+      },
+    });
+    expect(apns.calls[0]!.headers["apns-collapse-id"]).toBe(`challenge-${challenge.matchID}`);
     await ok(await call("POST", `/v1/matches/${challenge.matchID}/accept`, undefined, b.token), MatchSnapshotSchema);
     await playFirstTurn(a, challenge.matchID);
+    // 2 = "Bob accepted" to Alice (no device registered: skipped), 3 = "your turn" to Bob.
     await vi.waitFor(() => expect(apns.calls.length).toBe(2));
     expect(apns.calls[1]!.url).toBe(`https://api.sandbox.push.apple.com/3/device/${hexToken(41)}`);
     expect(apns.calls[1]!.body).toEqual({

@@ -50,7 +50,44 @@ final class ServerAPITests: XCTestCase {
         "push-token-request.json": { try $0.decode(ServerAPI.PushTokenRequest.self, "push-token-request.json") },
         "push-payload.json": { try $0.decode(ServerAPI.PushPayload.self, "push-payload.json") },
         "ws-messages.json": { try $0.decode([ServerAPI.ServerMessage].self, "ws-messages.json") },
+        // #301
+        "people.json": { try $0.decode(ServerAPI.PeopleResponse.self, "people.json") },
+        "update-person-request.json": { try $0.decode(ServerAPI.UpdatePersonRequest.self, "update-person-request.json") },
+        "player-search.json": { try $0.decode(ServerAPI.PlayerSearchResponse.self, "player-search.json") },
+        "handle-availability.json": { try $0.decode(ServerAPI.HandleAvailability.self, "handle-availability.json") },
+        "presence-messages.json": { try $0.decode([ServerAPI.PresenceMessage].self, "presence-messages.json") },
+        "push-payload-challenge.json": { try $0.decode(ServerAPI.PushPayload.self, "push-payload-challenge.json") },
     ]
+
+    func testPeoplePresenceAndChallengeFixtures() throws {
+        let people = try decode(ServerAPI.PeopleResponse.self, "people.json")
+        XCTAssertEqual(people.people.map(\.handle), ["vasilis", "Sam_T", "alex"])
+        XCTAssertEqual(people.people[0].presence, ServerAPI.Presence(online: true, lastSeenAt: 1795000100000))
+        XCTAssertNil(people.people[2].lastPlayedAt)
+        XCTAssertEqual(people.people[1].challenge?.direction, .incoming)
+        XCTAssertEqual(people.blocked?.first?.handle, "bob_b")
+        let messages = try decode([ServerAPI.PresenceMessage].self, "presence-messages.json")
+        XCTAssertEqual(messages[0], .hello(serverTime: 1795000062000))
+        XCTAssertEqual(messages[2], .presence(playerID: "acc_bob000002", presence: .init(online: false, lastSeenAt: nil)))
+        guard case .challenge(let event, let c) = messages[3] else { return XCTFail("challenge message") }
+        XCTAssertEqual(ServerAPI.ChallengeEvent(rawValue: event), .received)
+        XCTAssertEqual(c.from.displayName, "Sam")
+        XCTAssertEqual(c.status, .pending)
+        let push = try decode(ServerAPI.PushPayload.self, "push-payload-challenge.json")
+        XCTAssertEqual(push.kind, .challengeReceived)
+        XCTAssertEqual(push.aps.category, ServerAPI.challengeCategory)
+        XCTAssertEqual(push.aps.alert.titleLocKey, "PUSH_CHALLENGE_RECEIVED")
+        XCTAssertEqual(push.aps.alert.titleLocArgs, ["Sam"])
+        let account = try decode(ServerAPI.AuthSession.self, "auth-session.json").account
+        XCTAssertEqual(account.handle, "Alice_K")
+        XCTAssertEqual(account.handleChangeable, true)
+        XCTAssertEqual(account.challengePolicy, .everyone)
+        let list = try decode(ServerAPI.MatchList.self, "match-list.json")
+        XCTAssertEqual(list.matches.last?.challenge?.status, .pending)
+        // Request bodies: absent fields stay absent.
+        let body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(ServerAPI.UpdateAccountRequest(hidePresence: true))) as? [String: Any]
+        XCTAssertEqual(body?.keys.sorted(), ["hidePresence"])
+    }
 
     func testEveryFixtureDecodes() throws {
         let files = try FileManager.default.contentsOfDirectory(atPath: Self.fixturesDir.path)
