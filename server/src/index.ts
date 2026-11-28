@@ -19,8 +19,10 @@ import { clientIP, enforceRateLimit } from "./rate-limit";
 import { CONTRACT_ROUTES, Router, type Route, type RouteContext } from "./routes";
 import { identityDeps } from "./identity";
 import { authenticate } from "./sessions";
+import { acceptInvite, createInvite, declineInvite, expireInvites, previewInvite, revokeInvite } from "./invites";
 import {
   acceptMatch,
+  autoMatch,
   changeDice,
   createMatch,
   declineMatch,
@@ -30,13 +32,17 @@ import {
   loadMatch,
   matchSocket,
   quitMatch,
+  removeMatch,
   rollDice,
   saveTurn,
   sendRequest,
 } from "./matches";
+import { registerPushToken, unregisterPushToken } from "./push";
 import { checkUsage } from "./usage";
+import { appSiteAssociation, joinFallback } from "./web";
 import { SERVER_VERSION, SERVICE_NAME } from "./version";
 
+export { MatchQueue } from "./match-queue";
 export { MatchRoom } from "./match-room";
 
 async function health(rc: RouteContext): Promise<Response> {
@@ -88,6 +94,17 @@ const HANDLERS: Partial<Record<string, Route["handler"]>> = {
   "POST /v1/matches/:matchID/dice": changeDice,
   "POST /v1/matches/:matchID/roll": rollDice,
   "GET /v1/matches/:matchID/socket": matchSocket,
+  "DELETE /v1/matches/:matchID": removeMatch,
+  "POST /v1/invites": createInvite,
+  "GET /v1/invites/:code": previewInvite,
+  "POST /v1/invites/:code/accept": acceptInvite,
+  "POST /v1/invites/:code/decline": declineInvite,
+  "DELETE /v1/invites/:code": revokeInvite,
+  "POST /v1/automatch": autoMatch,
+  "PUT /v1/push-tokens": registerPushToken,
+  "DELETE /v1/push-tokens/:token": unregisterPushToken,
+  "GET /.well-known/apple-app-site-association": appSiteAssociation,
+  "GET /join/:code": joinFallback,
 };
 
 export const ROUTES: Route[] = CONTRACT_ROUTES.map((route) => ({
@@ -156,6 +173,9 @@ export default {
       pruneSessions(env, controller.scheduledTime)
         .then((pruned) => log.info("sessions.pruned", { pruned }))
         .catch((error) => log.error("sessions.prune_failed", { error })),
+    );
+    ctx.waitUntil(
+      expireInvites(env, controller.scheduledTime, log).catch((error) => log.error("invites.expire_failed", { error })),
     );
   },
 } satisfies ExportedHandler<Env>;

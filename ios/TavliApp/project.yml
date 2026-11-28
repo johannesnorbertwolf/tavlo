@@ -59,14 +59,21 @@ targets:
         # Sign in with Apple (#285) is in the same entitlements file; automatic signing
         # adds the capability to the App ID.
         CODE_SIGN_ENTITLEMENTS: TavliApp/TavliApp.entitlements
-        # Server v1 (#285, server/REFERENCE.md). Info.plist reads these. Replace the
-        # workers.dev subdomain once the server is deployed; a URL containing REPLACE
-        # counts as "not configured" (the account screen says the server isn't available).
+        # Server v1 (#285, server/REFERENCE.md). Info.plist reads these: the deployed
+        # Workers (subdomain `tavtav`, filled in with #287); a URL containing REPLACE would
+        # count as "not configured" (the account screen says the server isn't available).
         # Debug builds talk to `wrangler dev` on this Mac (the simulator reaches localhost)
         # and can switch servers in the account screen's Developer card.
-        TAVTAV_SERVER_URL_STAGING: "https://tavtav-server-staging.REPLACE_WITH_SUBDOMAIN.workers.dev"
-        TAVTAV_SERVER_URL_PRODUCTION: "https://tavtav-server.REPLACE_WITH_SUBDOMAIN.workers.dev"
+        TAVTAV_SERVER_URL_STAGING: "https://tavtav-server-staging.tavtav.workers.dev"
+        TAVTAV_SERVER_URL_PRODUCTION: "https://tavtav-server.tavtav.workers.dev"
         TAVTAV_SERVER_URL: "$(TAVTAV_SERVER_URL_PRODUCTION)"
+        # #287, in TavliApp.entitlements: push notifications (`aps-environment`: development
+        # for Debug, production for Release = TestFlight / App Store) and the invite links'
+        # universal-link host (Associated Domains, the server serves /.well-known/apple-app-
+        # site-association for /join/*): staging for Debug, production for Release. Both need
+        # the capabilities on the App ID (server/REFERENCE.md "Push + universal links setup").
+        APS_ENVIRONMENT: production
+        TAVTAV_APPLINKS_HOST: "tavtav-server.tavtav.workers.dev"
         # The iOS OAuth client id from Google Cloud (…apps.googleusercontent.com; public, not
         # a secret). Empty = "Sign in with Google isn't available" (#285).
         GOOGLE_IOS_CLIENT_ID: "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com"
@@ -77,6 +84,8 @@ targets:
       configs:
         Debug:
           TAVTAV_SERVER_URL: "http://localhost:8787"
+          APS_ENVIRONMENT: development
+          TAVTAV_APPLINKS_HOST: "tavtav-server-staging.tavtav.workers.dev"
   TavliAppUITests:
     type: bundle.ui-testing
     platform: iOS

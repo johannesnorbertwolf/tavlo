@@ -4,6 +4,9 @@ import BoardGeometry
 
 @main
 struct TavliApp: App {
+    /// APNs registration + the notification delegate (#287, `PushRegistrar`).
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     init() {
         // Compact chrome type on a phone-sized screen (#109); 1 (unchanged) on iPad.
         ChromeType.scale = ChromeLayout.fontScale(forScreen: UIScreen.main.bounds.size)

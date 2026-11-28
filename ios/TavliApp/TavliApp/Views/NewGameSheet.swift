@@ -248,7 +248,7 @@ struct NewGameSheet: View {
 }
 
 /// A titled block of the sheet: a quiet label above its control(s).
-private struct SheetSection<Content: View>: View {
+struct SheetSection<Content: View>: View {
     let title: LocalizedStringKey
     @ViewBuilder var content: Content
 
@@ -270,7 +270,7 @@ private struct SheetSection<Content: View>: View {
 
 /// A Caramel segmented choice (#189): a recessed track with the selected option raised
 /// on a light pill — the mockup's look, which the system segmented picker can't take.
-private struct SegmentedChoice<T: Hashable & Identifiable>: View {
+struct SegmentedChoice<T: Hashable & Identifiable>: View {
     let options: [T]
     @Binding var selection: T
     let label: KeyPath<T, String>

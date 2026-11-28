@@ -907,7 +907,7 @@ Plakoto, so both players need this build.
 
 The app side of Server v1 accounts (contract + server behaviour: `server/REFERENCE.md`
 "Accounts"). Online play through the server (#286) uses this account; Game Center stays the
-default path until #287/#288.
+default path until #288 (the server lobby, invites and push are #287).
 
 **Engine (`ServerAuth.swift`, tested by `AuthClientTests` + `AuthHelpersTests`).**
 - `AuthClient(baseURL:clientHeader:transport:store:now:)`, `@MainActor ObservableObject`.
@@ -968,7 +968,8 @@ capability and the Google client (setup: `server/REFERENCE.md` "Accounts setup")
 
 The same `OnlineMatchController` runs on our server instead of Game Center (contract +
 server behaviour: `server/REFERENCE.md` "Match operations", "Server dice", "WebSocket"). For
-now behind a developer switch; Game Center stays the default until #287/#288.
+now behind a developer switch; Game Center stays the default until #288 (lobby, invites and
+push: "Lobby, invites, auto-match, push (#287)" below).
 
 **Engine (`ServerMatchService.swift`, tested by `ServerMatchServiceTests`; `ServerE2ETests`
 against `wrangler dev`).**
@@ -1042,6 +1043,85 @@ values, the other player's unseen change winning, a forfeit. `ServerE2ETests` (s
 `TAVTAV_E2E_SERVER`): the same against `wrangler dev` over real HTTP + WebSocket. **Not
 covered:** two real devices on staging (latency, background/foreground, flaky networks), the
 lobby UI beyond a manual two-simulator check.
+
+## Lobby, invites, auto-match, push (#287)
+
+The server lobby replaces #286's challenge-by-player-id developer lobby (server behaviour +
+contract: `server/REFERENCE.md` "Invites, auto-match, lobby, push", "Universal links"). Still
+behind the developer switch ("Play online via the server"); Game Center stays the default
+online mode until #288. Invite links and tapped pushes are server-only, so they open the
+server lobby whatever the switch says.
+
+**Engine (`ServerLobby.swift`, tested by `ServerLobbyTests`; `ServerE2ETests` against `wrangler
+dev`).**
+- `InviteCode`: the server's alphabet (`23456789ABCDEFGHJKMNPQRSTUVWXYZ`, 6 characters);
+  `normalize` (typed text → upper case, spaces/dashes dropped; a pasted link → its code; nil if
+  it can't be a code — then no request is made) and `fromLink` (`http(s)://<any host>/join/<code>`).
+- `ServerAPI.MatchSummary` extensions: `hasOpenSeat` (running, no opponent yet),
+  `lobbySection` (`invited`/`yourTurn` → **yourTurn**, `theirTurn`/`waitingForOpponent` →
+  **theirTurn**, `ended` → **finished**), `lobbyStatus` (`LobbyRowStatus`: yourTurn,
+  invitedToYou, theirTurn, waitingForAccept, waitingForFriend(code), lookingForOpponent,
+  finished(outcome)), `lobbyActions` (`LobbyRowAction`: finished → remove; a challenge to you →
+  decline; an open seat → shareInvite + cancel with an invite, cancel without).
+- `ServerLobby` (`@MainActor ObservableObject`, one per signed-in account): `matches`,
+  `sections` (the three groups in that order, newest first inside — the Game Center lobby's
+  rule), `error` (via `describeError`), `isWorking`, `hasLoaded`; `refresh()`, `open(_:)` /
+  `open(matchID:)` (controller open + socket watch), `createInvite` (not opened: the share
+  sheet comes first, then `open(matchID:)`), `autoMatch` (opened at once — joined, or waiting
+  with the first move the creator's), `preview(code:)`, `join(code:)` (accept + open),
+  `declineInvite(code:)`, `remove` (optimistic, restored on failure), `cancel` (revoke the
+  invite, or quit while the seat is open), `decline` (a direct challenge). `onMatchStarted` fires
+  after the player's own create / join / auto-match (the push-permission moment).
+- `ServerMatchService` gained the endpoints: `createInvite`, `previewInvite`,
+  `acceptInvite(code:)`, `declineInvite`, `revokeInvite`, `autoMatch`, `removeMatch`,
+  `cancelWaiting`, `registerPushToken`, `unregisterPushToken`.
+- `PushSupport`: `hex(deviceToken)`, `matchID(fromUserInfo:)` (our `ServerAPI.PushPayload`
+  only; Game Center's are not ours), `shouldAskPermission(isUndetermined:askedBefore:)`,
+  `shouldPresentInForeground(pushMatchID:openMatchID:)` (no banner for the match on screen).
+- `ServerAPI.PushPayload` (+ `PushKind` with `unknown`) decodes the APNs `userInfo`;
+  `MatchSummary.invite` (`InviteRef`) is the creator's open invite.
+
+**App.**
+- `Online/ServerOnlineCoordinator.swift`: per account a `ServerMatchService`,
+  `OnlineMatchController` and `ServerLobby` (its `onMatchStarted` asks for push permission);
+  `handle(url:)` (invite link → `pendingJoinCode`, `routedHere`), `openFromPush(matchID:)` (opens
+  now, or after sign-in), `showLobby()` (DEBUG), registers the device token with the server
+  whenever token or account changes (`environment` sandbox for DEBUG builds, production
+  otherwise; `locale` = the first preferred language). `ServerOnlineCopy` adds invite copy
+  (`invite_unavailable`, `forbidden`, a malformed code).
+- `Online/PushRegistrar.swift`: `PushRegistrar.shared` (`UNUserNotificationCenterDelegate`)
+  + `AppDelegate` (`@UIApplicationDelegateAdaptor` in `App.swift`). At launch it becomes the
+  notification delegate and, if already allowed, registers with APNs; **permission is asked
+  once, after the first own online match** (`push.permissionAsked`), never at launch. Tapped
+  push → `tappedMatchID` → `RootView` → `openFromPush`. In front: no banner for the open match.
+  Sign out (`AccountViews`) first unregisters the token (`DELETE /v1/push-tokens/{token}`).
+- `RootView`: `onOpenURL` + `onContinueUserActivity(NSUserActivityTypeBrowsingWeb)` → invite
+  links; `PushRegistrar.$tappedMatchID` → pushes; the server branch shows when the developer
+  switch is on **or** `serverOnline.routedHere`.
+- Entitlements (`TavliApp.entitlements`, values from `project.yml` per configuration):
+  `aps-environment` = `$(APS_ENVIRONMENT)` (Debug `development`, Release `production`) and
+  `com.apple.developer.associated-domains` = `applinks:$(TAVTAV_APPLINKS_HOST)` (Debug
+  `tavtav-server-staging.tavtav.workers.dev`, Release `tavtav-server.tavtav.workers.dev`).
+  `project.yml` now has the real server URLs (`TAVTAV_SERVER_URL_STAGING` /
+  `_PRODUCTION`); Debug still defaults to `http://localhost:8787`. The App ID needs the Push
+  Notifications + Associated Domains capabilities (`server/REFERENCE.md` "Push + universal
+  links setup"); a free personal team cannot sign them.
+- Views: `ServerLobbyView.swift` (lobby, new game, invite + join sheets; Views docs),
+  strings from `ios/scripts/add_lobby_strings.py` (incl. the `PUSH_*` push texts).
+
+**Tests.** `ServerLobbyTests` (fake server with invites / auto-match / list / removal / push
+tokens, real controller + session): codes and links, sections + statuses + actions, push
+helpers against the shared `push-payload.json`, two devices joining by a typed code and playing
+across, a spent code refused, random opponent pairing per variant + length, cancel an invite /
+leave the queue, remove (only finished, only yours), decline a challenge, malformed codes never
+sent. `ServerE2ETests` adds invite-by-code and random-opponent runs against `wrangler dev`.
+**Verified by hand (two simulators + `wrangler dev`, 2026-11-28):** invite → typed code on the
+other simulator → preview → join → both play; push permission asked after the first own match;
+a simulated push (`xcrun simctl push`) shows the localized `PUSH_YOUR_TURN` text and opens the
+match when tapped; the server logged `push.skipped` (no key). **Not verified:** real APNs
+delivery (needs the key; Workers' HTTP/2 to APNs), universal links opening the app (needs the
+deployed AASA + Apple's CDN + a signed build — `-debugJoinURL` exercises the same handler), the
+`/join` page on a phone without the app.
 
 ## Human game stats (#64)
 

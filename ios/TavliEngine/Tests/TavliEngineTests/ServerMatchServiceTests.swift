@@ -46,6 +46,9 @@ final class FakeTavtavServer {
             let req = try decode(ServerAPI.CreateMatchRequest.self)
             return try enc.encode(create(account, req))
         }
+        if let answer = try lobbyEndpoints(account: account, method: method, parts: parts, body: body) {
+            return answer
+        }
         guard parts.count >= 3, parts[0] == "v1", parts[1] == "matches", var m = matches[parts[2]] else {
             throw AuthError.server(code: "not_found", status: 404)
         }
@@ -65,6 +68,15 @@ final class FakeTavtavServer {
             save()
             broadcast(m.snap, "accepted")
             return try enc.encode(view())
+        case ("POST", "decline"):
+            m.snap.participants[seat].status = .declined
+            m.snap.participants[1 - seat].status = .done
+            m.snap.isEnded = true
+            m.snap.currentPlayerID = nil
+            m.snap.updatedAt = now()
+            save()
+            broadcast(m.snap, "declined")
+            return Data()
         case ("POST", "end-turn"), ("POST", "save-turn"), ("POST", "end-match"), ("POST", "quit"):
             var base: Int?
             var data: Data?
@@ -168,6 +180,144 @@ final class FakeTavtavServer {
         default:
             throw AuthError.server(code: "not_found", status: 404)
         }
+    }
+
+    // ── #287: lobby list + removal, invites, auto-match, push tokens ─────────────
+
+    /// code → (match, creator, status)
+    var invites: [String: (matchID: String, creator: String, status: String)] = [:]
+    /// account → registered push tokens
+    var pushTokens: [String: Set<String>] = [:]
+    /// "account/match" rows hidden from the lobby
+    var hidden: Set<String> = []
+    /// auto-match: waiting match ids, oldest first
+    var waiting: [String] = []
+    private var nextCode = 0
+
+    private func lobbyEndpoints(account: String, method: String, parts: [String], body: Data?) throws -> Data? {
+        let enc = JSONEncoder()
+        func decode<T: Decodable>(_ t: T.Type) throws -> T { try JSONDecoder().decode(T.self, from: body ?? Data()) }
+        switch (method, parts) {
+        case ("GET", ["v1", "matches"]):
+            return try enc.encode(ServerAPI.MatchList(matches: summaries(for: account), nextCursor: nil))
+        case ("DELETE", let p) where p.count == 3 && p[1] == "matches":
+            guard let m = matches[p[2]], m.snap.participants.contains(where: { $0.playerID == account }) else {
+                throw AuthError.server(code: "not_found", status: 404)
+            }
+            guard m.snap.isEnded else { throw AuthError.server(code: "forbidden", status: 403) }
+            hidden.insert("\(account)/\(p[2])")
+            return Data()
+        case ("POST", ["v1", "invites"]):
+            let req = try decode(ServerAPI.CreateInviteRequest.self)
+            var snap = create(account, ServerAPI.CreateMatchRequest(variant: req.variant, targetWins: req.targetWins))
+            snap.participants[1].status = .invited
+            matches[snap.matchID]?.snap = snap
+            nextCode += 1
+            let code = "K7Q4M\(InviteCode.alphabet[InviteCode.alphabet.index(InviteCode.alphabet.startIndex, offsetBy: nextCode % 31)])"
+            invites[code] = (snap.matchID, account, "open")
+            let invite = ServerAPI.Invite(code: code, url: URL(string: "https://tavtav.test/join/\(code)")!,
+                                          expiresAt: snap.createdAt + 7 * 86_400_000, match: snap)
+            return try enc.encode(invite)
+        case (_, let p) where p.count >= 3 && p[0] == "v1" && p[1] == "invites":
+            guard var inv = invites[p[2]], let m = matches[inv.matchID] else {
+                throw AuthError.server(code: "not_found", status: 404)
+            }
+            let action = p.count > 3 ? p[3] : ""
+            switch (method, action) {
+            case ("GET", ""):
+                let preview: [String: Any] = [
+                    "code": p[2], "from": ["playerID": inv.creator, "displayName": names[inv.creator] ?? inv.creator],
+                    "variant": m.snap.variant, "targetWins": m.snap.targetWins, "status": inv.status,
+                    "expiresAt": m.snap.createdAt + 7 * 86_400_000,
+                ]
+                return try JSONSerialization.data(withJSONObject: preview)
+            case ("POST", "accept"):
+                guard inv.creator != account else { throw AuthError.server(code: "forbidden", status: 403) }
+                guard inv.status == "open" else { throw AuthError.server(code: "invite_unavailable", status: 410) }
+                inv.status = "accepted"
+                invites[p[2]] = inv
+                return try enc.encode(join(account, inv.matchID))
+            case ("POST", "decline"), ("DELETE", ""):
+                guard inv.status == "open" else { throw AuthError.server(code: "invite_unavailable", status: 410) }
+                inv.status = method == "DELETE" ? "cancelled" : "declined"
+                invites[p[2]] = inv
+                closeOpenSeat(inv.matchID)
+                return Data()
+            default:
+                throw AuthError.server(code: "not_found", status: 404)
+            }
+        case ("POST", ["v1", "automatch"]):
+            let req = try decode(ServerAPI.AutoMatchRequest.self)
+            while let id = waiting.first(where: { id in
+                guard let s = matches[id]?.snap else { return false }
+                return s.variant == req.variant && s.targetWins == req.targetWins && s.participants[0].playerID != account
+            }) {
+                waiting.removeAll { $0 == id }
+                if let s = matches[id]?.snap, !s.isEnded, s.participants[1].playerID == nil {
+                    return try enc.encode(join(account, id))
+                }
+            }
+            let snap = create(account, ServerAPI.CreateMatchRequest(variant: req.variant, targetWins: req.targetWins))
+            waiting.append(snap.matchID)
+            return try enc.encode(snap)
+        case ("PUT", ["v1", "push-tokens"]):
+            let req = try decode(ServerAPI.PushTokenRequest.self)
+            pushTokens[account, default: []].insert(req.token)
+            return Data()
+        case ("DELETE", let p) where p.count == 3 && p[1] == "push-tokens":
+            pushTokens[account]?.remove(p[2])
+            return Data()
+        default:
+            return nil
+        }
+    }
+
+    private func join(_ account: String, _ matchID: String) -> ServerAPI.MatchSnapshot {
+        var m = matches[matchID]!
+        m.snap.participants[1].playerID = account
+        m.snap.participants[1].displayName = names[account] ?? account
+        m.snap.participants[1].status = .active
+        if m.snap.currentPlayerID == nil, !m.snap.isEnded { m.snap.currentPlayerID = account }
+        m.snap.updatedAt = now()
+        matches[matchID] = m
+        broadcast(m.snap, "joined")
+        return m.snap
+    }
+
+    private func closeOpenSeat(_ matchID: String) {
+        guard var m = matches[matchID], !m.snap.isEnded, m.snap.participants[1].playerID == nil else { return }
+        m.snap.participants[1].status = .declined
+        m.snap.participants[0].status = .done
+        m.snap.isEnded = true
+        m.snap.currentPlayerID = nil
+        m.snap.updatedAt = now()
+        matches[matchID] = m
+        broadcast(m.snap, "declined")
+    }
+
+    /// The lobby rows of `account` (the server's `match_index` view), newest first.
+    func summaries(for account: String) -> [ServerAPI.MatchSummary] {
+        matches.values.compactMap { stored -> ServerAPI.MatchSummary? in
+            let s = stored.snap
+            guard let seat = s.participants.firstIndex(where: { $0.playerID == account }),
+                  !hidden.contains("\(account)/\(s.matchID)") else { return nil }
+            let me = s.participants[seat]
+            let other = s.participants[1 - seat]
+            let state: ServerAPI.LobbyState
+            if s.isEnded || me.status == .declined || me.status == .done { state = .ended }
+            else if me.status == .invited { state = .invited }
+            else if s.currentPlayerID == account { state = .yourTurn }
+            else if other.playerID == nil || other.status == .invited || other.status == .matching { state = .waitingForOpponent }
+            else { state = .theirTurn }
+            let code = invites.first { $0.value.matchID == s.matchID && $0.value.status == "open" && $0.value.creator == account }?.key
+            return ServerAPI.MatchSummary(
+                matchID: s.matchID, variant: s.variant, targetWins: s.targetWins, state: state,
+                opponent: .init(playerID: other.playerID, displayName: other.displayName),
+                outcome: me.outcome, updatedAt: s.updatedAt,
+                invite: code.map { ServerAPI.InviteRef(code: $0, url: URL(string: "https://tavtav.test/join/\($0)")!,
+                                                       expiresAt: s.createdAt + 7 * 86_400_000) })
+        }
+        .sorted { ($0.updatedAt, $0.matchID) > ($1.updatedAt, $1.matchID) }
     }
 
     private func create(_ account: String, _ req: ServerAPI.CreateMatchRequest) -> ServerAPI.MatchSnapshot {

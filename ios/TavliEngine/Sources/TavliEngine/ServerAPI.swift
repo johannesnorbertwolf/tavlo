@@ -308,6 +308,10 @@ public enum ServerAPI {
         public struct Opponent: Codable, Equatable, Sendable {
             public var playerID: String?
             public var displayName: String?
+            public init(playerID: String?, displayName: String?) {
+                self.playerID = playerID
+                self.displayName = displayName
+            }
         }
         public var matchID: String
         public var variant: String
@@ -317,6 +321,32 @@ public enum ServerAPI {
         /// The caller's outcome.
         public var outcome: MatchOutcome
         public var updatedAt: Int64
+        /// #287: the caller's open invite for this match's empty seat (share it again / cancel).
+        public var invite: InviteRef?
+
+        public init(matchID: String, variant: String, targetWins: Int, state: LobbyState, opponent: Opponent,
+                    outcome: MatchOutcome = .none, updatedAt: Int64, invite: InviteRef? = nil) {
+            self.matchID = matchID
+            self.variant = variant
+            self.targetWins = targetWins
+            self.state = state
+            self.opponent = opponent
+            self.outcome = outcome
+            self.updatedAt = updatedAt
+            self.invite = invite
+        }
+    }
+
+    /// An open invite as the lobby shows it to its creator (#287).
+    public struct InviteRef: Codable, Equatable, Sendable {
+        public var code: String
+        public var url: URL
+        public var expiresAt: Int64
+        public init(code: String, url: URL, expiresAt: Int64) {
+            self.code = code
+            self.url = url
+            self.expiresAt = expiresAt
+        }
     }
 
     public struct MatchList: Codable, Equatable, Sendable {
@@ -441,6 +471,50 @@ public enum ServerAPI {
         public init(variant: String, targetWins: Int) {
             self.variant = variant
             self.targetWins = targetWins
+        }
+    }
+
+    /// Why a push was sent (#287); an unknown kind still opens its match.
+    public enum PushKind: String, Codable, Sendable, CaseIterable {
+        case yourTurn, inviteReceived, inviteAccepted, matchEnded, opponentLeft, unknown
+
+        public init(from decoder: Decoder) throws {
+            self = Self(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .unknown
+        }
+    }
+
+    /// The APNs payload the server sends (#287): the text is localized on the device from
+    /// `loc-key` (`PUSH_*` in Localizable.xcstrings) + `loc-args`; `matchID` opens the match.
+    public struct PushPayload: Codable, Equatable, Sendable {
+        public struct Aps: Codable, Equatable, Sendable {
+            public struct Alert: Codable, Equatable, Sendable {
+                public var locKey: String
+                public var locArgs: [String]
+                enum CodingKeys: String, CodingKey {
+                    case locKey = "loc-key"
+                    case locArgs = "loc-args"
+                }
+            }
+            public var alert: Alert
+            public var sound: String?
+            public var threadID: String?
+            enum CodingKeys: String, CodingKey {
+                case alert, sound
+                case threadID = "thread-id"
+            }
+        }
+        public var aps: Aps
+        public var matchID: String
+        public var kind: PushKind
+
+        /// The payload in a notification's `userInfo` (nil for anything else, e.g. Game Center's).
+        public init?(userInfo: [AnyHashable: Any]) {
+            var plain: [String: Any] = [:]
+            for (k, v) in userInfo { if let k = k as? String { plain[k] = v } }
+            guard JSONSerialization.isValidJSONObject(plain),
+                  let data = try? JSONSerialization.data(withJSONObject: plain),
+                  let decoded = try? ServerAPI.decoder().decode(PushPayload.self, from: data) else { return nil }
+            self = decoded
         }
     }
 

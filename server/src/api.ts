@@ -247,6 +247,22 @@ export type MatchSnapshot = Infer<typeof MatchSnapshot>;
 
 /** A lobby row, from the caller's point of view (#286 index, #287 lobby). */
 export const LobbyState = literal("invited", "yourTurn", "theirTurn", "waitingForOpponent", "ended");
+
+/** Invite codes (#287): 6 characters from an alphabet without look-alikes (no 0 O 1 I L). */
+export const INVITE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+export const INVITE_CODE_LENGTH = 6;
+/** How long an invite stays open. */
+export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const InviteCode = str({ min: 6, max: 12, pattern: /^[A-Z0-9]+$/ });
+
+/** The open invite of a lobby row, shown to its creator (#287) so it can be shared again. */
+export const InviteRef = object({
+  code: InviteCode,
+  url: str({ max: 300 }),
+  expiresAt: MILLIS,
+});
+export type InviteRef = Infer<typeof InviteRef>;
+
 export const MatchSummary = object({
   matchID: ID,
   variant: VariantID,
@@ -256,6 +272,8 @@ export const MatchSummary = object({
   /** The caller's outcome (`none` while running). */
   outcome: MatchOutcome,
   updatedAt: MILLIS,
+  /** #287: the caller's open invite for this match's empty seat (absent otherwise). */
+  invite: optional(InviteRef),
 });
 export type MatchSummary = Infer<typeof MatchSummary>;
 
@@ -325,8 +343,6 @@ export type RollRequest = Infer<typeof RollRequest>;
 
 // ── Invites, auto-match, lobby, push (#287) ──────────────────────────────────
 
-export const InviteCode = str({ min: 6, max: 12, pattern: /^[A-Z0-9]+$/ });
-
 export const CreateInviteRequest = object({ variant: VariantID, targetWins: TargetWins });
 export type CreateInviteRequest = Infer<typeof CreateInviteRequest>;
 
@@ -360,6 +376,30 @@ export const PushTokenRequest = object({
   locale: optional(str({ max: 35 })),
 });
 export type PushTokenRequest = Infer<typeof PushTokenRequest>;
+
+/** Why a push was sent. Readers must tolerate unknown kinds (open the match). */
+export const PushKind = literal("yourTurn", "inviteReceived", "inviteAccepted", "matchEnded", "opponentLeft");
+export type PushKind = Infer<typeof PushKind>;
+
+/**
+ * The APNs payload the server sends (#287). The text is localized on the device: `loc-key`
+ * names a string in the app's Localizable strings (`PUSH_*`), `loc-args` fills its `%@`
+ * (the other player's name). `matchID` opens the match when the push is tapped.
+ */
+export const PushPayload = object({
+  aps: object({
+    alert: object({
+      "loc-key": str({ max: 64 }),
+      "loc-args": array(str({ max: 64 }), { max: 4 }),
+    }),
+    sound: optional(str({ max: 32 })),
+    "thread-id": optional(str({ max: 64 })),
+  }),
+  matchID: ID,
+  /** A PushKind; readers tolerate unknown values. */
+  kind: str({ max: 32 }),
+});
+export type PushPayload = Infer<typeof PushPayload>;
 
 // ── WebSocket (#286) ──────────────────────────────────────────────────────────
 

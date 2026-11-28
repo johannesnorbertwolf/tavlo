@@ -18,6 +18,13 @@ interface TavtavSecrets {
   APPLE_KEY_ID?: string;
   /** The .p8 file's PEM text (BEGIN/END lines included). */
   APPLE_PRIVATE_KEY?: string;
+  /**
+   * APNs auth key (#287, token-based provider auth): its key id and the .p8 file's PEM
+   * text. Set from the GitHub secrets by the `server-secrets` workflow. The team id is the
+   * var `APNS_TEAM_ID`. Without both secrets pushes are skipped (logged `push.skipped`).
+   */
+  APNS_KEY_ID?: string;
+  APNS_PRIVATE_KEY?: string;
 }
 
 interface Env extends TavtavSecrets {}

@@ -1,11 +1,14 @@
 // What else must happen when an account is deleted (DELETE /v1/account), before its
 // D1 rows go. #285 deletes the personal data; #286's hook (`endMatchesOfDeletedAccount`,
 // matches.ts) asks each match's MatchRoom to end a running match as the player's quit and
-// to anonymise the player (displayName → null) in all of them. #287 adds push tokens.
+// to anonymise the player (displayName → null) in all of them (and pushes "opponent left"
+// to the opponents of running matches); #287's `deletePushTokensOfDeletedAccount` (push.ts)
+// removes the account's APNs device tokens.
 // A hook that throws aborts the deletion (500, nothing deleted), so the app can retry.
 
 import type { Logger } from "./log";
 import { endMatchesOfDeletedAccount } from "./matches";
+import { deletePushTokensOfDeletedAccount } from "./push";
 
 export interface AccountDeletion {
   accountID: string;
@@ -15,8 +18,8 @@ export interface AccountDeletion {
 
 export type AccountDeletionHook = (env: Env, deletion: AccountDeletion, log: Logger) => Promise<void>;
 
-/** Registered hooks, run in order (#287 adds push tokens). */
-export const ACCOUNT_DELETION_HOOKS: AccountDeletionHook[] = [endMatchesOfDeletedAccount];
+/** Registered hooks, run in order: matches first (their pushes go to the opponents), then tokens. */
+export const ACCOUNT_DELETION_HOOKS: AccountDeletionHook[] = [endMatchesOfDeletedAccount, deletePushTokensOfDeletedAccount];
 
 export async function runAccountDeletionHooks(env: Env, accountID: string, log: Logger): Promise<AccountDeletion> {
   const { results } = await env.DB.prepare("SELECT match_id FROM match_index WHERE account_id = ?")

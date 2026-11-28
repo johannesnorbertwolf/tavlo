@@ -1,9 +1,12 @@
 // Match endpoints (#286, REFERENCE.md "Match operations", "Server dice", "WebSocket"):
 // thin Worker handlers that validate the body, then ask the match's MatchRoom Durable
 // Object (the single writer) and turn its `RoomResult` into a response. The lobby list
-// reads D1's `match_index`, which the rooms keep up to date.
+// reads D1's `match_index`, which the rooms keep up to date. #287: pushes after the
+// operations that concern the other player (push.ts; a lost-reply resend may push twice),
+// removing ended matches from the lobby, auto-match through the MatchQueue objects.
 
 import {
+  AutoMatchRequest,
   CreateMatchRequest,
   DiceChangeRequest,
   EndMatchRequest,
@@ -16,7 +19,10 @@ import {
 } from "./api";
 import type { AccountDeletionHook } from "./account-hooks";
 import { HttpError, json, readJson } from "./http";
+import { inviteDeps, inviteURL } from "./invites";
 import type { RoomResult, WriteOp } from "./match-room";
+import { queueName } from "./match-queue";
+import { notify, type PushMessage, pushesAfter, sendPushes } from "./push";
 import type { RouteContext } from "./routes";
 import { randomToken } from "./sessions";
 
@@ -74,7 +80,9 @@ export async function createMatch(rc: RouteContext): Promise<Response> {
     creator: { id: auth.accountID, displayName: me },
     opponent: req.opponentID ? { id: req.opponentID, displayName: opponentName! } : undefined,
   });
-  return json(unwrap(result), 201);
+  const snap = unwrap(result);
+  notify(rc, pushesAfter("create", auth.accountID, snap));
+  return json(snap, 201);
 }
 
 /** GET /v1/matches/{id} — load. */
@@ -83,7 +91,10 @@ export async function loadMatch(rc: RouteContext): Promise<Response> {
 }
 
 export async function acceptMatch(rc: RouteContext): Promise<Response> {
-  return json(unwrap(await room(rc).accept(caller(rc).accountID)));
+  const auth = caller(rc);
+  const snap = unwrap(await room(rc).accept(auth.accountID));
+  notify(rc, pushesAfter("accept", auth.accountID, snap));
+  return json(snap);
 }
 
 export async function declineMatch(rc: RouteContext): Promise<Response> {
@@ -97,10 +108,14 @@ function writeHandler(op: WriteOp) {
     const stub = room(rc);
     if (op === "endMatch") {
       const req = await readJson(rc.request, EndMatchRequest);
-      return json(unwrap(await stub.write(auth.accountID, op, req)));
+      const snap = unwrap(await stub.write(auth.accountID, op, req));
+      notify(rc, pushesAfter("endMatch", auth.accountID, snap));
+      return json(snap);
     }
     const req = await readJson(rc.request, WriteTurnRequest);
-    return json(unwrap(await stub.write(auth.accountID, op, req)));
+    const snap = unwrap(await stub.write(auth.accountID, op, req));
+    if (op === "endTurn") notify(rc, pushesAfter("endTurn", auth.accountID, snap));
+    return json(snap);
   };
 }
 
@@ -111,7 +126,46 @@ export const endMatch = writeHandler("endMatch");
 export async function quitMatch(rc: RouteContext): Promise<Response> {
   const auth = caller(rc);
   const req = await readJson(rc.request, QuitRequest);
-  return json(unwrap(await room(rc).quit(auth.accountID, req)));
+  const snap = unwrap(await room(rc).quit(auth.accountID, req));
+  notify(rc, pushesAfter("quit", auth.accountID, snap));
+  return json(snap);
+}
+
+/** DELETE /v1/matches/{id} — hide an ended match from the caller's lobby (#287). */
+export async function removeMatch(rc: RouteContext): Promise<Response> {
+  const auth = caller(rc);
+  const id = rc.params.matchID ?? "";
+  if (!MATCH_ID.test(id)) throw new HttpError("not_found", "No such match.");
+  const row = await rc.env.DB.prepare("SELECT state FROM match_index WHERE match_id = ? AND account_id = ?")
+    .bind(id, auth.accountID)
+    .first<{ state: string }>();
+  if (!row) throw new HttpError("not_found", "No such match.");
+  if (row.state !== "ended") throw new HttpError("forbidden", "Only finished games can be removed.");
+  await rc.env.DB.prepare("UPDATE match_index SET hidden = 1 WHERE match_id = ? AND account_id = ?")
+    .bind(id, auth.accountID)
+    .run();
+  return new Response(null, { status: 204 });
+}
+
+/**
+ * POST /v1/automatch — a random opponent for the same variant + length (GameKit
+ * auto-match): joins the oldest waiting match of someone else, or creates one and waits
+ * in it (the creator may start playing). Cancel = quit out of turn.
+ */
+export async function autoMatch(rc: RouteContext): Promise<Response> {
+  const auth = caller(rc);
+  const req = await readJson(rc.request, AutoMatchRequest);
+  const me = (await displayNames(rc.env, [auth.accountID])).get(auth.accountID);
+  if (!me) throw new HttpError("unauthorized", "Account no longer exists.");
+  const result = unwrap(
+    await rc.env.MATCH_QUEUE.getByName(queueName(req.variant, req.targetWins)).enter({
+      player: { id: auth.accountID, displayName: me },
+      variant: req.variant,
+      targetWins: req.targetWins,
+    }),
+  );
+  if (result.joined) notify(rc, pushesAfter("join", auth.accountID, result.match));
+  return json(result.match);
 }
 
 export async function sendRequest(rc: RouteContext): Promise<Response> {
@@ -156,6 +210,8 @@ interface IndexRow {
   opponent_name: string | null;
   outcome: string;
   updated_at: number;
+  invite_code: string | null;
+  invite_expires_at: number | null;
 }
 
 /** GET /v1/matches?state=active|ended&cursor= — newest first, `LIST_PAGE` per page. */
@@ -176,16 +232,20 @@ export async function listMatches(rc: RouteContext): Promise<Response> {
     where.push("(mi.updated_at < ? OR (mi.updated_at = ? AND mi.match_id < ?))");
     binds.push(Number(m[1]), Number(m[1]), m[2]);
   }
+  // #287: the caller's open invite for a waiting match (to share it again or cancel it).
   const { results } = await rc.env.DB.prepare(
     "SELECT mi.match_id, mi.variant, mi.target_wins, mi.state, mi.opponent_id, a.display_name AS opponent_name, " +
-      "mi.outcome, mi.updated_at FROM match_index mi LEFT JOIN accounts a ON a.id = mi.opponent_id " +
+      "mi.outcome, mi.updated_at, i.code AS invite_code, i.expires_at AS invite_expires_at " +
+      "FROM match_index mi LEFT JOIN accounts a ON a.id = mi.opponent_id " +
+      "LEFT JOIN invites i ON i.match_id = mi.match_id AND i.creator_id = mi.account_id AND i.status = 'open' " +
+      "AND i.expires_at > ? AND mi.state != 'ended' " +
       `WHERE ${where.join(" AND ")} ORDER BY mi.updated_at DESC, mi.match_id DESC LIMIT ?`,
   )
-    .bind(...binds, LIST_PAGE + 1)
+    .bind(inviteDeps.now(), ...binds, LIST_PAGE + 1)
     .all<IndexRow>();
   const page = results.slice(0, LIST_PAGE);
-  const matches = page.map(
-    (r): MatchSummary => ({
+  const matches = page.map((r): MatchSummary => {
+    const row: MatchSummary = {
       matchID: r.match_id,
       variant: r.variant as MatchSummary["variant"],
       targetWins: r.target_wins,
@@ -193,8 +253,12 @@ export async function listMatches(rc: RouteContext): Promise<Response> {
       opponent: { playerID: r.opponent_id, displayName: r.opponent_name },
       outcome: r.outcome as MatchSummary["outcome"],
       updatedAt: r.updated_at,
-    }),
-  );
+    };
+    if (r.invite_code && r.invite_expires_at !== null) {
+      row.invite = { code: r.invite_code, url: inviteURL(rc.url.origin, r.invite_code), expiresAt: r.invite_expires_at };
+    }
+    return row;
+  });
   const last = page[page.length - 1];
   const body: MatchListResponse = {
     matches,
@@ -205,10 +269,17 @@ export async function listMatches(rc: RouteContext): Promise<Response> {
 
 // ── Account deletion (#285 hook) ───────────────────────────────────────────────
 
-/** Ends the deleted player's running matches as a quit and anonymises them in all. */
+/**
+ * Ends the deleted player's running matches as a quit and anonymises them in all; the
+ * opponents of matches that ended get the "opponent left" push (#287).
+ */
 export const endMatchesOfDeletedAccount: AccountDeletionHook = async (env, deletion, log) => {
+  const name = (await displayNames(env, [deletion.accountID])).get(deletion.accountID) ?? "?";
+  const pushes: PushMessage[] = [];
   for (const matchID of deletion.matchIDs) {
-    await env.MATCH_ROOM.getByName(matchID).accountDeleted(deletion.accountID);
+    const opponent = await env.MATCH_ROOM.getByName(matchID).accountDeleted(deletion.accountID);
+    if (opponent) pushes.push({ to: opponent, kind: "opponentLeft", matchID, name });
   }
   if (deletion.matchIDs.length) log.info("account.matches_closed", { matches: deletion.matchIDs.length });
+  await sendPushes(env, pushes, log);
 };

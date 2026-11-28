@@ -325,7 +325,10 @@ private struct AccountPageCard: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 Button {
-                    Task { await client.signOut() }
+                    Task {
+                        await PushRegistrar.shared.unregister(using: client)   // #287: no more pushes here
+                        await client.signOut()
+                    }
                 } label: {
                     Text("Sign out").frame(maxWidth: .infinity)
                 }

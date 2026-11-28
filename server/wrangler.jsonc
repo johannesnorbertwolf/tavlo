@@ -7,6 +7,9 @@
 // filled in (created 2026-11-27; see REFERENCE.md "Runbook").
 // GOOGLE_CLIENT_IDS: the iOS OAuth client id(s) (comma separated; public, not a secret)
 // that Google id_tokens must name as `aud`; empty = Sign in with Google answers 503.
+// APNS_TEAM_ID (#287): the Apple team of the APNs key (public); the key itself is the
+// secrets APNS_KEY_ID + APNS_PRIVATE_KEY (without them pushes are skipped and logged).
+// MatchQueue (#287): one Durable Object per auto-match queue (variant + match length).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tavtav-server-dev",
@@ -15,11 +18,17 @@
   "workers_dev": true,
   "preview_urls": false,
   "observability": { "enabled": true, "head_sampling_rate": 1 },
-  "vars": { "ENVIRONMENT": "development", "GIT_COMMIT": "dev", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com" },
+  "vars": { "ENVIRONMENT": "development", "GIT_COMMIT": "dev", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com", "APNS_TEAM_ID": "8XRKL83C4V" },
   "durable_objects": {
-    "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
+    "bindings": [
+      { "name": "MATCH_ROOM", "class_name": "MatchRoom" },
+      { "name": "MATCH_QUEUE", "class_name": "MatchQueue" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MatchRoom"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["MatchRoom"] },
+    { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -38,11 +47,17 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true, "head_sampling_rate": 1 },
-      "vars": { "ENVIRONMENT": "staging", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com" },
+      "vars": { "ENVIRONMENT": "staging", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com", "APNS_TEAM_ID": "8XRKL83C4V" },
       "durable_objects": {
-        "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
+        "bindings": [
+          { "name": "MATCH_ROOM", "class_name": "MatchRoom" },
+          { "name": "MATCH_QUEUE", "class_name": "MatchQueue" }
+        ]
       },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MatchRoom"] }],
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["MatchRoom"] },
+        { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
@@ -62,11 +77,17 @@
       "workers_dev": true,
       "preview_urls": false,
       "observability": { "enabled": true, "head_sampling_rate": 1 },
-      "vars": { "ENVIRONMENT": "production", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com" },
+      "vars": { "ENVIRONMENT": "production", "GIT_COMMIT": "unknown", "GOOGLE_CLIENT_IDS": "937853478519-pifv3ciai2ecbo9m4r790ft07v482ag7.apps.googleusercontent.com", "APNS_TEAM_ID": "8XRKL83C4V" },
       "durable_objects": {
-        "bindings": [{ "name": "MATCH_ROOM", "class_name": "MatchRoom" }]
+        "bindings": [
+          { "name": "MATCH_ROOM", "class_name": "MatchRoom" },
+          { "name": "MATCH_QUEUE", "class_name": "MatchQueue" }
+        ]
       },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MatchRoom"] }],
+      "migrations": [
+        { "tag": "v1", "new_sqlite_classes": ["MatchRoom"] },
+        { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
