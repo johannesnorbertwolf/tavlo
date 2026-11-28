@@ -12,7 +12,9 @@ import {
 } from "./api";
 import { runAccountDeletionHooks } from "./account-hooks";
 import { revokeAppleTokens, storeAppleRefreshToken } from "./apple-revoke";
+import { chooseHandle, ensureHandle } from "./handles";
 import { HttpError, json, readJson } from "./http";
+import { presenceHub } from "./people";
 import { appleConfig, googleConfig, identityDeps, type Provider, verifyIdentityToken } from "./identity";
 import { Logger } from "./log";
 import type { RouteContext } from "./routes";
@@ -59,13 +61,26 @@ interface AccountRow {
   id: string;
   display_name: string;
   created_at: number;
+  hide_presence: number;
+  handle: string | null;
+  handle_chosen: number;
+  challenge_policy: "everyone" | "people";
 }
 
 export async function loadAccount(env: Env, accountID: string): Promise<Account | null> {
-  const row = await env.DB.prepare("SELECT id, display_name, created_at FROM accounts WHERE id = ?")
-    .bind(accountID)
-    .first<AccountRow>();
+  const select = () =>
+    env.DB.prepare(
+      "SELECT id, display_name, created_at, hide_presence, handle, handle_chosen, challenge_policy FROM accounts WHERE id = ?",
+    )
+      .bind(accountID)
+      .first<AccountRow>();
+  let row = await select();
   if (!row) return null;
+  if (!row.handle) {
+    // #301: a new account (or one the migration missed) gets a generated handle.
+    await ensureHandle(env, accountID, row.display_name);
+    row = (await select()) ?? row;
+  }
   const { results } = await env.DB.prepare(
     "SELECT provider FROM account_identities WHERE account_id = ? ORDER BY provider",
   )
@@ -76,6 +91,10 @@ export async function loadAccount(env: Env, accountID: string): Promise<Account 
     displayName: row.display_name,
     providers: [...new Set(results.map((r) => r.provider))],
     createdAt: row.created_at,
+    hidePresence: row.hide_presence === 1,
+    ...(row.handle ? { handle: row.handle } : {}),
+    handleChangeable: row.handle_chosen === 0,
+    whoCanChallenge: row.challenge_policy,
   };
 }
 
@@ -191,11 +210,39 @@ export async function getAccount(rc: RouteContext): Promise<Response> {
 export async function updateAccount(rc: RouteContext): Promise<Response> {
   const auth = requireAuth(rc);
   const req = await readJson(rc.request, UpdateAccountRequest);
-  const name = validName(req.displayName);
-  const res = await rc.env.DB.prepare("UPDATE accounts SET display_name = ? WHERE id = ?")
-    .bind(name, auth.accountID)
-    .run();
-  if (res.meta.changes !== 1) throw new HttpError("unauthorized", "Account no longer exists.");
+  if (req.displayName === undefined && req.hidePresence === undefined && req.handle === undefined && req.whoCanChallenge === undefined) {
+    throw new HttpError("bad_request", "Nothing to change.", { path: "displayName" });
+  }
+  const exists = await rc.env.DB.prepare("SELECT 1 AS ok FROM accounts WHERE id = ?").bind(auth.accountID).first();
+  if (!exists) throw new HttpError("unauthorized", "Account no longer exists.");
+  const name = req.displayName !== undefined ? validName(req.displayName) : undefined;
+  // The handle first: a taken one refuses the whole change (nothing else applied).
+  if (req.handle !== undefined) await chooseHandle(rc.env, auth.accountID, req.handle);
+  const sets: string[] = [];
+  const binds: unknown[] = [];
+  if (name !== undefined) {
+    sets.push("display_name = ?");
+    binds.push(name);
+  }
+  if (req.hidePresence !== undefined) {
+    sets.push("hide_presence = ?");
+    binds.push(req.hidePresence ? 1 : 0);
+  }
+  if (req.whoCanChallenge !== undefined) {
+    sets.push("challenge_policy = ?");
+    binds.push(req.whoCanChallenge);
+  }
+  if (sets.length) {
+    const res = await rc.env.DB.prepare(`UPDATE accounts SET ${sets.join(", ")} WHERE id = ?`)
+      .bind(...binds, auth.accountID)
+      .run();
+    if (res.meta.changes !== 1) throw new HttpError("unauthorized", "Account no longer exists.");
+  }
+  if (req.hidePresence !== undefined) {
+    // #301: the open apps of the account's people see it go (or come back) at once.
+    const hidden = req.hidePresence;
+    rc.ctx.waitUntil(presenceHub(rc.env).setHidden(auth.accountID, hidden).catch(() => undefined));
+  }
   return json(await loadAccount(rc.env, auth.accountID));
 }
 

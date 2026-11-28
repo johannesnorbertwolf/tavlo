@@ -1,0 +1,55 @@
+{
+  "people": [
+    {
+      "playerID": "acc_bob000002",
+      "handle": "vasilis",
+      "displayName": "Βασίλης",
+      "pinned": true,
+      "lastPlayedAt": 1795000062000,
+      "presence": {
+        "online": true,
+        "lastSeenAt": 1795000100000
+      }
+    },
+    {
+      "playerID": "acc_sam0000003",
+      "handle": "Sam_T",
+      "displayName": "Sam",
+      "pinned": false,
+      "lastPlayedAt": 1794990000000,
+      "presence": {
+        "online": false,
+        "lastSeenAt": 1794992800000
+      },
+      "challenge": {
+        "matchID": "m_c1a2b3c4d5e6",
+        "direction": "incoming",
+        "variant": "fevga",
+        "targetWins": 2,
+        "expiresAt": 1795086390000
+      }
+    },
+    {
+      "playerID": "acc_alex000004",
+      "handle": "alex",
+      "displayName": "Alex",
+      "pinned": true,
+      "lastPlayedAt": null,
+      "challenge": {
+        "matchID": "m_d1e2f3a4b5c6",
+        "direction": "outgoing",
+        "variant": "portes",
+        "targetWins": 1,
+        "expiresAt": 1795086500000
+      }
+    }
+  ],
+  "blocked": [
+    {
+      "playerID": "acc_bob0000007",
+      "handle": "bob_b",
+      "displayName": "Bob"
+    }
+  ],
+  "futureField": true
+}

@@ -20,9 +20,21 @@ import { CONTRACT_ROUTES, Router, type Route, type RouteContext } from "./routes
 import { identityDeps } from "./identity";
 import { authenticate } from "./sessions";
 import { acceptInvite, createInvite, declineInvite, expireInvites, previewInvite, revokeInvite } from "./invites";
+import { checkHandle } from "./handles";
+import {
+  blockPerson,
+  expireChallenges,
+  listPeople,
+  presenceSocket,
+  removePerson,
+  searchPlayers,
+  unblockPerson,
+  updatePerson,
+} from "./people";
 import {
   acceptMatch,
   autoMatch,
+  cancelChallenge,
   changeDice,
   createMatch,
   declineMatch,
@@ -44,6 +56,7 @@ import { SERVER_VERSION, SERVICE_NAME } from "./version";
 
 export { MatchQueue } from "./match-queue";
 export { MatchRoom } from "./match-room";
+export { PresenceHub } from "./presence-hub";
 
 async function health(rc: RouteContext): Promise<Response> {
   const { env, url } = rc;
@@ -105,6 +118,15 @@ const HANDLERS: Partial<Record<string, Route["handler"]>> = {
   "DELETE /v1/push-tokens/:token": unregisterPushToken,
   "GET /.well-known/apple-app-site-association": appSiteAssociation,
   "GET /join/:code": joinFallback,
+  "POST /v1/matches/:matchID/cancel": cancelChallenge,
+  "GET /v1/people": listPeople,
+  "PATCH /v1/people/:playerID": updatePerson,
+  "DELETE /v1/people/:playerID": removePerson,
+  "POST /v1/people/:playerID/block": blockPerson,
+  "DELETE /v1/people/:playerID/block": unblockPerson,
+  "GET /v1/players": searchPlayers,
+  "GET /v1/handles/:handle": checkHandle,
+  "GET /v1/presence/socket": presenceSocket,
 };
 
 export const ROUTES: Route[] = CONTRACT_ROUTES.map((route) => ({
@@ -176,6 +198,11 @@ export default {
     );
     ctx.waitUntil(
       expireInvites(env, controller.scheduledTime, log).catch((error) => log.error("invites.expire_failed", { error })),
+    );
+    ctx.waitUntil(
+      expireChallenges(env, ctx, controller.scheduledTime, log).catch((error) =>
+        log.error("challenges.expire_failed", { error }),
+      ),
     );
   },
 } satisfies ExportedHandler<Env>;

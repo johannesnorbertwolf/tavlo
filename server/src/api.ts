@@ -66,6 +66,7 @@ export const ERROR_CODES = [
   "not_your_turn", // 409 in-turn operation by the waiting player
   "match_ended", // 409 write to an ended match
   "invite_unavailable", // 410 invite expired, cancelled, declined or already used
+  "handle_taken", // 409 #301: someone else has that handle (case-insensitive)
   "payload_too_large", // 413
   "upgrade_required", // 426 client build below the server's minimum
   "rate_limited", // 429 see Retry-After
@@ -107,6 +108,19 @@ export type HealthResponse = Infer<typeof HealthResponse>;
 // ── Accounts (#285) ───────────────────────────────────────────────────────────
 
 export const DisplayName = str({ min: 1, max: 24 });
+
+/** #301: a handle (find each other by it): 3–20 letters, digits or `_`, unique ignoring case. */
+export const HANDLE_PATTERN = /^[A-Za-z0-9_]{3,20}$/;
+export const Handle = str({ min: 3, max: 20, pattern: HANDLE_PATTERN });
+/** Handles nobody can take (compared lower-case; also anything starting with "tavtav"). */
+export const RESERVED_HANDLES = [
+  "admin", "administrator", "anonymous", "api", "apple", "computer", "everyone", "google", "help",
+  "me", "mod", "moderator", "nobody", "null", "official", "owner", "player", "root", "server",
+  "staff", "support", "system", "tavli", "tavlo", "team", "undefined", "you",
+] as const;
+/** "Who can challenge me" (#301). */
+export const ChallengePolicy = literal("everyone", "people");
+export type ChallengePolicy = Infer<typeof ChallengePolicy>;
 export const AuthProvider = literal("apple", "google");
 
 export const Account = object({
@@ -114,6 +128,14 @@ export const Account = object({
   displayName: DisplayName,
   providers: array(AuthProvider, { max: 2 }),
   createdAt: MILLIS,
+  /** #301: "Show when I'm online" is off — nobody sees this account's presence (always sent). */
+  hidePresence: optional(bool()),
+  /** #301: the account's handle (always sent). */
+  handle: optional(Handle),
+  /** #301: true while the (generated) handle may still be changed — once. */
+  handleChangeable: optional(bool()),
+  /** #301: who may challenge this account (always sent). */
+  whoCanChallenge: optional(ChallengePolicy),
 });
 export type Account = Infer<typeof Account>;
 
@@ -153,7 +175,22 @@ export const AuthSession = object({
 });
 export type AuthSession = Infer<typeof AuthSession>;
 
-export const UpdateAccountRequest = object({ displayName: DisplayName });
+/** PATCH /v1/account: any of the fields (at least one). `hidePresence` since #301. */
+export const UpdateAccountRequest = object({
+  displayName: optional(DisplayName),
+  hidePresence: optional(bool()),
+  /** Once, while `handleChangeable` (else 403); taken → 409 `handle_taken`. */
+  handle: optional(Handle),
+  whoCanChallenge: optional(ChallengePolicy),
+});
+
+/** GET /v1/handles/{handle} → can I take it? (`reason` when not). */
+export const HandleAvailability = object({
+  handle: str({ max: 64 }),
+  available: bool(),
+  reason: optional(literal("taken", "reserved", "invalid", "yours")),
+});
+export type HandleAvailability = Infer<typeof HandleAvailability>;
 export type UpdateAccountRequest = Infer<typeof UpdateAccountRequest>;
 
 /**
@@ -263,6 +300,20 @@ export const InviteRef = object({
 });
 export type InviteRef = Infer<typeof InviteRef>;
 
+/** #301: a direct challenge's lifecycle (pending → accepted / declined / expired / cancelled). */
+export const ChallengeStatus = literal("pending", "accepted", "declined", "expired", "cancelled");
+export type ChallengeStatus = Infer<typeof ChallengeStatus>;
+/** An unanswered challenge expires this long after it was sent. */
+export const CHALLENGE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** The challenge behind a lobby row (#301; absent for invites, auto-match and old matches). */
+export const ChallengeState = object({
+  /** A pending challenge past `expiresAt` reads `expired`. */
+  status: ChallengeStatus,
+  expiresAt: MILLIS,
+});
+export type ChallengeState = Infer<typeof ChallengeState>;
+
 export const MatchSummary = object({
   matchID: ID,
   variant: VariantID,
@@ -274,6 +325,8 @@ export const MatchSummary = object({
   updatedAt: MILLIS,
   /** #287: the caller's open invite for this match's empty seat (absent otherwise). */
   invite: optional(InviteRef),
+  /** #301: the direct challenge this match started as (both players see it). */
+  challenge: optional(ChallengeState),
 });
 export type MatchSummary = Infer<typeof MatchSummary>;
 
@@ -287,7 +340,10 @@ export type MatchListResponse = Infer<typeof MatchListResponse>;
 export const CreateMatchRequest = object({
   variant: VariantID,
   targetWins: TargetWins,
-  /** Direct challenge of a known account (debug + tests); invites/auto-match are #287. */
+  /**
+   * Direct challenge of a known account (#286; the one-tap challenge of the people list,
+   * #301: pending for 24 h, a second identical challenge answers the pending one).
+   */
   opponentID: optional(ID),
 });
 export type CreateMatchRequest = Infer<typeof CreateMatchRequest>;
@@ -378,7 +434,17 @@ export const PushTokenRequest = object({
 export type PushTokenRequest = Infer<typeof PushTokenRequest>;
 
 /** Why a push was sent. Readers must tolerate unknown kinds (open the match). */
-export const PushKind = literal("yourTurn", "inviteReceived", "inviteAccepted", "matchEnded", "opponentLeft");
+export const PushKind = literal(
+  "yourTurn",
+  "inviteReceived",
+  "inviteAccepted",
+  "matchEnded",
+  "opponentLeft",
+  // #301: one-tap challenges.
+  "challengeReceived",
+  "challengeAccepted",
+  "challengeDeclined",
+);
 export type PushKind = Infer<typeof PushKind>;
 
 /**
@@ -391,15 +457,127 @@ export const PushPayload = object({
     alert: object({
       "loc-key": str({ max: 64 }),
       "loc-args": array(str({ max: 64 }), { max: 4 }),
+      /** #301 (challengeReceived): bold first line, e.g. PUSH_CHALLENGE_RECEIVED "%@ wants to play". */
+      "title-loc-key": optional(str({ max: 64 })),
+      "title-loc-args": optional(array(str({ max: 64 }), { max: 4 })),
     }),
     sound: optional(str({ max: 32 })),
     "thread-id": optional(str({ max: 64 })),
+    /** #301: the notification category (CHALLENGE = Accept / Decline action buttons). */
+    category: optional(str({ max: 64 })),
   }),
   matchID: ID,
   /** A PushKind; readers tolerate unknown values. */
   kind: str({ max: 32 }),
 });
 export type PushPayload = Infer<typeof PushPayload>;
+
+/** #301: the APNs category of an incoming challenge (the app registers Accept / Decline). */
+export const CHALLENGE_CATEGORY = "CHALLENGE";
+
+// ── People, presence, challenges (#301) ──────────────────────────────────────
+
+/** An unpinned person drops off the list after this long without a game. */
+export const PEOPLE_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+/** At most this many people are listed (pinned first, then the most recent). */
+export const PEOPLE_LIMIT = 100;
+/** "Online now" = a presence socket with a keepalive this recent (the app pings every 30 s). */
+export const PRESENCE_ONLINE_MS = 2 * 60 * 1000;
+
+/** Someone's online status, only for people you've played with who don't hide it. */
+export const Presence = object({
+  online: bool(),
+  /** When the app was last in front (null = never seen since presence exists). */
+  lastSeenAt: nullable(MILLIS),
+});
+export type Presence = Infer<typeof Presence>;
+
+/** A pending challenge between the caller and this person. */
+export const PersonChallenge = object({
+  matchID: ID,
+  /** incoming = they challenged you; outgoing = you are waiting for them. */
+  direction: literal("incoming", "outgoing"),
+  variant: VariantID,
+  targetWins: TargetWins,
+  expiresAt: MILLIS,
+});
+export type PersonChallenge = Infer<typeof PersonChallenge>;
+
+export const Person = object({
+  playerID: ID,
+  handle: Handle,
+  displayName: DisplayName,
+  /** ⭐ — kept on top (also how someone found by handle is added). */
+  pinned: bool(),
+  /** The newest game with this person (any activity); null = added, never played. */
+  lastPlayedAt: nullable(MILLIS),
+  /** Absent when the person hides it. */
+  presence: optional(Presence),
+  challenge: optional(PersonChallenge),
+});
+export type Person = Infer<typeof Person>;
+
+/** A player as strangers see them: handle + display name, nothing else. */
+export const PlayerCard = object({ playerID: ID, handle: Handle, displayName: DisplayName });
+export type PlayerCard = Infer<typeof PlayerCard>;
+
+/** GET /v1/people: pinned first, then the most recent game first; `blocked` = whom you blocked. */
+export const PeopleResponse = object({
+  people: array(Person, { max: PEOPLE_LIMIT }),
+  blocked: optional(array(PlayerCard, { max: 200 })),
+});
+
+/** Search results per query (prefix of the handle, exact match first). */
+export const SEARCH_LIMIT = 20;
+export const SEARCH_MIN_CHARS = 3;
+
+export const PlayerResult = object({
+  playerID: ID,
+  handle: Handle,
+  displayName: DisplayName,
+  /** Already in your people list. */
+  isPerson: bool(),
+  /** Their "who can challenge me" lets you. */
+  canChallenge: bool(),
+});
+export type PlayerResult = Infer<typeof PlayerResult>;
+
+/** GET /v1/players?q=<≥3 chars> (rate-limited per account). */
+export const PlayerSearchResponse = object({ players: array(PlayerResult, { max: SEARCH_LIMIT }) });
+export type PlayerSearchResponse = Infer<typeof PlayerSearchResponse>;
+export type PeopleResponse = Infer<typeof PeopleResponse>;
+
+/** PATCH /v1/people/{playerID}. */
+export const UpdatePersonRequest = object({ pinned: bool() });
+export type UpdatePersonRequest = Infer<typeof UpdatePersonRequest>;
+
+const PlayerRef = object({ playerID: ID, displayName: DisplayName });
+
+/** A challenge as the presence socket reports it. */
+export const Challenge = object({
+  matchID: ID,
+  from: PlayerRef,
+  to: PlayerRef,
+  variant: VariantID,
+  targetWins: TargetWins,
+  status: ChallengeStatus,
+  createdAt: MILLIS,
+  expiresAt: MILLIS,
+});
+export type Challenge = Infer<typeof Challenge>;
+
+/**
+ * Server → client on /v1/presence/socket (one per app in the foreground). `challenge.event`:
+ * received (to the challenged), accepted / declined (to the challenger), expired (both),
+ * cancelled (to the challenged). Readers ignore unknown types and events.
+ */
+export const PresenceMessage = tagged("type", {
+  hello: object({ serverTime: MILLIS }),
+  presence: object({ playerID: ID, online: bool(), lastSeenAt: nullable(MILLIS) }),
+  challenge: object({ event: str({ max: 32 }), challenge: Challenge }),
+  error: object({ error: object({ code: str({ max: 64 }), message: str({ max: 500 }) }) }),
+});
+export type PresenceMessage = Infer<typeof PresenceMessage>;
 
 // ── WebSocket (#286) ──────────────────────────────────────────────────────────
 

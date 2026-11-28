@@ -10,6 +10,8 @@
 // APNS_TEAM_ID (#287): the Apple team of the APNs key (public); the key itself is the
 // secrets APNS_KEY_ID + APNS_PRIVATE_KEY (without them pushes are skipped and logged).
 // MatchQueue (#287): one Durable Object per auto-match queue (variant + match length).
+// PresenceHub (#301): one Durable Object for presence sockets + live challenge events;
+// SEARCH_LIMITER (#301): player search by handle, 30/min per account.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tavtav-server-dev",
@@ -22,12 +24,14 @@
   "durable_objects": {
     "bindings": [
       { "name": "MATCH_ROOM", "class_name": "MatchRoom" },
-      { "name": "MATCH_QUEUE", "class_name": "MatchQueue" }
+      { "name": "MATCH_QUEUE", "class_name": "MatchQueue" },
+      { "name": "PRESENCE", "class_name": "PresenceHub" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["MatchRoom"] },
-    { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] }
+    { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] },
+    { "tag": "v3", "new_sqlite_classes": ["PresenceHub"] }
   ],
   "d1_databases": [
     {
@@ -39,7 +43,8 @@
   ],
   "ratelimits": [
     { "name": "IP_LIMITER", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } },
-    { "name": "ACCOUNT_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } }
+    { "name": "ACCOUNT_LIMITER", "namespace_id": "1002", "simple": { "limit": 240, "period": 60 } },
+        { "name": "SEARCH_LIMITER", "namespace_id": "1003", "simple": { "limit": 30, "period": 60 } }
   ],
   "env": {
     "staging": {
@@ -51,12 +56,14 @@
       "durable_objects": {
         "bindings": [
           { "name": "MATCH_ROOM", "class_name": "MatchRoom" },
-          { "name": "MATCH_QUEUE", "class_name": "MatchQueue" }
+          { "name": "MATCH_QUEUE", "class_name": "MatchQueue" },
+          { "name": "PRESENCE", "class_name": "PresenceHub" }
         ]
       },
       "migrations": [
         { "tag": "v1", "new_sqlite_classes": ["MatchRoom"] },
-        { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] }
+        { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] },
+        { "tag": "v3", "new_sqlite_classes": ["PresenceHub"] }
       ],
       "d1_databases": [
         {
@@ -68,7 +75,8 @@
       ],
       "ratelimits": [
         { "name": "IP_LIMITER", "namespace_id": "2001", "simple": { "limit": 120, "period": 60 } },
-        { "name": "ACCOUNT_LIMITER", "namespace_id": "2002", "simple": { "limit": 240, "period": 60 } }
+        { "name": "ACCOUNT_LIMITER", "namespace_id": "2002", "simple": { "limit": 240, "period": 60 } },
+        { "name": "SEARCH_LIMITER", "namespace_id": "2003", "simple": { "limit": 30, "period": 60 } }
       ],
       "triggers": { "crons": ["17 * * * *"] }
     },
@@ -81,12 +89,14 @@
       "durable_objects": {
         "bindings": [
           { "name": "MATCH_ROOM", "class_name": "MatchRoom" },
-          { "name": "MATCH_QUEUE", "class_name": "MatchQueue" }
+          { "name": "MATCH_QUEUE", "class_name": "MatchQueue" },
+          { "name": "PRESENCE", "class_name": "PresenceHub" }
         ]
       },
       "migrations": [
         { "tag": "v1", "new_sqlite_classes": ["MatchRoom"] },
-        { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] }
+        { "tag": "v2", "new_sqlite_classes": ["MatchQueue"] },
+        { "tag": "v3", "new_sqlite_classes": ["PresenceHub"] }
       ],
       "d1_databases": [
         {
@@ -98,7 +108,8 @@
       ],
       "ratelimits": [
         { "name": "IP_LIMITER", "namespace_id": "3001", "simple": { "limit": 120, "period": 60 } },
-        { "name": "ACCOUNT_LIMITER", "namespace_id": "3002", "simple": { "limit": 240, "period": 60 } }
+        { "name": "ACCOUNT_LIMITER", "namespace_id": "3002", "simple": { "limit": 240, "period": 60 } },
+        { "name": "SEARCH_LIMITER", "namespace_id": "3003", "simple": { "limit": 30, "period": 60 } }
       ],
       "triggers": { "crons": ["23 * * * *"] }
     }

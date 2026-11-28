@@ -3,11 +3,14 @@
 // matches.ts) asks each match's MatchRoom to end a running match as the player's quit and
 // to anonymise the player (displayName → null) in all of them (and pushes "opponent left"
 // to the opponents of running matches); #287's `deletePushTokensOfDeletedAccount` (push.ts)
-// removes the account's APNs device tokens.
+// removes the account's APNs device tokens; #301's `deletePeopleOfDeletedAccount` (people.ts)
+// cancels its pending challenges (live), deletes people choices + blocks and makes the
+// presence hub forget it.
 // A hook that throws aborts the deletion (500, nothing deleted), so the app can retry.
 
 import type { Logger } from "./log";
 import { endMatchesOfDeletedAccount } from "./matches";
+import { deletePeopleOfDeletedAccount } from "./people";
 import { deletePushTokensOfDeletedAccount } from "./push";
 
 export interface AccountDeletion {
@@ -18,8 +21,15 @@ export interface AccountDeletion {
 
 export type AccountDeletionHook = (env: Env, deletion: AccountDeletion, log: Logger) => Promise<void>;
 
-/** Registered hooks, run in order: matches first (their pushes go to the opponents), then tokens. */
-export const ACCOUNT_DELETION_HOOKS: AccountDeletionHook[] = [endMatchesOfDeletedAccount, deletePushTokensOfDeletedAccount];
+/**
+ * Registered hooks, run in order: matches first (their pushes go to the opponents), then
+ * #301 people (pending challenges cancelled live, people choices + blocks, presence), then tokens.
+ */
+export const ACCOUNT_DELETION_HOOKS: AccountDeletionHook[] = [
+  endMatchesOfDeletedAccount,
+  deletePeopleOfDeletedAccount,
+  deletePushTokensOfDeletedAccount,
+];
 
 export async function runAccountDeletionHooks(env: Env, accountID: string, log: Logger): Promise<AccountDeletion> {
   const { results } = await env.DB.prepare("SELECT match_id FROM match_index WHERE account_id = ?")

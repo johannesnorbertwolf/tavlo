@@ -45,7 +45,7 @@ describe("D1 schema (migrations/)", () => {
   it("deleting an account removes its identities and lobby rows", async () => {
     const now = Date.now();
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO accounts VALUES ('acc_t2', 'Gone', ?, ?)").bind(now, now),
+      env.DB.prepare("INSERT INTO accounts (id, display_name, created_at, last_seen_at) VALUES ('acc_t2', 'Gone', ?, ?)").bind(now, now),
       env.DB.prepare(
         "INSERT INTO account_identities (provider, subject, account_id, created_at) VALUES ('google', 'g2', 'acc_t2', ?)",
       ).bind(now),

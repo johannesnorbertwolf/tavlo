@@ -13,6 +13,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   not_your_turn: 409,
   match_ended: 409,
   invite_unavailable: 410,
+  handle_taken: 409,
   payload_too_large: 413,
   upgrade_required: 426,
   rate_limited: 429,

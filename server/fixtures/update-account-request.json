@@ -1,3 +1,6 @@
 {
-  "displayName": "Alice K."
+  "displayName": "Alice K.",
+  "hidePresence": true,
+  "handle": "alice_k",
+  "whoCanChallenge": "people"
 }

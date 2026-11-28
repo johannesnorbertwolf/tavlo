@@ -488,6 +488,30 @@ export class MatchRoom extends DurableObject<Env> {
     return result;
   }
 
+  /**
+   * #301: a direct challenge closed without an answer (expired, or the challenger took it
+   * back): a match whose seat 1 is still `invited` ends like a decline (seat 1 `declined`,
+   * outcomes `none`, event `declined`). Anything else: nothing to do (`false`).
+   */
+  async closeInvitedSeat(): Promise<RoomResult<boolean>> {
+    const fx = { changed: false };
+    const result = await this.run("closeInvitedSeat", () => {
+      const m = this.matchRow();
+      if (!m || m.is_ended) return false;
+      const seat = this.seats().find((s) => s.seat === 1);
+      if (!seat || seat.status !== "invited") return false;
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec("UPDATE seats SET status = 'declined' WHERE seat = 1");
+        this.sql.exec("UPDATE seats SET status = 'done' WHERE seat = 0");
+        this.endMatchRow();
+      });
+      fx.changed = true;
+      return true;
+    });
+    if (fx.changed) await this.changed("declined");
+    return result;
+  }
+
   /** The invited seat declines: the match ends. */
   async decline(accountID: string): Promise<RoomResult<null>> {
     const fx = { changed: false };
@@ -824,6 +848,14 @@ export class MatchRoom extends DurableObject<Env> {
     const m = this.matchRow();
     if (!m) return;
     const seats = this.seats();
+    // #301: both seats played (accepted / joined): the two are "people" for each other.
+    // A seat still invited / matching, a decline, or a challenge closed before anyone
+    // accepted (the invited seat's outcome stays none) never counts.
+    const played =
+      seats.length === 2 &&
+      seats.every((s) => s.player_id !== null && (s.status === "active" || (s.status === "done" && s.outcome !== "none")))
+        ? 1
+        : 0;
     const statements = seats
       .filter((s) => s.player_id !== null && !s.deleted)
       .map((s) => {
@@ -836,12 +868,13 @@ export class MatchRoom extends DurableObject<Env> {
           state = "waitingForOpponent";
         else state = "theirTurn";
         return this.env.DB.prepare(
-          "INSERT INTO match_index (match_id, account_id, opponent_id, variant, target_wins, state, outcome, created_at, updated_at) " +
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+          "INSERT INTO match_index (match_id, account_id, opponent_id, variant, target_wins, state, outcome, created_at, updated_at, played) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
             "ON CONFLICT (match_id, account_id) DO UPDATE SET opponent_id = excluded.opponent_id, " +
-            "state = excluded.state, outcome = excluded.outcome, updated_at = excluded.updated_at " +
+            "state = excluded.state, outcome = excluded.outcome, updated_at = excluded.updated_at, " +
+            "played = max(match_index.played, excluded.played) " +
             "WHERE excluded.updated_at >= match_index.updated_at",
-        ).bind(m.match_id, s.player_id, other.player_id, m.variant, m.target_wins, state, s.outcome, m.created_at, m.updated_at);
+        ).bind(m.match_id, s.player_id, other.player_id, m.variant, m.target_wins, state, s.outcome, m.created_at, m.updated_at, played);
       });
     if (!statements.length) return;
     try {

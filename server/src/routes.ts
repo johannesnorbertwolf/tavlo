@@ -3,7 +3,7 @@
 // naming their ticket, so the app and tests can see the full surface from day one.
 // A ticket that builds an endpoint adds its `handler` here (and keeps REFERENCE.md in sync).
 
-export type Ticket = "#284" | "#285" | "#286" | "#287";
+export type Ticket = "#284" | "#285" | "#286" | "#287" | "#301";
 export type Auth = "none" | "required";
 
 export interface RouteContext {
@@ -75,6 +75,17 @@ export const CONTRACT_ROUTES: Route[] = [
   r("PUT", "/v1/push-tokens", "#287", "required", "Register/refresh an APNs device token"),
   r("DELETE", "/v1/push-tokens/:token", "#287", "required", "Unregister a device token"),
   r("GET", "/.well-known/apple-app-site-association", "#287", "none", "Universal links (AASA JSON)"),
+
+  // People, presence, challenges, handles (#301)
+  r("POST", "/v1/matches/:matchID/cancel", "#301", "required", "Challenger takes a pending challenge back"),
+  r("GET", "/v1/people", "#301", "required", "People you've played or added (+ presence, pending challenges) → PeopleResponse"),
+  r("PATCH", "/v1/people/:playerID", "#301", "required", "Pin / unpin (⭐ adds someone found by handle)"),
+  r("DELETE", "/v1/people/:playerID", "#301", "required", "Remove from the people list until the next game"),
+  r("POST", "/v1/people/:playerID/block", "#301", "required", "Block: no challenges, search or presence"),
+  r("DELETE", "/v1/people/:playerID/block", "#301", "required", "Unblock"),
+  r("GET", "/v1/players", "#301", "required", "Search by handle (?q=, ≥ 3 chars) → PlayerSearchResponse"),
+  r("GET", "/v1/handles/:handle", "#301", "required", "Is this handle free? → HandleAvailability"),
+  r("GET", "/v1/presence/socket", "#301", "required", "WebSocket upgrade: presence + live challenges (foreground app)"),
   r("GET", "/join/:code", "#287", "none", "Invite link web fallback page"),
 ];
 

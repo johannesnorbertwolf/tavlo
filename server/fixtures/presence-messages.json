@@ -1,0 +1,65 @@
+[
+  {
+    "type": "hello",
+    "serverTime": 1795000062000
+  },
+  {
+    "type": "presence",
+    "playerID": "acc_bob000002",
+    "online": true,
+    "lastSeenAt": 1795000062000
+  },
+  {
+    "type": "presence",
+    "playerID": "acc_bob000002",
+    "online": false,
+    "lastSeenAt": null
+  },
+  {
+    "type": "challenge",
+    "event": "received",
+    "challenge": {
+      "matchID": "m_c1a2b3c4d5e6",
+      "from": {
+        "playerID": "acc_sam0000003",
+        "displayName": "Sam"
+      },
+      "to": {
+        "playerID": "acc_alice0001",
+        "displayName": "Alice"
+      },
+      "variant": "fevga",
+      "targetWins": 2,
+      "status": "pending",
+      "createdAt": 1794999990000,
+      "expiresAt": 1795086390000
+    }
+  },
+  {
+    "type": "challenge",
+    "event": "accepted",
+    "challenge": {
+      "matchID": "m_c1a2b3c4d5e6",
+      "from": {
+        "playerID": "acc_sam0000003",
+        "displayName": "Sam"
+      },
+      "to": {
+        "playerID": "acc_alice0001",
+        "displayName": "Alice"
+      },
+      "variant": "fevga",
+      "targetWins": 2,
+      "status": "accepted",
+      "createdAt": 1794999990000,
+      "expiresAt": 1795086390000
+    }
+  },
+  {
+    "type": "error",
+    "error": {
+      "code": "token_expired",
+      "message": "Access token expired; reconnect."
+    }
+  }
+]

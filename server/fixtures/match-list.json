@@ -10,7 +10,11 @@
         "displayName": "Βασίλης"
       },
       "outcome": "none",
-      "updatedAt": 1795000062000
+      "updatedAt": 1795000062000,
+      "challenge": {
+        "status": "accepted",
+        "expiresAt": 1795086400000
+      }
     },
     {
       "matchID": "m_0b1c2d3e4f50",
@@ -40,6 +44,22 @@
       },
       "outcome": "won",
       "updatedAt": 1794999995000
+    },
+    {
+      "matchID": "m_c1a2b3c4d5e6",
+      "variant": "fevga",
+      "targetWins": 2,
+      "state": "invited",
+      "opponent": {
+        "playerID": "acc_sam0000003",
+        "displayName": "Sam"
+      },
+      "outcome": "none",
+      "updatedAt": 1794999990000,
+      "challenge": {
+        "status": "pending",
+        "expiresAt": 1795086390000
+      }
     }
   ],
   "nextCursor": null

@@ -188,7 +188,8 @@ describe("create, load, accept, decline", () => {
     const after = await load(a, snap.matchID);
     expect(after).toMatchObject({ isEnded: true, currentPlayerID: null });
     expect(after.participants[1]!.status).toBe("declined");
-    await fails(await call("POST", `/v1/matches/${snap.matchID}/accept`, undefined, b.token), 409, "match_ended");
+    // #301: a declined challenge can't be accepted any more.
+    await fails(await call("POST", `/v1/matches/${snap.matchID}/accept`, undefined, b.token), 410, "invite_unavailable");
     expect(await indexRow(snap.matchID, a.id)).toMatchObject({ state: "ended" });
   });
 });
@@ -375,15 +376,22 @@ describe("lobby list", () => {
     const a = await player("Alice");
     const b = await player("Bob");
     const ids: string[] = [];
-    for (let i = 0; i < 3; i++) {
-      const s = await ok(await call("POST", "/v1/matches", { variant: "fevga", targetWins: 1, opponentID: b.id }, a.token), MatchSnapshot, 201);
+    // #301: one pending challenge per pair — three opponents here.
+    const others = [b, await player("Sam"), await player("Alex")];
+    for (const o of others) {
+      const s = await ok(await call("POST", "/v1/matches", { variant: "fevga", targetWins: 1, opponentID: o.id }, a.token), MatchSnapshot, 201);
       ids.push(s.matchID);
       await new Promise((r) => setTimeout(r, 3));
     }
     await call("POST", `/v1/matches/${ids[0]}/decline`, undefined, b.token);
     const all = await ok(await call("GET", "/v1/matches", undefined, a.token), MatchListResponse);
     expect(all.matches.map((m) => m.matchID)).toEqual([ids[0], ids[2], ids[1]]);
-    expect(all.matches[1]).toMatchObject({ state: "yourTurn", opponent: { playerID: b.id, displayName: "Bob" } });
+    expect(all.matches[1]).toMatchObject({
+      state: "yourTurn",
+      opponent: { playerID: others[2]!.id, displayName: "Alex" },
+      challenge: { status: "pending" },
+    });
+    expect(all.matches[0]!.challenge?.status).toBe("declined");
     const active = await ok(await call("GET", "/v1/matches?state=active", undefined, a.token), MatchListResponse);
     expect(active.matches.map((m) => m.matchID)).toEqual([ids[2], ids[1]]);
     const ended = await ok(await call("GET", "/v1/matches?state=ended", undefined, b.token), MatchListResponse);
