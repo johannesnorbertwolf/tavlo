@@ -38,6 +38,7 @@ const SCHEMAS: Record<string, Schema<unknown>> = {
   "invite-preview.json": api.InvitePreview,
   "auto-match-request.json": api.AutoMatchRequest,
   "push-token-request.json": api.PushTokenRequest,
+  "push-payload.json": api.PushPayload,
   "ws-messages.json": array(api.ServerMessage),
 };
 

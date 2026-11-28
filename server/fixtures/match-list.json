@@ -22,7 +22,12 @@
         "displayName": null
       },
       "outcome": "none",
-      "updatedAt": 1795000000000
+      "updatedAt": 1795000000000,
+      "invite": {
+        "code": "K7Q4MZ",
+        "url": "https://tavtav-server.example.workers.dev/join/K7Q4MZ",
+        "expiresAt": 1795604800000
+      }
     },
     {
       "matchID": "m_99aa88bb77cc",

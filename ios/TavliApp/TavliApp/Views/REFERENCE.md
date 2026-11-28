@@ -1458,6 +1458,73 @@ that would need agreement. Glossary:
 `ios/scripts/add_account_strings.py` (de/nl/el/fa; Greek and Persian await review). The DEBUG
 Developer card is verbatim English. The system "Sign in with Apple" button localizes itself.
 
+**#287 strings** (server lobby, new online game, invite + join sheets, invite/push error copy)
+come from `ios/scripts/add_lobby_strings.py`, which also removes the #286 developer lobby's
+challenge-by-id strings. It adds the **push texts** `PUSH_YOUR_TURN`, `PUSH_INVITE_RECEIVED`,
+`PUSH_INVITE_ACCEPTED`, `PUSH_MATCH_WON` / `_LOST` / `_ENDED`, `PUSH_OPPONENT_LEFT`: the
+server's APNs `loc-key`s, rendered by iOS with the other player's name as `%@` — so they carry
+an **English value** too and `extractionState: manual` (never extracted from code; keep them
+when cleaning stale keys). Greek push/lobby lines avoid gendered articles before a name
+("Πρόσκληση από %@…", "%@: μπήκε στην παρτίδα σου."). The share message has two arguments
+(`%1$@` game, `%2$@` code) in translations.
+
+## ServerLobbyView.swift (#286; the real lobby #287)
+
+Online play through our server: shown behind the developer switch (Settings → Online account →
+"Play online via the server") and whenever an invite link or a tapped push leads there
+(`ServerOnlineCoordinator.routedHere`, whatever the switch says). Presentation only over the
+coordinator and the engine's `ServerLobby`.
+
+- **`ServerOnlineRootView`** → `ServerOnlineContent`: the controller's `session` → the shared
+  `OnlineGameView`, else `ServerLobbyPage`.
+- **`ServerLobbyPage`**: page colour; header (Back · account button → `AccountView` sheet) and
+  the "Play Online" wordmark inside the list; signed out → card "Sign in to your online account
+  to play through the server." (or "…to join your friend’s game." while a link waits) + Online
+  account. One `.sheet(item:)` for `ServerLobbySheet` (`account`, `newMatch`, `join(code:)`,
+  `invite(InviteShare)`); a pending link code (`coordinator.pendingJoinCode`) opens the join
+  sheet once signed in.
+- **`ServerLobbyList`**: a plain `List` (for swipe actions) styled as the Caramel column
+  (`ServerLobbyMetrics.column` 460 pt, centred on iPad; rows transparent, no separators):
+  New game (primary) + Join with a code (secondary), error / controller status lines, then
+  `lobby.sections` — **Your turn** (incl. challenges to you and your own open-seat matches you
+  may start), **Their turn** (incl. waiting for a friend / random opponent once you moved),
+  **Finished** — each a `ServerMatchRow`; empty → "No games yet. Invite a friend or play a random
+  opponent." (spinner until the first load). Row actions from `row.lobbyActions`, as
+  **trailing swipe** and **context menu**: Share invite (opens the invite sheet again / a
+  `ShareLink` in the menu), Cancel invite / Stop looking (destructive), Decline (a challenge),
+  Remove (finished; full swipe). Pull to refresh; while on screen the list reloads every 20 s
+  (a friend joining, turns elsewhere).
+- **`ServerMatchRow`**: card (`cardColor`, `cardShadow`, `cardEdge`, radius 16, ≥ 64 pt):
+  `OpponentBadge` (initial in a caramel disc, person-plus while the seat is open, muted when
+  finished) · name (or "Waiting for a friend" / "Random opponent") over "Plakoto · Best of 3 ·
+  Code K7Q4MZ" (+ head-only wolf tag for house Plakoto) · status (`ServerLobbyCopy.status`:
+  Your turn / Invites you in `doneTint`; Their turn, Waiting for opponent, Invite sent, Looking
+  for an opponent…, You won / You lost / Draw / You left / Finished in `inkSecondary`) · chevron.
+  Tap → `lobby.open(matchID:)`.
+- **`NewOnlineMatchSheet`** ("New online game"): Variant (`SegmentedChoice` over
+  `GameVariantSetting.pickerCases`, wolf tag with House rules on, `rulesReminder`), Length
+  (`SegmentedChoice` Single game · Best of 3; `settings.onlineMatchLength`), Opponent: two
+  `OpponentChoice` tiles — **Invite a friend** (primary; "Send a link or a code. You can make
+  your first move while you wait.") → `lobby.createInvite` → the invite sheet; **Random
+  opponent** ("Play someone who is looking for the same game.") → `lobby.autoMatch` → the game
+  opens (joined, or waiting with the first move yours). Spinner + error line.
+- **`InviteSheet`**: explanation, the code big and spaced ("K7Q 4MZ", monospaced, selectable;
+  VoiceOver spells it), the link (LTR, middle-truncated), **Share invite link** (`ShareLink`,
+  subject "Play tavli with me", message `ServerLobbyCopy.shareMessage` with the code), Copy code
+  (→ "Copied") · Start playing (opens the match) side by side or stacked, "Open until <date> · one
+  friend can join."
+- **`JoinCodeSheet`**: field (monospaced, upper-case keyboard, LTR) for a code or a pasted
+  link (`InviteCode.normalize`), Find game → `lobby.preview` → card "<name> invites you to
+  play." + variant · length (+ wolf tag) with **Join game** (→ `lobby.join`, sheet closes, the
+  game opens) and Decline; a closed invite says so. Opened by a link with the code filled in
+  and looked up at once.
+- Sheets use `ChromeKit.cardColor`, `FitOrScroll`, `SheetSection` / `SegmentedChoice` (shared
+  with `NewGameSheet`, now internal), a local `SheetHeader` (title + 44 pt close).
+- DEBUG `DebugServerLobby.swift`: `-debugServerLobby` (dev sign-in with
+  `-debugAccountDevSubject` / `-debugAccountName`, then the lobby), `-debugServerLobbySheet
+  newMatch|join|invite` (`invite` makes a real invite; `-debugInviteVariant`),
+  `-debugJoinURL <link>` (as an opened universal link). Screenshots: light/dark × iPhone/iPad.
+
 ## Right-to-left / Persian (#185 — `RTLSupport.swift`, `BoardGeometry/BidiText.swift`)
 
 Persian (`fa`) is the first right-to-left language. SwiftUI mirrors the whole layout under an RTL
@@ -1566,6 +1633,12 @@ appearance by default; Settings → Display → *Appearance* (System / Light / D
 window-level override (not `.preferredColorScheme`) so sheets, alerts and Game Center's own
 controllers follow it too and System restores cleanly. (Until #191 the app was light-only:
 `.preferredColorScheme(.light)` + `UIUserInterfaceStyle = Light` in `Info.plist`; both are gone.)
+**#287:** `@UIApplicationDelegateAdaptor(AppDelegate.self)` (`Online/PushRegistrar.swift`) —
+the notification delegate is set in `didFinishLaunching` (a push that launches the app is
+routed) and the APNs token callbacks reach `PushRegistrar`. `RootView` handles invite links
+(`onOpenURL` + `onContinueUserActivity(NSUserActivityTypeBrowsingWeb)` →
+`ServerOnlineCoordinator.handle(url:)`) and tapped pushes (`PushRegistrar.tappedMatchID` →
+`openFromPush`), both opening the server lobby.
 `styleDarkSegmentedControls()` restyles `UISegmentedControl` via
 `appearance(for: UITraitCollection(userInterfaceStyle: .dark))` only — espresso track
 `#0e0805`, warm selected segment `#4a3320`, tan / cream titles — so the stock grey control

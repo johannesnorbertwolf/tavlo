@@ -5,7 +5,7 @@ import XCTest
 /// server's `test/fixtures.test.ts` (read straight from `server/fixtures/` in the repo), and
 /// maps onto the engine's online types.
 final class ServerAPITests: XCTestCase {
-    private static let fixturesDir = URL(fileURLWithPath: #filePath)
+    static let fixturesDir = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()  // TavliEngineTests
         .deletingLastPathComponent()  // Tests
         .deletingLastPathComponent()  // TavliEngine
@@ -48,6 +48,7 @@ final class ServerAPITests: XCTestCase {
         "invite-preview.json": { try $0.decode(ServerAPI.InvitePreview.self, "invite-preview.json") },
         "auto-match-request.json": { try $0.decode(ServerAPI.AutoMatchRequest.self, "auto-match-request.json") },
         "push-token-request.json": { try $0.decode(ServerAPI.PushTokenRequest.self, "push-token-request.json") },
+        "push-payload.json": { try $0.decode(ServerAPI.PushPayload.self, "push-payload.json") },
         "ws-messages.json": { try $0.decode([ServerAPI.ServerMessage].self, "ws-messages.json") },
     ]
 

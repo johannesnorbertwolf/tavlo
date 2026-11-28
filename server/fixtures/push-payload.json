@@ -1,0 +1,14 @@
+{
+  "aps": {
+    "alert": {
+      "loc-key": "PUSH_YOUR_TURN",
+      "loc-args": [
+        "Alex"
+      ]
+    },
+    "sound": "default",
+    "thread-id": "m_7f3a9c21d4e5"
+  },
+  "matchID": "m_7f3a9c21d4e5",
+  "kind": "yourTurn"
+}

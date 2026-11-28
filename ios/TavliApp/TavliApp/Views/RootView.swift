@@ -105,8 +105,13 @@ struct RootView: View {
                 // Online multiplayer (#134) is a self-contained branch: the coordinator
                 // owns its own session, so the offline save/resume/stats wiring below is
                 // bypassed entirely (online results don't touch the vs-AI record).
-                if onlineViaServer && DeveloperTools.isEnabled(setting: developerToolsSetting) {
-                    ServerOnlineRootView(coordinator: serverOnline, onExit: { showOnline = false })
+                // #287: invite links and tapped pushes are server-only, so they open the
+                // server lobby whatever the developer switch says (`routedHere`).
+                if (onlineViaServer && DeveloperTools.isEnabled(setting: developerToolsSetting)) || serverOnline.routedHere {
+                    ServerOnlineRootView(coordinator: serverOnline, onExit: {
+                        showOnline = false
+                        serverOnline.didExit()
+                    })
                 } else {
                     OnlineRootView(coordinator: online, onExit: { showOnline = false })
                 }
@@ -251,7 +256,30 @@ struct RootView: View {
         .debugOnlineDice()     // `-debugOnlineDice`: an offline online game with the shared dice (#272)
         .debugAccount()        // `-debugAccount`: the Server v1 account sheet (#285)
         .screenshotScenes()    // `-screenshotReview` / `-screenshotDrill` / `-screenshotHandicap` (#184)
+        .task {                // `-debugServerLobby` / `-debugJoinURL`: the server lobby (#287)
+            guard DebugServerLobby.isRequested else { return }
+            await DebugServerLobby.prepare()
+            if let raw = DebugServerLobby.value(after: "-debugJoinURL"), let url = URL(string: raw) {
+                _ = serverOnline.handle(url: url)
+            } else {
+                serverOnline.showLobby()
+            }
+            showOnline = true
+        }
         #endif
+        // #287: an invite link (universal link https://<server>/join/<code>) opens the
+        // server lobby's join sheet; a tapped push opens its match.
+        .onOpenURL { url in
+            if serverOnline.handle(url: url) { showOnline = true }
+        }
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            if let url = activity.webpageURL, serverOnline.handle(url: url) { showOnline = true }
+        }
+        .onReceive(PushRegistrar.shared.$tappedMatchID.compactMap { $0 }) { matchID in
+            PushRegistrar.shared.tappedMatchID = nil
+            serverOnline.openFromPush(matchID: matchID)
+            showOnline = true
+        }
         // Online (#134): sign in to Game Center at launch without UI, so a tapped turn
         // notification reaches the listener; the sign-in sheet waits for Play Online.
         .onAppear { online.authenticate(presentUI: false) }

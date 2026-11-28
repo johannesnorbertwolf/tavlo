@@ -170,4 +170,81 @@ final class ServerE2ETests: XCTestCase {
         let list = try await a.service.listMatches(state: "ended")
         XCTAssertTrue(list.matches.contains { $0.matchID == id && $0.outcome == .won })
     }
+
+    // MARK: - #287: invite by code, random opponent, lobby removal
+
+    func testInviteByCodeThroughTheLocalServer() async throws {
+        let url = try serverURL()
+        let a = try await device("alice", url: url, agent: nil)
+        let b = try await device("bob", url: url, agent: nil)
+        let alice = ServerLobby(service: a.service, controller: a.controller)
+        let bob = ServerLobby(service: b.service, controller: b.controller)
+
+        let created = await alice.createInvite(variant: "fevga", targetWins: 1)
+        let invite = try XCTUnwrap(created, alice.error ?? "")
+        XCTAssertEqual(invite.url, url.appendingPathComponent("join/\(invite.code)"))
+        XCTAssertEqual(alice.matches.first { $0.matchID == invite.match.matchID }?.invite?.code, invite.code)
+        alice.open(invite.match)
+        await until("Alice's game") { a.controller.session != nil }
+
+        // Bob types the code (lower case, a space) and joins; both sockets live.
+        let typed = invite.code.lowercased().prefix(3) + " " + invite.code.lowercased().dropFirst(3)
+        let preview = await bob.preview(code: String(typed))
+        XCTAssertEqual(preview?.status, "open")
+        let joined = await bob.join(code: String(typed))
+        XCTAssertEqual(joined?.matchID, invite.match.matchID, bob.error ?? "")
+        await until("Bob's game") { b.controller.session != nil }
+        await until("both sockets") { a.service.isSocketConnected && b.service.isSocketConnected }
+        await until("Alice sees Bob") { a.controller.opponentName != nil && a.controller.opponentName != "" }
+
+        // Two turns across (Fevga: the server drew who starts).
+        for turn in 0..<2 {
+            await until("turn \(turn)") { a.controller.isLocalTurn || b.controller.isLocalTurn }
+            let mover = a.controller.isLocalTurn ? a : b
+            let waiter = a.controller.isLocalTurn ? b : a
+            let s = try XCTUnwrap(mover.controller.session)
+            let plies = s.record.plies.count
+            s.roll()
+            await until("dice") { s.phase != .awaitingRoll || s.record.plies.count > plies }
+            while s.record.plies.count == plies, let hop = anyHop(s) { s.commitHalfMove(from: hop.0, to: hop.1) }
+            await until("turn \(turn) arrives") { waiter.controller.session?.record.plies.count == plies + 1 }
+        }
+        // The code is spent; the invite page knows it.
+        let c = try await device("sam", url: url, agent: nil)
+        let sam = ServerLobby(service: c.service, controller: c.controller)
+        sam.describeError = { ($0 as? AuthError)?.serverCode?.rawValue ?? "\($0)" }
+        let late = await sam.join(code: invite.code)
+        XCTAssertNil(late)
+        XCTAssertEqual(sam.error, "invite_unavailable")
+        let (html, response) = try await URLSession.shared.data(from: invite.url)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertTrue(String(decoding: html, as: UTF8.self).contains("isn’t open any more"))
+
+        // Bob leaves; Alice removes the finished match from her lobby.
+        b.controller.forfeit()
+        await until("Alice sees the forfeit") { a.controller.isMatchOver }
+        await alice.refresh()
+        let row = try XCTUnwrap(alice.matches.first { $0.matchID == invite.match.matchID })
+        XCTAssertEqual(row.lobbySection, .finished)
+        await alice.remove(row)
+        await alice.refresh()
+        XCTAssertFalse(alice.matches.contains { $0.matchID == invite.match.matchID })
+    }
+
+    func testRandomOpponentThroughTheLocalServer() async throws {
+        let url = try serverURL()
+        let a = try await device("alice", url: url, agent: nil)
+        let b = try await device("bob", url: url, agent: nil)
+        let alice = ServerLobby(service: a.service, controller: a.controller)
+        let bob = ServerLobby(service: b.service, controller: b.controller)
+        // A variant + length no other test uses, so earlier runs' waiting matches don't pair.
+        let first = await alice.autoMatch(variant: "portes", targetWins: 2)
+        let waiting = try XCTUnwrap(first, alice.error ?? "")
+        let second = await bob.autoMatch(variant: "portes", targetWins: 2)
+        let joined = try XCTUnwrap(second, bob.error ?? "")
+        XCTAssertEqual(joined.matchID, waiting.matchID)
+        await until("Alice sees her opponent") { a.controller.opponentName != nil }
+        // Leave the queue clean for the next run.
+        b.controller.forfeit()
+    }
 }

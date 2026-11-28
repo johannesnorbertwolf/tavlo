@@ -21,7 +21,7 @@
         "playerID": null,
         "displayName": null,
         "color": "B",
-        "status": "matching",
+        "status": "invited",
         "outcome": "none"
       }
     ],

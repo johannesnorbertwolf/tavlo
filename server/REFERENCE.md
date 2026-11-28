@@ -50,7 +50,7 @@ iOS app ──HTTPS /v1/…──► Worker (src/index.ts) ──► D1 "DB": ac
 
 - **Base URL**: `https://tavtav-server-staging.<subdomain>.workers.dev` (staging),
   `https://tavtav-server.<subdomain>.workers.dev` (production); a custom domain can come later
-  (then also the universal-link host, #287).
+  (then also the universal-link host: today the invite links are `https://<worker host>/join/<code>`).
 - **Versioning**: the major version is the path prefix (`/v1`) and the `X-Tavtav-Api: 1`
   response header. Within v1 changes are **additive only**: new endpoints, new optional
   request fields, new response fields, new enum values / error codes / WebSocket message
@@ -115,7 +115,7 @@ Every endpoint is in the route table (`src/routes.ts`); until its ticket lands i
 | `GET /v1/account` | auth | → `Account` | – | **#285 ✓** |
 | `PATCH /v1/account` | auth | `UpdateAccountRequest` → `Account` | – | **#285 ✓** |
 | `DELETE /v1/account` | auth | → 204 | – | **#285 ✓** |
-| `GET /v1/matches` (`?state=active\|ended&cursor=`) | auth | → `MatchListResponse` | lobby list | **#286 ✓** (index), #287 (lobby UI) |
+| `GET /v1/matches` (`?state=active\|ended&cursor=`) | auth | → `MatchListResponse` | lobby list | **#286 ✓** (index), **#287 ✓** (`invite` on waiting rows) |
 | `POST /v1/matches` | auth | `CreateMatchRequest` → 201 `MatchSnapshot` | create (direct challenge) | **#286 ✓** |
 | `GET /v1/matches/{id}` | auth | → `MatchSnapshot` | `load` | **#286 ✓** |
 | `POST /v1/matches/{id}/accept` | auth | – → `MatchSnapshot` | `acceptInvite` | **#286 ✓** |
@@ -128,17 +128,17 @@ Every endpoint is in the route table (`src/routes.ts`); until its ticket lands i
 | `POST /v1/matches/{id}/dice` | auth | `DiceChangeRequest` → `DiceHandicap` | shared slider (#272) | **#286 ✓** |
 | `POST /v1/matches/{id}/roll` | auth | `RollRequest` → `RollRecord` | (was local roll) | **#286 ✓** |
 | `GET /v1/matches/{id}/socket` | auth | WebSocket upgrade | GameKit turn events | **#286 ✓** |
-| `DELETE /v1/matches/{id}` | auth | → 204 (hide an ended match) | lobby "Remove" | #287 |
-| `POST /v1/invites` | auth | `CreateInviteRequest` → `Invite` | invite friend | #287 |
-| `GET /v1/invites/{code}` | auth | → `InvitePreview` | – | #287 |
-| `POST /v1/invites/{code}/accept` | auth | – → `MatchSnapshot` | join by link/code | #287 |
-| `POST /v1/invites/{code}/decline` | auth | – → 204 | – | #287 |
-| `DELETE /v1/invites/{code}` | auth | → 204 (creator cancels) | – | #287 |
-| `POST /v1/automatch` | auth | `AutoMatchRequest` → `MatchSnapshot` | GameKit auto-match | #287 |
-| `PUT /v1/push-tokens` | auth | `PushTokenRequest` → 204 | – | #287 |
-| `DELETE /v1/push-tokens/{token}` | auth | → 204 | – | #287 |
-| `GET /.well-known/apple-app-site-association` | – | AASA JSON | universal links | #287 |
-| `GET /join/{code}` | – | HTML fallback (App Store link) | – | #287 |
+| `DELETE /v1/matches/{id}` | auth | → 204 (hide an ended match) | lobby "Remove" | **#287 ✓** |
+| `POST /v1/invites` | auth | `CreateInviteRequest` → `Invite` | invite friend | **#287 ✓** |
+| `GET /v1/invites/{code}` | auth | → `InvitePreview` | – | **#287 ✓** |
+| `POST /v1/invites/{code}/accept` | auth | – → `MatchSnapshot` | join by link/code | **#287 ✓** |
+| `POST /v1/invites/{code}/decline` | auth | – → 204 | – | **#287 ✓** |
+| `DELETE /v1/invites/{code}` | auth | → 204 (creator cancels) | – | **#287 ✓** |
+| `POST /v1/automatch` | auth | `AutoMatchRequest` → `MatchSnapshot` | GameKit auto-match | **#287 ✓** |
+| `PUT /v1/push-tokens` | auth | `PushTokenRequest` → 204 | – | **#287 ✓** |
+| `DELETE /v1/push-tokens/{token}` | auth | → 204 | – | **#287 ✓** |
+| `GET /.well-known/apple-app-site-association` | – | AASA JSON | universal links | **#287 ✓** |
+| `GET /join/{code}` | – | HTML fallback (App Store link) | – | **#287 ✓** |
 
 ### Accounts (#285)
 
@@ -204,8 +204,9 @@ hooks). App side: `ServerAuth.swift` (`AuthClient`) in TavliEngine.
   revokes Apple tokens in the background. **#286's hook** (`endMatchesOfDeletedAccount`,
   `src/matches.ts`) calls `MatchRoom.accountDeleted` for each match: a running match ends as
   the player's quit (the opponent wins, event `quit`), the seat's `displayName` → null and
-  `deleted` (refused from then on), its sockets close with 4403; **#287** adds the push-token
-  cleanup. Signing in again with the same
+  `deleted` (refused from then on), its sockets close with 4403, and the opponent of a match
+  that ended gets the "opponent left" push; **#287's** `deletePushTokensOfDeletedAccount`
+  (`src/push.ts`) then deletes the account's device tokens. Signing in again with the same
   Apple/Google identity afterwards creates a new, empty account.
 - **Apple token revocation** (App Review 5.1.1(v); `src/apple-revoke.ts`), behind config:
   with the secrets `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` (Sign in with Apple
@@ -367,20 +368,103 @@ fallback while the socket is down.
 
 ### Invites, auto-match, lobby, push (#287)
 
-- **Invite**: `POST /v1/invites` creates a match (seat 1 `invited`, open) and a 6-character
-  code (`[A-Z0-9]`, no look-alikes), valid 7 days; `url` = `https://<worker host>/join/<code>`
-  (universal link; `/join/<code>` serves a small page with the App Store link when the app is
-  not installed). `GET /v1/invites/{code}` previews it; accept fills seat 1 with the caller
-  (not the creator; one use); decline / creator cancel / expiry close it (410 afterwards).
-- **Auto-match**: `POST /v1/automatch {variant, targetWins}` mirrors GameKit: joins the oldest
-  waiting match with the same variant + length (seat 1 `matching`, not your own) or creates
-  one and returns it at once; the creator can start playing. Cancel = `quit` out of turn.
-  Queue = D1 rows / a singleton DO per (variant, length), decided in #287.
-- **Push**: `PUT /v1/push-tokens` registers an APNs token (`sandbox` for debug builds,
-  `production` for TestFlight/App Store) with the locale for the text. The Worker signs an
-  ES256 provider JWT (APNs key secret) with WebCrypto and sends: your turn, invite received,
-  match ended, opponent left. Payload carries `matchID` so a tap opens the match. Tokens
-  that APNs reports as unregistered are deleted.
+Code: `src/invites.ts`, `src/match-queue.ts` (`MatchQueue` DO), `src/push.ts`, `src/web.ts`,
+`removeMatch` / `autoMatch` in `src/matches.ts`; D1 migration `0003_invites_push.sql`
+(`invites`, `push_tokens`). App side: `ServerLobby.swift` (engine) + the lobby views.
+
+- **Open seat.** `MatchRoom.create` takes `openSeat`: seat 1 without a player is `matching`
+  (auto-match) or `invited` (invite code). The creator holds the turn and may play first (as
+  with GameKit); its end-turn hands the turn to the empty seat (`currentPlayerID null`,
+  creator's lobby row `waitingForOpponent`). `MatchRoom.join(player)` fills the seat (status
+  `active` at once, event `joined`; the joiner holds the turn if the creator already moved);
+  refused for the creator (403), a taken seat (403) or an ended match (409).
+  `MatchRoom.closeOpenSeat()` ends a match still waiting for its seat (seat 1 `declined`,
+  seat 0 `done`, outcomes `none`, event `declined`). **Cancel** while the seat is open =
+  `quit` with `inTurn: false` (allowed then even for the turn holder: nobody plays on).
+- **Invite codes** (`POST /v1/invites` → 201 `Invite`): 6 characters from
+  `23456789ABCDEFGHJKMNPQRSTUVWXYZ` (no `0 O 1 I L`; `crypto.getRandomValues` with rejection
+  sampling, no modulo bias; 31⁶ ≈ 887 M), stored in D1 `invites` (`status` open / accepted /
+  declined / cancelled / expired), valid **7 days** (`INVITE_TTL_MS`); a code collision
+  retries (5×). `url` = `<request origin>/join/<code>`. Codes are read case-insensitively,
+  spaces and dashes dropped (`normalizeInviteCode`, mirrored by Swift `InviteCode`).
+  - `GET /v1/invites/{code}` → `InvitePreview` (200 also for closed invites — `status` says
+    which; an `open` one past its expiry reads `expired`); unknown → 404.
+  - `POST …/accept`: the creator → 403; not open / expired → 410 `invite_unavailable`; the
+    **claim is one conditional D1 `UPDATE … WHERE status = 'open' AND expires_at > now`**, so
+    of two players accepting at once exactly one wins (the other 410). Then `join`; if the
+    creator left meanwhile the code is marked `cancelled` and the answer is 410. The same
+    player accepting again (lost reply) gets the match (200). Push `inviteAccepted` → creator.
+  - `POST …/decline` (anyone but the creator) and `DELETE /v1/invites/{code}` (creator only,
+    else 403) close an open invite (`declined` / `cancelled`) and `closeOpenSeat` the match;
+    again → 204; any other closed state → 410.
+  - **Expiry**: the hourly cron (`expireInvites`, ≤ 100 per run) marks open invites past
+    `expires_at` `expired` and closes their matches.
+  - **Lobby**: `GET /v1/matches` adds `invite {code, url, expiresAt}` to the creator's row of a
+    running match with an open invite (share again / cancel).
+- **Auto-match** (`POST /v1/automatch {variant, targetWins}` → 200 `MatchSnapshot`): one
+  `MatchQueue` Durable Object per queue, `getByName("<variant>:<targetWins>")`, table
+  `waiting (match_id, creator_id, created_at)`. `enter` runs inside `blockConcurrencyWhile`,
+  so concurrent requests are served one after another (a D1 "find, else create" would let two
+  simultaneous players both create and wait): (1) the oldest waiting match of **someone else**
+  is removed from the queue and joined (`join`); an entry whose match ended (creator
+  cancelled / deleted) or whose seat is taken is dropped and the next tried; (2) else the
+  caller's own waiting match is answered again (double tap); (3) else a new match with a
+  `matching` seat is created and queued. Entries older than 7 days are dropped. Push
+  `inviteAccepted` → the creator when someone joined. (New DO class → `migrations` tag `v2`
+  `new_sqlite_classes: ["MatchQueue"]` in every environment.)
+- **Lobby removal** (`DELETE /v1/matches/{id}` → 204): sets `match_index.hidden = 1` for the
+  caller only; a running match → 403 `forbidden`; not the caller's / unknown → 404. The
+  room's later index writes keep `hidden`.
+- **Push** (`src/push.ts`). `PUT /v1/push-tokens {token, environment, locale?}` upserts
+  `push_tokens` (a token moves to the newest account that registers it; ≤ 10 newest per
+  account); `DELETE /v1/push-tokens/{token}` removes it for the caller (204 also when absent;
+  the app calls it before signing out). Which operation pushes whom (`pushesAfter`, pure):
+  | Operation | To | `kind` | `loc-key` |
+  |---|---|---|---|
+  | create with `opponentID` | the challenged player | `inviteReceived` | `PUSH_INVITE_RECEIVED` |
+  | accept (challenge), invite accept, auto-match join | the creator | `inviteAccepted` | `PUSH_INVITE_ACCEPTED` |
+  | end-turn (the other player now holds the turn) | the other | `yourTurn` | `PUSH_YOUR_TURN` |
+  | end-match | the other | `matchEnded` | `PUSH_MATCH_WON` / `_LOST` / `_ENDED` (their outcome) |
+  | quit (the other wins), account deletion | the other | `opponentLeft` | `PUSH_OPPONENT_LEFT` |
+  Save-turn, rolls, slider and declines push nothing; a lost-reply resend may push twice.
+  Handlers send with `ctx.waitUntil` (never delays or fails the request). Payload
+  (`PushPayload`, fixture `push-payload.json`): `{"aps": {"alert": {"loc-key", "loc-args":
+  [<sender's name>]}, "sound": "default", "thread-id": <matchID>}, "matchID", "kind"}` — iOS
+  renders the text from the app's `Localizable.xcstrings` (`PUSH_*`, en/de/nl/el/fa), so the
+  server never translates; `locale` is stored for later use. Request: `POST
+  https://api.push.apple.com/3/device/<token>` (`api.sandbox.push.apple.com` for `sandbox`
+  tokens), headers `authorization: bearer <provider JWT>`, `apns-topic: com.plakoto.TavliApp`,
+  `apns-push-type: alert`, `apns-priority: 10`, `apns-expiration: now + 1 day`,
+  `apns-collapse-id: turn-<matchID>` for "your turn". **Provider JWT**: ES256 (WebCrypto,
+  `jwt.ts` `importP8` + `signEs256`), header `{alg, kid: APNS_KEY_ID}`, claims `{iss:
+  APNS_TEAM_ID, iat}`, cached per isolate for 50 min (APNs: refresh after 20, before 60);
+  dropped at once on `ExpiredProviderToken` / `InvalidProviderToken`. A 410 or `BadDeviceToken`
+  / `Unregistered` / `DeviceTokenNotForTopic` deletes the token. **Behind config**: without
+  `APNS_KEY_ID` + `APNS_PRIVATE_KEY` (secrets) and `APNS_TEAM_ID` (var) every push logs
+  `push.skipped` and nothing is sent. Logs never contain tokens. Unverified until a real key
+  exists: that Workers' `fetch` reaches APNs over HTTP/2 (APNs refuses HTTP/1.1; Workers
+  negotiates the protocol itself — the `@fivesheepco/cloudflare-apns2` library uses plain
+  `fetch` the same way). After setup, check the logs for `push.sent` vs `push.rejected` /
+  `push.error`.
+
+### Universal links (#287, `src/web.ts`)
+
+- `GET /.well-known/apple-app-site-association` → `{"applinks": {"details": [{"appIDs":
+  ["8XRKL83C4V.com.plakoto.TavliApp"], "components": [{"/": "/join/*"}]}]}}`,
+  `application/json`, no redirect, `Cache-Control: public, max-age=3600`. Apple's CDN fetches
+  it (app-site-association.cdn-apple.com) when the app is installed and caches it for hours to
+  days, so a changed file takes time to reach devices.
+- The app's Associated Domains: `applinks:tavtav-server-staging.tavtav.workers.dev` (Debug) /
+  `applinks:tavtav-server.tavtav.workers.dev` (Release); a production build only opens
+  production links, a debug build only staging links.
+- `GET /join/{code}`: the fallback page when the link opens in a browser (app not installed,
+  or opened from a context that skips universal links): the Tavtav mark, "Alex invites you to
+  a game of Fevga." + length, the code to type ("Play Online → Join with a code") and the App
+  Store button (`https://apps.apple.com/app/id6838396758`) + a Smart App Banner (`app-argument`
+  = the link). Language from `Accept-Language` (q-values): en / de / nl / el (else en).
+  Unknown code → 404 page "This invite link isn’t valid…"; a closed invite → "This invite isn’t
+  open any more…" without the code. Caramel colours, light + dark (`prefers-color-scheme`),
+  no scripts; CSP `default-src 'none'; style-src 'unsafe-inline'`, names HTML-escaped.
 
 ### Shared fixtures
 
@@ -405,7 +489,7 @@ and the fixture together.
 | `src/rate-limit.ts` | `enforceRateLimit` over the two Rate Limiting bindings |
 | `src/usage.ts` | Hourly free-plan usage check + alert webhook |
 | `src/match-room.ts` | `MatchRoom` DO (#286): storage migrations, the match state + every operation (`RoomResult`), dice verification, lobby index writes, hibernatable sockets + fan-out, `accountDeleted`, keepalive auto-response, `info()`; test seams `random` / `now` |
-| `src/matches.ts` | #286 match handlers (validate → room → response), lobby list from D1, socket hand-off, the account-deletion hook |
+| `src/matches.ts` | #286 match handlers (validate → room → response), lobby list from D1 (+ #287 open invites), socket hand-off, the account-deletion hook; #287 pushes after create / accept / end-turn / end-match / quit, `removeMatch`, `autoMatch` |
 | `src/dice.ts` | #286 server dice: crypto fair dice, the hybrid bend port (`turnBeta`, `mirroredBeta`, `rollBeta`, `weightedFaces`), `drawRoll` |
 | `src/payload.ts` | #286 reads the plies' dice from a base64 payload (the only payload read) + size check |
 | `src/accounts.ts` | #285 handlers: sign-in (Apple/Google/dev), refresh, logout, account get/update/delete, display-name rule, session pruning |
@@ -413,10 +497,14 @@ and the fixture together.
 | `src/sessions.ts` | Access tokens (HMAC), refresh-token rotation + reuse detection, `authenticate` |
 | `src/jwt.ts` | base64url, JWT decode, RS256 verify, ES256 sign, `.p8` import (WebCrypto) |
 | `src/apple-revoke.ts` | Apple code exchange + token revocation (skipped without the `APPLE_*` secrets) |
-| `src/account-hooks.ts` | `ACCOUNT_DELETION_HOOKS` (#286's `endMatchesOfDeletedAccount`; #287 adds push tokens) |
+| `src/account-hooks.ts` | `ACCOUNT_DELETION_HOOKS`: #286's `endMatchesOfDeletedAccount` (+ "opponent left" pushes), #287's `deletePushTokensOfDeletedAccount` |
+| `src/invites.ts` | #287 invite codes: generate (`newInviteCode`), normalize, create / preview / accept (conditional claim) / decline / revoke, `expireInvites` (cron) |
+| `src/match-queue.ts` | #287 `MatchQueue` DO: one auto-match queue per variant + length, `enter` serialised with `blockConcurrencyWhile` |
+| `src/push.ts` | #287 device-token endpoints, `pushesAfter` (who gets which push), APNs payload + request, ES256 provider JWT cache, `sendPushes` (dead-token cleanup, skipped without the key), deletion hook; `pushDeps` = test seam |
+| `src/web.ts` | #287 AASA + the `/join/{code}` fallback page (`joinPage`, `pageLanguage`) |
 | `src/version.ts` | `SERVER_VERSION` (= package.json), service name |
 | `src/secrets.d.ts` | Types for the optional secrets |
-| `migrations/` | D1 migrations (`0001_initial.sql`; `0002_sessions.sql`: `sessions`, `account_identities.provider_refresh_token`) |
+| `migrations/` | D1 migrations (`0001_initial.sql`; `0002_sessions.sql`: `sessions`, `account_identities.provider_refresh_token`; `0003_invites_push.sql`: `invites`, `push_tokens`) |
 | `worker-configuration.d.ts` | Generated by `npm run types` (`wrangler types --strict-vars=false`); CI checks it is current |
 
 **Tests** (`npm test`, vitest + `@cloudflare/vitest-plugin` — the renamed
@@ -444,7 +532,25 @@ locking, quit in/out of turn, requests (recipient only, dropped after its turn),
 slider rule + weighted rolls (values required, mirrored β, deterministic draw via
 `runInDurableObject`, values stored), lobby list paging/filter/cursor, WebSocket (hello,
 roll/match/request fan-out, 4403 refusal, 4401 after token expiry, upgrade/auth checks),
-account deletion (quit + anonymised + stale token refused). **Dice** (`test/dice.test.ts`):
+account deletion (quit + anonymised + stale token refused).
+**Lobby, invites, auto-match** (`test/lobby.test.ts`, helpers `test/lobby-helpers.ts`): code
+alphabet + uniformity + rejection sampling, normalisation; create (open `invited` seat, lobby
+row with the invite), preview (any case, unknown, unauthenticated), accept (own invite 403,
+one use, lost reply, joiner holds the turn after the creator's first move), **four players
+accepting at once → exactly one 200**, decline / revoke (who may, idempotent, match ended),
+expiry (preview, accept 410, cron), creator left meanwhile; auto-match (wait, double tap, other
+length = other queue, join, queue emptied), **four players entering at once → two pairs, empty
+queue**, cancelled and week-old waiting matches skipped, deleted creator; lobby removal (only
+ended, only for the caller). **Push** (`test/push.test.ts`, generated P-256 `.p8`, fake
+APNs `fetch`): token register / move / unregister / cap / validation / deletion hook;
+provider JWT (header, claims, signature verified with the public key, 64-byte JOSE signature,
+50-min cache, escaped one-line PEM); payload + loc-keys = the fixture; request host per token
+environment + headers + collapse id; dead tokens deleted, 500 kept; skipped (and logged)
+without the key; refused provider token re-signed; `pushesAfter` per operation; end-to-end
+through the Worker (challenge → `PUSH_INVITE_RECEIVED`, end-turn → `PUSH_YOUR_TURN` to the
+sandbox host), invite accept → creator, account deletion → "opponent left". **Web**
+(`test/web.test.ts`): AASA body + headers, `pageLanguage`, the join page in en/de/nl/el,
+unknown (404) / closed invites, escaping. **Dice** (`test/dice.test.ts`):
 parity with the Python/Swift table (β, mirrored β, faces for 8 uniform pairs × 4 vectors × 4
 levels × 2 maxPoints), fair at level 0 / flat values, χ² of crypto fair dice and of the bent
 distribution against `p·exp(βv)` for both sides.
@@ -525,10 +631,11 @@ listed in `src/secrets.d.ts`; `npx wrangler secret list --env …`). Local dev: 
 | `ALERT_WEBHOOK_URL` | usage alert | e.g. `https://ntfy.sh/<long-random-topic>` (free, phone app) or a Slack/Discord webhook |
 | `SESSION_KEY` | #285 sessions | **required** in staging/production (sign-in answers 503 without it). `openssl rand -base64 48`; one per environment. Rotating it signs every access token out (refresh tokens keep working, so apps refresh transparently) |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` / `APPLE_PRIVATE_KEY` | #285 Apple revocation | optional; the Sign in with Apple key (see "Accounts setup"); `APPLE_PRIVATE_KEY` = the `.p8` file's whole text (`npx wrangler secret put APPLE_PRIVATE_KEY --env production < AuthKey_XXXX.p8`) |
-| APNs `.p8` key, key id, team id | #287 | e.g. `APNS_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID` |
+| `APNS_KEY_ID` / `APNS_PRIVATE_KEY` | #287 push | optional (pushes are skipped and logged without them); the APNs auth key id + the `.p8` file's whole text. Copied from the **GitHub repository secrets** of the same names by the `server-secrets` workflow — see "Push + universal links setup". The team id is the var `APNS_TEAM_ID` (`8XRKL83C4V`, in `wrangler.jsonc`) |
 
 Non-secret config lives in `wrangler.jsonc` `vars` (per environment): `GOOGLE_CLIENT_IDS` (#285)
-= the iOS OAuth client id(s), comma separated, empty until the Google client exists.
+= the iOS OAuth client id(s), comma separated, empty until the Google client exists;
+`APNS_TEAM_ID` (#287) = `8XRKL83C4V`.
 
 ### Accounts setup (the user, once, #285)
 
@@ -547,10 +654,11 @@ Non-secret config lives in `wrangler.jsonc` `vars` (per environment): `GOOGLE_CL
    No client secret and no URL-scheme registration are needed (ASWebAuthenticationSession
    catches the `com.googleusercontent.apps.<id>` redirect itself).
 3. **`SESSION_KEY`** for each environment: run the GitHub Actions workflow
-   **server-session-key** (Actions → server-session-key → Run workflow → environment). It
-   generates the key on the runner and pipes it into `wrangler secret put`, so nobody sees it,
-   and only sets it when missing (tick `rotate` to replace it, which signs every access token
-   out). Locally the equivalent is
+   **server-secrets** (Actions → server-secrets → Run workflow → environment; it was called
+   `server-session-key` before #287). It generates the key on the runner and pipes it into
+   `wrangler secret put`, so nobody sees it, and only sets it when missing (tick
+   `rotate_session_key` to replace it, which signs every access token out). The same run copies
+   the APNs key when the repository has it (below). Locally the equivalent is
    `openssl rand -base64 48 | npx wrangler secret put SESSION_KEY --env staging`. Without it
    sign-in answers 503. Production needs a first deploy before its secret can be set.
 4. **Sign in with Apple key** (for revocation on account deletion, optional but recommended for
@@ -563,6 +671,42 @@ Non-secret config lives in `wrangler.jsonc` `vars` (per environment): `GOOGLE_CL
 5. **App server URLs**: once the Worker is deployed, replace `REPLACE_WITH_SUBDOMAIN` in
    `TAVTAV_SERVER_URL_STAGING` / `TAVTAV_SERVER_URL_PRODUCTION` in `ios/TavliApp/project.yml`.
 
+### Push + universal links setup (the user, once, #287)
+
+Until these steps are done everything else works: pushes are skipped (`push.skipped` in the
+logs) and invite links open the web page instead of the app.
+
+1. **App ID capabilities** (developer.apple.com → Certificates, Identifiers & Profiles →
+   Identifiers → `com.plakoto.TavliApp`): tick **Push Notifications** and **Associated
+   Domains**, Save. (With automatic signing Xcode offers the same from the entitlements file:
+   `aps-environment` + `com.apple.developer.associated-domains`; the provisioning profiles are
+   regenerated on the next build / archive.) A free (personal) team cannot sign either
+   capability.
+2. **APNs auth key**: Certificates, Identifiers & Profiles → **Keys** → **+** → name
+   "Tavtav APNs", tick **Apple Push Notifications service (APNs)** (environment: *Sandbox &
+   Production*) → Continue → Register → **Download** `AuthKey_<KEYID>.p8` (only once; keep it
+   safe) and note the **Key ID** (10 characters). One key serves every app of the team, both
+   APNs environments, staging and production.
+3. **GitHub repository secrets** (nobody runs `wrangler secret put` locally):
+   ```bash
+   gh secret set APNS_KEY_ID --repo johannesnorbertwolf/tavlo          # paste the Key ID
+   gh secret set APNS_PRIVATE_KEY --repo johannesnorbertwolf/tavlo < AuthKey_<KEYID>.p8
+   ```
+4. **Run the workflow** per environment: Actions → **server-secrets** → Run workflow →
+   `staging` (and later `production`, after its first deploy). Its "Copy the APNs key" step
+   writes both secrets into the Worker (`wrangler secret bulk`, one new version); without the
+   repository secrets it skips with a notice. Re-run it after replacing the key.
+5. **Check**: sign in on a device with a debug build (sandbox token) against staging, start a
+   game, let the other player end a turn: `npx wrangler tail --env staging` shows `push.sent`
+   (or `push.rejected` with APNs' `reason`). TestFlight / App Store builds register
+   `production` tokens and are pushed through api.push.apple.com.
+6. **Universal links**: nothing to configure on the server (the AASA is served by the Worker).
+   After installing a build with the Associated Domains entitlement, a link
+   `https://tavtav-server-staging.tavtav.workers.dev/join/<code>` (debug) /
+   `https://tavtav-server.tavtav.workers.dev/join/<code>` (release) tapped in Messages opens
+   the app; Apple's CDN may need a while to pick up the AASA of a fresh deploy. Long-press a
+   link → "Open in Tavtav" re-enables it if a user once chose the browser.
+
 ### Local check with the simulator (#285)
 
 `npm run db:migrate:local && npm run dev` (port 8787), then a DEBUG app build (its default
@@ -570,6 +714,21 @@ server is `http://localhost:8787`, `NSAllowsLocalNetworking`): Settings → Onli
 Developer → "Development sign-in", or launch arguments `-debugAccount
 -debugAccountDevSubject sim-a -debugAccountName "Alex K."` (see `AccountViews.swift`).
 Sign in with Apple / Google need a signed build and real provider setup.
+
+### Lobby, invites and push against the local server (#287)
+
+- `TAVTAV_E2E_SERVER=http://127.0.0.1:8787 swift test --filter ServerE2ETests` also runs
+  `testInviteByCodeThroughTheLocalServer` (invite → typed code → two turns → the spent code
+  and its web page → forfeit → remove) and `testRandomOpponentThroughTheLocalServer`. The
+  three E2E tests together send ~150 requests from one IP: run them one at a time (or wait a
+  minute) so the per-IP limiter (120/min) does not answer 429.
+- Two simulators: launch each DEBUG build with `-debugServerLobby -debugAccountDevSubject sim-a
+  -debugAccountName Alex` (and `sim-b` / `Sam`): New game → Invite a friend on one, Join with a
+  code on the other. `-debugServerLobbySheet newMatch|join|invite` opens a sheet,
+  `-debugJoinURL https://…/join/<code>` behaves like an opened invite link.
+- A push on the simulator without APNs: `xcrun simctl push <udid> com.plakoto.TavliApp
+  payload.apns` with the `push-payload.json` fixture (plus `"Simulator Target Bundle"`): the
+  banner shows the localized `PUSH_*` text, tapping it opens the match.
 
 ### Online play against the local server (#286)
 

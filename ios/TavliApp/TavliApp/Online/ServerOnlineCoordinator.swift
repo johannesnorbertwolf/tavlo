@@ -3,48 +3,61 @@ import Combine
 import UIKit
 import TavliEngine
 
-/// Online play through our own server (#286), behind the developer switch "Play online via
-/// the server" (Settings → Online account, developer tools on); Game Center stays the
-/// default path until #287/#288. The app-side twin of `GameKitCoordinator`: it owns the
-/// engine's `ServerMatchService` (HTTPS + WebSocket over the signed-in `AuthClient`) and an
-/// `OnlineMatchController`, keeps the lobby list (`GET /v1/matches`), opens / creates
-/// matches and keeps the open match's socket. All match logic stays in the engine.
-/// Invites / auto-match / push are #287: this lobby challenges an account id directly.
+/// Online play through our own server (#286, lobby/invites/push #287), behind the developer
+/// switch "Play online via the server" (Settings → Online account, developer tools on); Game
+/// Center stays the default path until #288. Invite links and pushes are server-only, so
+/// they open this lobby whatever the switch says (`routedHere`).
+///
+/// The app-side twin of `GameKitCoordinator`: per signed-in account it owns the engine's
+/// `ServerMatchService` (HTTPS + WebSocket over the `AuthClient`), an `OnlineMatchController`
+/// and a `ServerLobby` (list, invites, auto-match, row actions — all logic in the engine);
+/// it keeps the device's push token registered and routes invite links + tapped pushes.
 @MainActor
 final class ServerOnlineCoordinator: ObservableObject {
     static let switchKey = "debug.onlineViaServer"
 
-    /// The signed-in account's matches, newest first.
-    @Published private(set) var matches: [ServerAPI.MatchSummary] = []
-    /// A lobby action failed (shown under the buttons).
-    @Published var lobbyError: String?
-    @Published private(set) var isWorking = false
+    /// The lobby of the signed-in account (nil while signed out).
+    @Published private(set) var lobby: ServerLobby?
     /// The controller for the current account's service (rebuilt on sign-in changes).
     @Published private(set) var controller: OnlineMatchController?
+    /// An invite code from a link (or typed elsewhere), waiting for the lobby to show it.
+    @Published var pendingJoinCode: String?
+    /// An invite link or a tapped push opened the online screen (whatever the switch says).
+    @Published private(set) var routedHere = false
 
     private(set) var service: ServerMatchService?
     private var serviceAccountID: String?
     private var cancellables: Set<AnyCancellable> = []
+    private var clientCancellable: AnyCancellable?
     private var foregroundObserver: NSObjectProtocol?
+    /// A tapped push's match, opened once signed in.
+    private var pendingOpenMatchID: String?
+    /// Token last registered for which account (avoid re-sending on every rebuild).
+    private var registeredToken: (token: String, account: String)?
 
-    /// Inert (no account observation, no network) until the server lobby first appears.
+    /// Inert (no account observation, no network) until the server lobby first appears or a
+    /// link / push routes here.
     init() {
         foregroundObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.appDidBecomeActive() }
         }
-    }
-
-    private var clientCancellable: AnyCancellable?
-
-    /// Start following the signed-in account (called when the server lobby appears).
-    func activate() {
-        guard cancellables.isEmpty else { return }
-        AccountStore.shared.$client
-            .sink { [weak self] client in self?.observe(client) }
+        PushRegistrar.shared.$deviceToken
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.registerPushToken() }
             .store(in: &cancellables)
+        PushRegistrar.shared.openMatchID = { [weak self] in self?.controller?.activeMatchID }
     }
+
+    /// Start following the signed-in account (the server lobby appeared).
+    func activate() {
+        guard clientCancellable == nil, accountObservation == nil else { return }
+        accountObservation = AccountStore.shared.$client
+            .sink { [weak self] client in self?.observe(client) }
+    }
+
+    private var accountObservation: AnyCancellable?
 
     private func observe(_ client: AuthClient?) {
         clientCancellable = client?.$state
@@ -56,17 +69,17 @@ final class ServerOnlineCoordinator: ObservableObject {
         if client == nil { rebuild(for: nil) }
     }
 
-    /// One service + controller per signed-in account.
+    /// One service + controller + lobby per signed-in account.
     private func rebuild(for client: AuthClient?) {
         let account = client?.account?.id
         guard account != serviceAccountID || (account != nil && service == nil) else { return }
         controller?.close()
         service?.close()
         serviceAccountID = account
-        matches = []
         guard let client, account != nil else {
             service = nil
             controller = nil
+            lobby = nil
             return
         }
         let service = ServerMatchService(client: client, sockets: URLSessionSocketFactory())
@@ -77,13 +90,57 @@ final class ServerOnlineCoordinator: ObservableObject {
         let controller = OnlineMatchController(service: service,
                                                handicapAgent: { GameSession.makeAgent(config: $0) })
         service.controller = controller
+        let lobby = ServerLobby(service: service, controller: controller)
+        lobby.describeError = ServerOnlineCopy.message(for:)
+        // Ask for notifications once, right after the first own match (#287).
+        lobby.onMatchStarted = { PushRegistrar.shared.askPermissionIfNeeded() }
         self.service = service
         self.controller = controller
+        self.lobby = lobby
         refreshMatches()
+        registerPushToken()
+        if let id = pendingOpenMatchID {
+            pendingOpenMatchID = nil
+            Task { await lobby.open(matchID: id) }
+        }
     }
 
     var isSignedIn: Bool { service != nil }
     var accountID: String? { serviceAccountID }
+
+    // MARK: Routing (links, pushes)
+
+    /// An invite link (`https://<server>/join/<code>`) was opened: show the lobby's join sheet.
+    @discardableResult
+    func handle(url: URL) -> Bool {
+        guard let code = InviteCode.fromLink(url) else { return false }
+        pendingJoinCode = code
+        routedHere = true
+        activate()
+        return true
+    }
+
+    /// A push was tapped: open its match (after sign-in if needed).
+    func openFromPush(matchID: String) {
+        routedHere = true
+        activate()
+        if let lobby {
+            Task { await lobby.open(matchID: matchID) }
+        } else {
+            pendingOpenMatchID = matchID
+        }
+    }
+
+    /// Show the server lobby whatever the developer switch says (DEBUG launch arguments).
+    func showLobby() {
+        routedHere = true
+        activate()
+    }
+
+    /// The online screen closed.
+    func didExit() {
+        routedHere = false
+    }
 
     // MARK: Lobby
 
@@ -100,60 +157,8 @@ final class ServerOnlineCoordinator: ObservableObject {
     }
 
     func refreshMatches() {
-        guard let service else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                self.matches = try await service.listMatches().matches
-            } catch {
-                self.lobbyError = ServerOnlineCopy.message(for: error)
-            }
-        }
-    }
-
-    /// Challenge `opponentID` (an account id) to a new match and open it.
-    func challenge(opponentID: String, targetWins: Int, variantID: String) {
-        guard let service, let controller else { return }
-        let opponent = opponentID.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !opponent.isEmpty else { return }
-        isWorking = true
-        lobbyError = nil
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer { self.isWorking = false }
-            do {
-                let snap = try await service.createMatch(variant: variantID, targetWins: targetWins,
-                                                         opponentID: opponent)
-                controller.open(snap.onlineSnapshot, newMatchTargetWins: targetWins, newMatchVariantID: variantID)
-                service.watch(snap.matchID)
-                self.refreshMatches()
-            } catch {
-                self.lobbyError = ServerOnlineCopy.message(for: error)
-            }
-        }
-    }
-
-    func open(_ summary: ServerAPI.MatchSummary) {
-        guard let service, let controller else { return }
-        lobbyError = nil
-        Task { @MainActor [weak self] in
-            do {
-                let snap = try await service.loadSnapshot(matchID: summary.matchID)
-                controller.open(snap.onlineSnapshot, newMatchTargetWins: summary.targetWins,
-                                newMatchVariantID: summary.variant)
-                service.watch(snap.matchID)
-            } catch {
-                self?.lobbyError = ServerOnlineCopy.message(for: error)
-            }
-        }
-    }
-
-    func decline(_ summary: ServerAPI.MatchSummary) {
-        guard let service else { return }
-        Task { @MainActor [weak self] in
-            try? await service.decline(matchID: summary.matchID)
-            self?.refreshMatches()
-        }
+        guard let lobby else { return }
+        Task { await lobby.refresh() }
     }
 
     func closeMatch() {
@@ -174,11 +179,30 @@ final class ServerOnlineCoordinator: ObservableObject {
         service?.reconnectNow()
         controller?.refresh()
     }
+
+    // MARK: Push token
+
+    private func registerPushToken() {
+        guard let service, let account = serviceAccountID, let token = PushRegistrar.shared.deviceToken else { return }
+        if let r = registeredToken, r.token == token, r.account == account { return }
+        registeredToken = (token, account)
+        let locale = Locale.preferredLanguages.first
+        Task { [weak self] in
+            do {
+                try await service.registerPushToken(token, environment: PushRegistrar.environment, locale: locale)
+            } catch {
+                self?.registeredToken = nil   // try again with the next rebuild / token
+            }
+        }
+    }
 }
 
-/// Player-facing copy for server errors (online play through the server, #286).
+/// Player-facing copy for server errors (online play through the server, #286, #287).
 enum ServerOnlineCopy {
     static func message(for error: Error) -> String {
+        if case .malformedCode? = error as? ServerLobbyError {
+            return String(localized: "That doesn’t look like an invite code. Codes have 6 letters and digits.")
+        }
         if let e = error as? ServerMatchError, let code = e.code { return message(code: code) }
         if case .server(let code?, _)? = error as? AuthError { return message(code: code) }
         if case .notSignedIn? = error as? AuthError { return String(localized: "Please sign in to your online account again.") }
@@ -189,6 +213,8 @@ enum ServerOnlineCopy {
         switch ServerAPI.ErrorCode(rawValue: code) {
         case .notFound: return String(localized: "That player or game wasn’t found.")
         case .matchEnded: return String(localized: "This game is over.")
+        case .inviteUnavailable: return String(localized: "This invite isn’t open any more. Ask your friend for a new one.")
+        case .forbidden: return String(localized: "You can’t do that in this game.")
         case .upgradeRequired: return String(localized: "Please update the app to play online.")
         case .rateLimited: return String(localized: "Too many requests. Please wait a minute.")
         case .unauthorized, .tokenExpired: return String(localized: "Please sign in to your online account again.")

@@ -118,8 +118,13 @@ export interface CreateInput {
   variant: VariantID;
   targetWins: number;
   creator: PlayerRef;
-  /** Direct challenge: seat 1 is this player, `invited`. Absent: seat 1 `matching`. */
+  /** Direct challenge: seat 1 is this player, `invited`. Absent: seat 1 is open. */
   opponent?: PlayerRef;
+  /**
+   * The open seat's status without `opponent` (#287): `matching` (auto-match, the default)
+   * or `invited` (an invite code; whoever accepts it joins).
+   */
+  openSeat?: "matching" | "invited";
 }
 
 export type WriteOp = "endTurn" | "saveTurn" | "endMatch";
@@ -387,7 +392,7 @@ export class MatchRoom extends DurableObject<Env> {
           "INSERT INTO seats (seat, player_id, display_name, color, status) VALUES (1, ?, ?, 'B', ?)",
           input.opponent?.id ?? null,
           input.opponent?.displayName ?? null,
-          input.opponent ? "invited" : "matching",
+          input.opponent ? "invited" : (input.openSeat ?? "matching"),
         );
       });
       return this.snapshot(input.creator.id);
@@ -424,6 +429,62 @@ export class MatchRoom extends DurableObject<Env> {
       return this.snapshot(accountID);
     });
     if (fx.changed) await this.changed("accepted");
+    return result;
+  }
+
+  /**
+   * #287: `player` takes the open seat 1 (auto-match or an accepted invite code) and is
+   * `active` at once. Refused when the match is over, the seat is taken or `player`
+   * created the match. If the creator already ended its turn, the joiner now holds it.
+   */
+  async join(player: PlayerRef): Promise<RoomResult<MatchSnapshot>> {
+    const fx = { changed: false };
+    const result = await this.run("join", () => {
+      const m = this.requireMatch();
+      const seats = this.seats();
+      if (seats[0]?.player_id === player.id) throw new RoomError("forbidden", "You created this match.");
+      const open = seats.find((s) => s.seat === 1);
+      if (open?.player_id === player.id && open.status === "active") return this.snapshot(player.id);
+      if (m.is_ended) throw new RoomError("match_ended", "The match is over.");
+      if (!open || open.player_id !== null || (open.status !== "matching" && open.status !== "invited")) {
+        throw new RoomError("forbidden", "The seat is taken.");
+      }
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec(
+          "UPDATE seats SET player_id = ?, display_name = ?, status = 'active' WHERE seat = 1",
+          player.id,
+          player.displayName,
+        );
+        this.touch();
+      });
+      fx.changed = true;
+      return this.snapshot(player.id);
+    });
+    if (fx.changed) await this.changed("joined");
+    return result;
+  }
+
+  /**
+   * #287: the open seat's invite was declined, cancelled or expired: a match still waiting
+   * for that seat ends (seat 1 `declined`, outcomes stay `none`, event `declined`).
+   * A filled seat or an ended match: nothing to do (`false`).
+   */
+  async closeOpenSeat(): Promise<RoomResult<boolean>> {
+    const fx = { changed: false };
+    const result = await this.run("closeOpenSeat", () => {
+      const m = this.matchRow();
+      if (!m || m.is_ended) return false;
+      const open = this.seats().find((s) => s.seat === 1);
+      if (!open || open.player_id !== null) return false;
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec("UPDATE seats SET status = 'declined' WHERE seat = 1");
+        this.sql.exec("UPDATE seats SET status = 'done' WHERE seat = 0");
+        this.endMatchRow();
+      });
+      fx.changed = true;
+      return true;
+    });
+    if (fx.changed) await this.changed("declined");
     return result;
   }
 
@@ -499,7 +560,10 @@ export class MatchRoom extends DurableObject<Env> {
         });
       } else {
         if (m.is_ended) throw new RoomError("match_ended", "The match is over.");
-        if (m.current_seat === seat.seat) {
+        // #287: while the other seat is still open (auto-match, invite) the creator may
+        // cancel without the final data even when holding the turn: nobody plays on.
+        const otherOpen = this.seats().some((s) => s.seat !== seat.seat && s.player_id === null);
+        if (m.current_seat === seat.seat && !otherOpen) {
           throw new RoomError("bad_request", "You hold the turn: quit in turn.", "inTurn");
         }
         this.ctx.storage.transactionSync(() => this.quitSeat(seat.seat));
@@ -641,14 +705,19 @@ export class MatchRoom extends DurableObject<Env> {
   /**
    * Account deletion hook (#285 → #286): a running match ends as the deleted player's
    * quit (the opponent wins); in every match the player is anonymised (display name
-   * null) and refused from now on, and their sockets are closed.
+   * null) and refused from now on, and their sockets are closed. Returns the opponent's
+   * account id when a running match with an accepted opponent ended (#287: "opponent left"
+   * push), else null.
    */
-  async accountDeleted(accountID: string): Promise<void> {
+  async accountDeleted(accountID: string): Promise<string | null> {
     const m = this.matchRow();
-    if (!m) return;
-    const seat = this.seats().find((s) => s.player_id === accountID);
-    if (!seat || seat.deleted) return;
+    if (!m) return null;
+    const seats = this.seats();
+    const seat = seats.find((s) => s.player_id === accountID);
+    if (!seat || seat.deleted) return null;
     const wasRunning = !m.is_ended;
+    const other = seats.find((s) => s.seat !== seat.seat);
+    const notify = wasRunning && other?.player_id && other.status === "active" && !other.deleted ? other.player_id : null;
     this.ctx.storage.transactionSync(() => {
       if (wasRunning) this.quitSeat(seat.seat);
       this.sql.exec("UPDATE seats SET display_name = NULL, deleted = 1 WHERE seat = ?", seat.seat);
@@ -658,6 +727,7 @@ export class MatchRoom extends DurableObject<Env> {
       this.closeWith(ws, 4403, "forbidden", "Account deleted.");
     }
     await this.changed("quit");
+    return notify;
   }
 
   // ── Write helpers ─────────────────────────────────────────────────────────────

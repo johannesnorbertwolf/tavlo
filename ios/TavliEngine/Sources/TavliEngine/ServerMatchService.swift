@@ -217,6 +217,74 @@ public final class ServerMatchService: OnlineServerDiceService {
         let _: Empty? = try await call("POST", path(matchID, "decline"), body: Optional<Int>.none)
     }
 
+    // MARK: Lobby, invites, auto-match, push (#287)
+
+    /// `DELETE /v1/matches/{id}`: hide an ended match from the lobby.
+    public func removeMatch(matchID: String) async throws {
+        let _: Empty? = try await call("DELETE", path(matchID), body: Optional<Int>.none)
+    }
+
+    /// Stop waiting in a match whose seat is still open (auto-match): quit out of turn.
+    public func cancelWaiting(matchID: String) async throws {
+        let snap: ServerAPI.MatchSnapshot = try await call("POST", path(matchID, "quit"),
+                                                           body: ServerAPI.QuitRequest(inTurn: false))
+        store(snap)
+    }
+
+    /// `POST /v1/invites`: a new match with an open seat + its code and link.
+    public func createInvite(variant: String, targetWins: Int) async throws -> ServerAPI.Invite {
+        let invite: ServerAPI.Invite = try await call(
+            "POST", "/v1/invites", body: ServerAPI.CreateInviteRequest(variant: variant, targetWins: targetWins))
+        store(invite.match)
+        return invite
+    }
+
+    /// `GET /v1/invites/{code}`.
+    public func previewInvite(code: String) async throws -> ServerAPI.InvitePreview {
+        try await call("GET", invitePath(code), body: Optional<Int>.none)
+    }
+
+    /// `POST /v1/invites/{code}/accept`: join the invite's match.
+    public func acceptInvite(code: String) async throws -> ServerAPI.MatchSnapshot {
+        let snap: ServerAPI.MatchSnapshot = try await call("POST", invitePath(code, "accept"), body: Optional<Int>.none)
+        store(snap)
+        return snap
+    }
+
+    /// `POST /v1/invites/{code}/decline`.
+    public func declineInvite(code: String) async throws {
+        let _: Empty? = try await call("POST", invitePath(code, "decline"), body: Optional<Int>.none)
+    }
+
+    /// `DELETE /v1/invites/{code}`: the creator takes its invite back (the match ends).
+    public func revokeInvite(code: String) async throws {
+        let _: Empty? = try await call("DELETE", invitePath(code), body: Optional<Int>.none)
+    }
+
+    /// `POST /v1/automatch`: join someone's waiting match or wait in a new one.
+    public func autoMatch(variant: String, targetWins: Int) async throws -> ServerAPI.MatchSnapshot {
+        let snap: ServerAPI.MatchSnapshot = try await call(
+            "POST", "/v1/automatch", body: ServerAPI.AutoMatchRequest(variant: variant, targetWins: targetWins))
+        store(snap)
+        return snap
+    }
+
+    /// `PUT /v1/push-tokens`.
+    public func registerPushToken(_ token: String, environment: String, locale: String?) async throws {
+        let _: Empty? = try await call("PUT", "/v1/push-tokens",
+                                       body: ServerAPI.PushTokenRequest(token: token, environment: environment, locale: locale))
+    }
+
+    /// `DELETE /v1/push-tokens/{token}`.
+    public func unregisterPushToken(_ token: String) async throws {
+        let _: Empty? = try await call("DELETE", "/v1/push-tokens/\(token)", body: Optional<Int>.none)
+    }
+
+    private func invitePath(_ code: String, _ action: String? = nil) -> String {
+        let c = code.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? code
+        return "/v1/invites/\(c)" + (action.map { "/\($0)" } ?? "")
+    }
+
     // MARK: Socket
 
     /// Keep a socket open for `matchID` (the match on screen), or none (`nil`).
